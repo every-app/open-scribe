@@ -32,7 +32,7 @@
 - **Should the platform support native sign-in at all?** (See private-every-app #855 and its TODO section for the full list.) Recommended: yes. It reuses the existing OAuth server with a per-app audience, so there's no new credential or store.
 - **Should apps be able to read workspace groups?** Without it, OpenZen's "team" is the whole workspace. Recommended: later, as a platform item; not needed for v1.
 - **Echo on laptop speakers:** without headphones, the mic also hears the other side, so `me` transcribes `them`. Recommended: try AVAudioEngine voice processing in a hardware test and turn it on if capture stays clean.
-- **Mac signing identity:** reuse "Scrawl Dev" locally, a separate "OpenZen Dev" cert, or a Developer ID? Recommended: keep Scrawl Dev for now; get a Developer ID before anyone else installs it.
+- **A Developer ID (Team ID) is required to release the Mac app.** With a self-signed cert, the Keychain partition is the binary's cdhash, so every update signs the user out (found in the e2e run; TCC grants survive, Keychain items don't). Recommended: yes, get a Developer ID before any release; dev rebuilds keep re-signing in with `openzen-smoke signin`.
 - **Should Record on a reminder also open the conference link?** Recommended: no for v1; the menu has "Join Call".
 - **A mic picker in the Mac app?** Recommended: no for v1. Following the system default is what people expect from a call app.
 - **Let `ai.routes` be optional in the platform**, with the same need fields as providers? Then an app like OpenZen opens without AI set up and falls back gracefully. Recommended: yes, as a small platform change after launch, kept out of the sign-in branch.
