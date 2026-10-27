@@ -21,3 +21,4 @@
 - **Set the Gateway's OpenAI settings for live transcription?** The Gateway needs `OPENAI_API_KEY` and `AI_PROXY_EXTRA_ROUTES=/v1/realtime/client_secrets`. Recommended: yes. Without them, the Mac app falls back to 30 s chunks.
 - **Which notes model?** The template picked `gpt-6-luna` in `ai.models`. Recommended: keep it; it's one line to change.
 - **Should the platform support native sign-in at all?** (See private-every-app #855 and its TODO section for the full list.) Recommended: yes. It reuses the existing OAuth server with a per-app audience, so there's no new credential or store.
+- **Should apps be able to read workspace groups?** Without it, OpenZen's "team" is the whole workspace. Recommended: later, as a platform item; not needed for v1.
