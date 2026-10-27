@@ -36,3 +36,4 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 01:45 Design §13 (#857) answers OpenZen's eight asks: binding is by resource, not scope; the user types the app URL; `bearerRoutes` is an object; `everyapp dev` mirror mode is deferred. Sent the deltas to mac, web (SPEC) and lanes a, b and d. Consequence: the end-to-end run needs a Gateway deployed from the feature branch on the loop-1 test account, not local.
 - 01:50 SPEC aligned with design §13 (1e74eb8). #857 (§13) isn't on the feature branch yet; check it merges. Web idle.
 - 01:55 Mac b35ecc7: Access login detection, chunked fallback (ChunkCutter); 71 tests. Still to apply from the queue: no scope, register once, user types the app URL.
+- 02:10 Tick: the Mac slept from about 01:55 to 02:09, and lane b's turn died. Nudged a and b to resume. c renders the consent page in local dev; d's #858 is open and held for a and b; the design thread is done. a and b have no PRs yet.
