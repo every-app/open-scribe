@@ -29,3 +29,4 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 02:15 Design merged into feature/native-sign-in (#854). Umbrella draft PR #855 → main (never ready). Design: docs/design/native-sign-in.md on the branch.
 - 02:20 Sent the client contract (§12) to the mac thread, and the `bearerRoutes` TODO to the web thread.
 - 02:25 Launched sign-in lanes a (Fable), b (Fable), c (Opus) and d (Opus) in parallel; a merges first. Sent each the sibling roster.
+- 02:35 Web: audio-chunk format agreed with mac; (meeting, seq) unique (7ba6a5a); 7 tests pass. `everyapp dev` left running at http://open-zen.localhost:8787. Web lane idle.
