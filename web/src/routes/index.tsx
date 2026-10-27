@@ -42,11 +42,14 @@ function Home() {
       <section className={card}>
         <h2 className="mb-2 font-medium">Mac app</h2>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          In the OpenZen menu-bar app, sign in with this address:{" "}
+          In OpenZen for Mac, enter this app's URL{" "}
           <code className="rounded bg-neutral-100 px-1 dark:bg-neutral-900">
             {home.appUrl}
           </code>{" "}
-          and a Full access personal access token from{" "}
+          and choose Sign in with Every App.
+        </p>
+        <p className="mt-1 text-xs text-neutral-500">
+          Fallback: paste a Full access personal access token from{" "}
           <a href={home.tokensUrl} className="underline">
             Manage workspace → Tokens
           </a>
