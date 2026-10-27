@@ -43,3 +43,4 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 02:25 Mac 61d401f/6fcda5d: device-change restarts, launch at login; 73 tests. Sign-in corrections still unapplied (scope, per-sign-in registration, no RFC 9728), so I steered it.
 - 02:35 Mac 3f6b0cf: sign-in now matches design §12/§13 (RFC 9728 discovery, no scope, register once, invalid_client re-register); 83 tests. 38ed78a: no retry on a 4xx chunk. Mac waits for the end-to-end run.
 - 02:40 Mac 0450c4b: the client checks the echoed token `resource`; 86 tests. All ten contract items are built. Mac idle until the end-to-end run.
+- 02:45 Lane c: with lane a's code overlaid, the native flow works end to end in local dev (consent → token → listed → sign out → revoked); 34 tests. Reported a lane a bug: on an http Gateway, a non-loopback app host makes the OAuth build throw (all OAuth off). Waiting on lane a.
