@@ -1,5 +1,22 @@
 # TODO
 
+## Status for Ben (2026-10-27)
+
+**Works**
+- OpenZen web (`web/`, app id `open-zen`): D1, the full `/api/v1`, notes polish, private/team visibility, public links with revoke, a web UI. 7 tests. Runs with `everyapp dev`.
+- OpenZen Mac (`mac/`, SwiftPM): menu bar, reminders, mic + system-audio capture, two-stream Realtime transcription, a chunked fallback, launch at login. 88 tests. `mac/scripts/build-app.sh`.
+- Sign in with Every App, end to end on a real Gateway (loop-1, now torn down): sign-in, refresh, revoke, refused on other apps and on /mcp, and bearer calls working behind Access. Branch `feature/native-sign-in`, draft PR every-app/private-every-app#855 (all green, never merged). Design: docs/design/native-sign-in.md; review: docs/design/native-sign-in-review.md (0 high/medium).
+
+**Not verified**
+- Real audio capture, permission prompts, notifications and live OpenAI transcription: no hardware interaction or OpenAI key here.
+- Google Calendar: no Google client configured on any Gateway.
+- The browser Access login (one-time PIN) inside sign-in.
+
+**Ben decides** (details below and in #855's TODO.md)
+1. Should the platform support native sign-in at all? Recommended: yes.
+2. A Developer ID for the Mac app (needed so updates keep the sign-in).
+3. Set OPENAI_API_KEY + AI_PROXY_EXTRA_ROUTES on the Gateway; set up Google (setup/google.md).
+
 ## Decided for Ben
 
 - **Lanes run in parallel in one local checkout.** web/ and mac/ have separate owners. No GitHub repo yet; everything is local commits on main.
