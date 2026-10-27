@@ -1,5 +1,11 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  index,
+  integer,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 const now = () => sql`(current_timestamp)`;
 
@@ -44,7 +50,10 @@ export const transcriptSegments = sqliteTable(
     text: text("text").notNull(),
     createdAt: text("created_at").notNull().default(now()),
   },
-  (table) => [index("segments_meeting_seq").on(table.meetingId, table.seq)],
+  // One row per (meeting, seq): a retried post is ignored, never doubled.
+  (table) => [
+    uniqueIndex("segments_meeting_seq").on(table.meetingId, table.seq),
+  ],
 );
 
 /** The polished notes, one per meeting. */

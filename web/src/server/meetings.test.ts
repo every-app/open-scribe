@@ -70,6 +70,8 @@ describe("meetings", () => {
     };
     expect(await m.appendSegments(bob, meeting.id, segments)).toBe(false);
     expect(await m.appendSegments(alice, meeting.id, segments)).toBe(true);
+    // A retry resends a seq: ignored, not doubled.
+    expect(await m.appendSegments(alice, meeting.id, segments)).toBe(true);
     expect(await m.transcriptText(meeting.id)).toBe("me: Hi\nthem: Hello");
 
     expect(await m.finishMeeting(alice, meeting.id)).toMatchObject({

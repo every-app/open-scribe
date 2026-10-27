@@ -15,7 +15,7 @@ interface CalendarEvent {
   title: string;
   start: string;
   end: string;
-  attendees: { email: string | null; self: boolean }[];
+  attendees: { email: string | null; name: string | null; self: boolean }[];
   conferenceUrl: string | null;
   location: string | null;
 }
@@ -65,7 +65,7 @@ interface GoogleEvent {
   status?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
-  attendees?: { email?: string; self?: boolean }[];
+  attendees?: { email?: string; displayName?: string; self?: boolean }[];
   hangoutLink?: string;
   location?: string;
   conferenceData?: {
@@ -113,6 +113,7 @@ export async function upcomingEvents(
       end: event.end?.dateTime ?? event.start!.dateTime!,
       attendees: (event.attendees ?? []).map((a) => ({
         email: a.email ?? null,
+        name: a.displayName ?? null,
         self: a.self === true,
       })),
       conferenceUrl:

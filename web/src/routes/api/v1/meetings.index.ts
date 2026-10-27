@@ -16,7 +16,8 @@ export const Route = createFileRoute("/api/v1/meetings/")({
       POST: api(async ({ request }) => {
         const user = await requireApiUser(request);
         const input = await readJson(request, createMeetingInput);
-        return json({ meeting: await createMeeting(user, input) }, 201);
+        const meeting = await createMeeting(user, input);
+        return json({ id: meeting.id, meeting }, 201);
       }),
     },
   },
