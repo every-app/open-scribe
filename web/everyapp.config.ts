@@ -15,6 +15,11 @@ export default defineEveryApp({
   // A shared meeting page: anyone with the unguessable link reads it. The
   // route checks the token itself (src/server/meetings.ts, getSharedMeeting).
   public: [{ path: "/s/:token" }],
+  // TODO(native-sign-in): once the SDK from private-every-app's
+  // feature/native-sign-in branch is published, add
+  //   bearerRoutes: ["/api/v1/**"],
+  // the paths Cloudflare Access lets through for bearer-only calls from the
+  // Mac app (the perimeter still demands the token on each of them).
   providers: [
     {
       id: "openai",
