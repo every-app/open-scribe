@@ -1,0 +1,172 @@
+import Foundation
+
+public enum APIError: Error, LocalizedError, Equatable {
+  case signedOut
+  /// `code` is the server's machine-readable `error` (e.g. `ai_route_not_allowed`).
+  case server(status: Int, code: String? = nil, message: String?)
+  case decoding(String)
+
+  public var code: String? {
+    if case .server(_, let code, _) = self { return code }
+    return nil
+  }
+
+  public var errorDescription: String? {
+    switch self {
+    case .signedOut: "You're signed out. Sign in again."
+    case .server(let status, _, let message): message ?? "OpenZen answered HTTP \(status)."
+    case .decoding(let what): "OpenZen sent something unexpected (\(what))."
+    }
+  }
+}
+
+/// OpenZen's /api/v1 over HTTPS with a bearer token (docs/SPEC.md "API").
+public struct APIClient: Sendable {
+  public let auth: AuthProvider
+  let transport: HTTPTransport
+
+  public init(auth: AuthProvider, transport: HTTPTransport = URLSessionTransport()) {
+    self.auth = auth
+    self.transport = transport
+  }
+
+  public var appURL: URL { auth.appURL }
+
+  public func me() async throws -> Me {
+    try await get("api/v1/me")
+  }
+
+  public func upcoming(hours: Int = 24) async throws -> UpcomingResponse {
+    do {
+      return try await get("api/v1/calendar/upcoming", query: [URLQueryItem(name: "hours", value: String(hours))])
+    } catch APIError.server(let status, _, _) where status == 409 || status == 412 || status == 428 {
+      // "Google isn't connected" as an error status: ask /me for the connect link.
+      let me = try await me()
+      return UpcomingResponse(events: [], connected: false, connectURL: me.connectURL)
+    }
+  }
+
+  public func createMeeting(title: String, startsAt: Date, calendarEventId: String?) async throws -> CreatedMeeting {
+    var body: [String: Any] = ["title": title, "startsAt": Self.iso(startsAt)]
+    if let calendarEventId { body["calendarEventId"] = calendarEventId }
+    return try await send("POST", "api/v1/meetings", json: body)
+  }
+
+  /// `source` picks the noise reduction: "mic" (near field) or "system" (none).
+  public func transcriptionToken(meetingID: String, source: String, language: String?) async throws -> TranscriptionToken {
+    var body: [String: Any] = ["source": source]
+    if let language { body["language"] = language }
+    return try await send("POST", "api/v1/meetings/\(Self.escape(meetingID))/transcription-token", json: body)
+  }
+
+  /// The fallback when the Realtime route isn't allowed: one short WAV chunk, which the Worker
+  /// passes to OpenAI and drops. Returns the stored segment (nil if the chunk held no words).
+  public func appendAudioChunk(
+    meetingID: String, wav: Data, seq: Int, startedMs: Int, endedMs: Int, speaker: Speaker, language: String?
+  ) async throws -> Segment? {
+    let boundary = "openzen-\(Random.token(bytes: 12))"
+    var fields = [("seq", String(seq)), ("startedMs", String(startedMs)), ("endedMs", String(endedMs)), ("speaker", speaker.rawValue)]
+    if let language { fields.append(("language", language)) }
+    let body = Multipart.encode(boundary: boundary, fields: fields, file: ("file", "chunk-\(seq).wav", "audio/wav", wav))
+    let response: ChunkResponse = try await request(
+      "POST", "api/v1/meetings/\(Self.escape(meetingID))/audio-chunk", body: body,
+      contentType: "multipart/form-data; boundary=\(boundary)")
+    return response.segment
+  }
+
+  struct ChunkResponse: Decodable {
+    var segment: Segment?
+  }
+
+  public func appendSegments(meetingID: String, _ segments: [Segment]) async throws {
+    let body = try JSONEncoder().encode(segments)
+    let _: Empty = try await request("POST", "api/v1/meetings/\(Self.escape(meetingID))/segments", body: body)
+  }
+
+  public func finish(meetingID: String) async throws {
+    let _: Empty = try await send("POST", "api/v1/meetings/\(Self.escape(meetingID))/finish", json: [String: Any]())
+  }
+
+  public func meetings() async throws -> [MeetingSummary] {
+    let list: MeetingList = try await get("api/v1/meetings")
+    return list.meetings
+  }
+
+  // MARK: Plumbing
+
+  struct Empty: Decodable {}
+
+  private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
+    try await request("GET", path, query: query, body: nil)
+  }
+
+  private func send<T: Decodable>(_ method: String, _ path: String, json: [String: Any]) async throws -> T {
+    try await request(method, path, body: try JSONSerialization.data(withJSONObject: json))
+  }
+
+  func makeRequest(
+    _ method: String, _ path: String, query: [URLQueryItem], body: Data?, token: String, contentType: String = "application/json"
+  ) -> URLRequest {
+    var c = URLComponents(url: appURL.appendingPathComponent(path), resolvingAgainstBaseURL: false)!
+    if !query.isEmpty { c.queryItems = query }
+    var request = URLRequest(url: c.url!)
+    request.httpMethod = method
+    request.timeoutInterval = 30
+    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    if let body {
+      request.httpBody = body
+      request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+    }
+    return request
+  }
+
+  private func request<T: Decodable>(
+    _ method: String, _ path: String, query: [URLQueryItem] = [], body: Data?, contentType: String = "application/json"
+  ) async throws -> T {
+    var token: String
+    do {
+      token = try await auth.accessToken()
+    } catch AuthError.signedOut {
+      throw APIError.signedOut
+    }
+    var (data, response) = try await transport.send(makeRequest(method, path, query: query, body: body, token: token, contentType: contentType))
+    if response.statusCode == 401 {
+      do {
+        token = try await auth.tokenRejected(token)
+      } catch {
+        throw APIError.signedOut
+      }
+      (data, response) = try await transport.send(makeRequest(method, path, query: query, body: body, token: token, contentType: contentType))
+      if response.statusCode == 401 { throw APIError.signedOut }
+    }
+    guard (200..<300).contains(response.statusCode) else {
+      let (code, message) = Self.errorParts(data)
+      throw APIError.server(status: response.statusCode, code: code, message: message)
+    }
+    if T.self == Empty.self { return Empty() as! T }
+    // A gateway that bounced us to a login page answers 200 with HTML.
+    if let type = response.value(forHTTPHeaderField: "Content-Type"), type.contains("text/html") {
+      throw APIError.server(status: response.statusCode, message: "Got a web page instead of the API. Is the app URL right, and is the token allowed through?")
+    }
+    do {
+      return try JSONDecoder().decode(T.self, from: data)
+    } catch {
+      throw APIError.decoding("\(T.self)")
+    }
+  }
+
+  /// `{ error: code, message? }` (SPEC), or `{ error: { code, message } }`, or `{ message }`.
+  static func errorParts(_ data: Data) -> (code: String?, message: String?) {
+    guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return (nil, nil) }
+    if let error = json["error"] as? String { return (error, json["message"] as? String ?? error) }
+    if let error = json["error"] as? [String: Any] { return (error["code"] as? String, error["message"] as? String) }
+    return (nil, json["message"] as? String)
+  }
+
+  static func iso(_ date: Date) -> String { date.formatted(.iso8601) }
+
+  static func escape(_ s: String) -> String {
+    s.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(CharacterSet(charactersIn: "/"))) ?? s
+  }
+}

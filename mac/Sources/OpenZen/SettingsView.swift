@@ -1,0 +1,169 @@
+import OpenZenCore
+import SwiftUI
+
+/// Sign-in (or the account, once signed in) and the three permissions.
+struct SettingsView: View {
+  @ObservedObject var model: AppModel
+
+  var body: some View {
+    Form {
+      if model.isSignedIn {
+        AccountSection(model: model)
+      } else {
+        SignInSection(model: model)
+      }
+      PermissionsSection()
+    }
+    .formStyle(.grouped)
+    .frame(width: 460)
+    .fixedSize(horizontal: false, vertical: true)
+  }
+}
+
+private struct AccountSection: View {
+  @ObservedObject var model: AppModel
+
+  var body: some View {
+    Section("Account") {
+      LabeledContent("Signed in as", value: model.me?.email ?? model.me?.name ?? "…")
+      LabeledContent("App", value: model.appURL?.host ?? "")
+      LabeledContent("Method") {
+        if case .oauth = model.credentials { Text("Every App") } else { Text("Access token") }
+      }
+      LabeledContent("Google Calendar") {
+        if model.calendarConnected {
+          Text("Connected")
+        } else {
+          Button("Connect…") { model.connectCalendar() }
+        }
+      }
+      HStack {
+        Spacer()
+        Button("Sign Out", role: .destructive) { model.signOut() }
+      }
+    }
+  }
+}
+
+private struct SignInSection: View {
+  enum Method: String, CaseIterable, Identifiable {
+    case everyApp = "Every App"
+    case token = "Access Token"
+    var id: String { rawValue }
+  }
+
+  @ObservedObject var model: AppModel
+  @AppStorage("signIn.method") private var method: Method = .token
+  @AppStorage("signIn.gateway") private var gateway = ""
+  @AppStorage("signIn.appURL") private var appURL = ""
+  @State private var token = ""
+
+  var body: some View {
+    Section {
+      Picker("Sign in with", selection: $method) {
+        ForEach(Method.allCases) { Text($0.rawValue).tag($0) }
+      }
+      .pickerStyle(.segmented)
+
+      switch method {
+      case .everyApp:
+        TextField("Gateway", text: $gateway, prompt: Text("https://example.com"))
+        TextField("App (optional)", text: $appURL, prompt: Text(appPlaceholder))
+        Text("Your browser opens to sign in, then comes back here.")
+          .font(.caption).foregroundStyle(.secondary)
+      case .token:
+        TextField("App URL", text: $appURL, prompt: Text("https://open-zen.example.com"))
+        SecureField("Token", text: $token, prompt: Text("epat_…"))
+        Text("Make one in Manage workspace → Tokens → New token: Full access, bound to OpenZen.")
+          .font(.caption).foregroundStyle(.secondary)
+      }
+
+      if let error = model.signInError {
+        Text(error).font(.callout).foregroundStyle(.red)
+      }
+
+      HStack {
+        Spacer()
+        if model.signingIn {
+          ProgressView().controlSize(.small)
+          if method == .everyApp { Button("Cancel") { model.cancelSignIn() } }
+        }
+        Button("Sign In") { submit() }
+          .keyboardShortcut(.defaultAction)
+          .disabled(model.signingIn)
+      }
+    } header: {
+      Text("Sign in to OpenZen")
+    }
+  }
+
+  private var appPlaceholder: String {
+    guard let url = URL.typed(gateway) else { return "open-zen.<your gateway>" }
+    return AppModel.defaultAppURL(gateway: url).absoluteString
+  }
+
+  private func submit() {
+    switch method {
+    case .everyApp: model.signInWithEveryApp(gatewayText: gateway, appURLText: appURL)
+    case .token: model.signIn(appURLText: appURL, token: token)
+    }
+  }
+}
+
+private struct PermissionsSection: View {
+  @State private var microphone = Permissions.microphone
+  @State private var notifications = Permissions.Status.unknown
+
+  var body: some View {
+    Section("Permissions") {
+      row("Microphone", "Your side of the call.", microphone) {
+        if microphone == .notAsked {
+          Task {
+            _ = await Permissions.ensureMicrophone()
+            microphone = Permissions.microphone
+          }
+        } else {
+          Permissions.openSettings("Privacy_Microphone")
+        }
+      }
+      row("System Audio Recording", "The other side of the call. macOS asks the first time.", .unknown) {
+        Permissions.primeSystemAudio()
+      }
+      row("Notifications", "A reminder two minutes before each meeting.", notifications) {
+        if notifications == .notAsked {
+          Task {
+            await Permissions.requestNotifications()
+            notifications = await Permissions.notifications()
+          }
+        } else {
+          NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!)
+        }
+      }
+      Text("Audio goes straight to OpenAI for transcription and is never saved.")
+        .font(.caption).foregroundStyle(.secondary)
+    }
+    .task { await reload() }
+    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+      Task { await reload() }
+    }
+  }
+
+  private func reload() async {
+    microphone = Permissions.microphone
+    notifications = await Permissions.notifications()
+  }
+
+  private func row(_ title: String, _ detail: String, _ status: Permissions.Status, action: @escaping () -> Void) -> some View {
+    LabeledContent {
+      HStack {
+        Text(status.label).foregroundStyle(status == .denied ? .red : .secondary)
+        if status != .granted {
+          Button(status == .notAsked || status == .unknown ? "Allow…" : "Open Settings…", action: action)
+        }
+      }
+    } label: {
+      Text(title)
+      Text(detail)
+    }
+  }
+}
