@@ -20,3 +20,4 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 01:14 Scheduled a 25-minute check-in.
 - 01:20 Launch orchestrator forwarded the spec thread's Step 1 answers; filed Q1–Q9 as decided (app id `open-zen`, Access on). Sent the decisions to the spec, mac and design threads.
 - 01:40 Web lane done (6fe27ea): created with the published CLI 0.3.0-rc.8; D1, the full /api/v1, web UI and share links verified with `everyapp dev` in stub mode; 5 tests pass. Asked it for the audio-chunk fallback route.
+- 01:50 SPEC sign-in section rewritten for Sign in with Every App (3d53f6d), with eight platform asks; forwarded them to the design thread.
