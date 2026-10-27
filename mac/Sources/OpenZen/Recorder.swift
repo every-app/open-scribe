@@ -52,8 +52,10 @@ final class Recorder: ObservableObject {
     state = .starting(title: title)
     self.api = api
     batcher = SegmentBatcher()
+    var createdID: String?
     do {
       let meeting = try await api.createMeeting(title: title, startsAt: startsAt, calendarEventId: calendarEventID)
+      createdID = meeting.id
       try await startCapture(meetingID: meeting.id, api: api)
       state = .recording(meetingID: meeting.id, title: title, since: Date())
       flushTask = Task { [weak self] in
@@ -64,6 +66,8 @@ final class Recorder: ObservableObject {
       }
     } catch {
       await teardown()
+      // Don't leave the meeting "recording" on the server; best effort.
+      if let createdID { try? await api.finish(meetingID: createdID) }
       state = .idle
       lastError = "Couldn't start recording: \(error.localizedDescription)"
     }

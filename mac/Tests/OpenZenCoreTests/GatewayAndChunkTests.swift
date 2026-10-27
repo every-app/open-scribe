@@ -50,6 +50,29 @@ import Testing
   }
 }
 
+@Suite struct ChunkResponseTests {
+  @Test func unreadableSegmentIsNotAnError() async throws {
+    let stub = StubTransport { _ in (201, #"{"segment":{"seq":1,"startedMs":0,"endedMs":5,"speaker":null,"text":"hi"}}"#, [:]) }
+    let api = APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://open-zen.example.com")!, token: "t"), transport: stub)
+    let segment = try await api.appendAudioChunk(meetingID: "m", wav: Data(), seq: 1, startedMs: 0, endedMs: 5, speaker: .me, language: nil)
+    #expect(segment == nil)
+  }
+
+  @Test func providerNotConfiguredIsNotAFallback() async {
+    let stub = StubTransport { _ in (503, #"{"error":"ai_provider_not_configured","message":"Set up OpenAI"}"#, [:]) }
+    let api = APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://open-zen.example.com")!, token: "t"), transport: stub)
+    do {
+      _ = try await api.transcriptionToken(meetingID: "m", source: "mic", language: nil)
+      Issue.record("expected 503")
+    } catch let error as APIError {
+      #expect(!error.isRealtimeUnavailable)
+      #expect(error.localizedDescription == "Set up OpenAI")
+    } catch {
+      Issue.record("unexpected \(error)")
+    }
+  }
+}
+
 @Suite struct ChunkCutterTests {
   func tone(ms: Int) -> Data { PCM16.encode((0..<(24 * ms)).map { Float(0.25 * sin(Double($0) * 0.1)) }) }
   func silence(ms: Int) -> Data { Data(count: 48 * ms) }

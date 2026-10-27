@@ -92,6 +92,13 @@ public struct APIClient: Sendable {
 
   struct ChunkResponse: Decodable {
     var segment: Segment?
+
+    enum Keys: String, CodingKey { case segment }
+
+    // The chunk is stored either way; a segment we can't read (say, speaker null) isn't a failure.
+    init(from decoder: Decoder) throws {
+      segment = try? decoder.container(keyedBy: Keys.self).decodeIfPresent(Segment.self, forKey: .segment)
+    }
   }
 
   public func appendSegments(meetingID: String, _ segments: [Segment]) async throws {
