@@ -5,10 +5,14 @@ import Testing
 
 final class MemoryCache: ClientIDCache, @unchecked Sendable {
   private let lock = NSLock()
-  private var ids: [String: String] = [:]
-  func clientID(issuer: URL) -> String? { lock.withLock { ids[OAuthClient.normalized(issuer)] } }
-  func save(_ clientID: String, issuer: URL) { lock.withLock { ids[OAuthClient.normalized(issuer)] = clientID } }
+  private var ids: [String: (String, Date)] = [:]
+  func entry(issuer: URL) -> (clientID: String, lastUsed: Date)? {
+    lock.withLock { ids[OAuthClient.normalized(issuer)].map { ($0.0, $0.1) } }
+  }
+  func save(_ clientID: String, issuer: URL, lastUsed: Date) { lock.withLock { ids[OAuthClient.normalized(issuer)] = (clientID, lastUsed) } }
   func forget(issuer: URL) { _ = lock.withLock { ids.removeValue(forKey: OAuthClient.normalized(issuer)) } }
+  func clientID(issuer: URL) -> String? { entry(issuer: issuer)?.clientID }
+  func save(_ clientID: String, issuer: URL) { save(clientID, issuer: issuer, lastUsed: Date()) }
 }
 
 /// A fake app plus Gateway: protected resource metadata, AS metadata, registration, token.
@@ -106,6 +110,28 @@ final class FakeGateway: @unchecked Sendable {
       return "code"
     }
     #expect(grant.clientID == "client-1")
+  }
+
+  @Test func aClientIdleTooLongIsReplacedBeforeTheBrowserOpens() async throws {
+    let gateway = FakeGateway(), cache = MemoryCache()
+    // Registered and used 55 days ago: the Gateway may have dropped it already.
+    cache.save("old", issuer: URL(string: "https://gw.example.com")!, lastUsed: Date().addingTimeInterval(-55 * 24 * 3600))
+    let grant = try await flow(gateway, cache).run(appURL: app, redirectURI: redirect) { url, _ in
+      #expect(!url.query!.contains("client_id=old"))
+      return "code"
+    }
+    #expect(grant.clientID == "client-1")
+    #expect(gateway.registrations == 1)
+  }
+
+  @Test func aSignInMarksTheClientUsed() async throws {
+    let gateway = FakeGateway(), cache = MemoryCache()
+    let issuer = URL(string: "https://gw.example.com")!
+    _ = try await flow(gateway, cache).run(appURL: app, redirectURI: redirect) { _, _ in "code" }
+    cache.save("client-1", issuer: issuer, lastUsed: Date().addingTimeInterval(-40 * 24 * 3600))
+    _ = try await flow(gateway, cache).run(appURL: app, redirectURI: redirect) { _, _ in "code" }
+    #expect(gateway.registrations == 1)
+    #expect(abs(cache.entry(issuer: issuer)!.lastUsed.timeIntervalSinceNow) < 5)
   }
 
   @Test func aFreshClientRefusedIsAnError() async {

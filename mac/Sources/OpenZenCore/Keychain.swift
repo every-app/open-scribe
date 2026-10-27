@@ -50,25 +50,32 @@ public struct CredentialStore: Sendable {
 }
 
 /// The client id this install registered with each Gateway, so it registers once (the design's
-/// §13). Keyed by the Gateway's issuer.
+/// §13), with when it was last used. Keyed by the Gateway's issuer.
 public struct ClientRegistrationStore: Sendable {
   let service: String
 
   public init(service: String = CredentialStore.service) { self.service = service }
 
-  public func clientID(issuer: URL) -> String? {
+  struct Entry: Codable {
+    var clientID: String
+    var lastUsed: Date
+  }
+
+  public func entry(issuer: URL) -> (clientID: String, lastUsed: Date)? {
     var query = baseQuery(issuer)
     query[kSecReturnData as String] = true
     query[kSecMatchLimit as String] = kSecMatchLimitOne
     var result: CFTypeRef?
     guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return nil }
-    return String(data: data, encoding: .utf8)
+    guard let entry = try? JSONDecoder().decode(Entry.self, from: data) else { return nil }
+    return (entry.clientID, entry.lastUsed)
   }
 
-  public func save(_ clientID: String, issuer: URL) {
+  public func save(_ clientID: String, issuer: URL, lastUsed: Date) {
+    guard let data = try? JSONEncoder().encode(Entry(clientID: clientID, lastUsed: lastUsed)) else { return }
     forget(issuer: issuer)
     var add = baseQuery(issuer)
-    add[kSecValueData as String] = Data(clientID.utf8)
+    add[kSecValueData as String] = data
     add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
     add[kSecAttrLabel as String] = "OpenZen client registration"
     SecItemAdd(add as CFDictionary, nil)

@@ -1,10 +1,19 @@
 import Foundation
 
-/// Where a cached client id lives (the Keychain in the app, memory in tests).
+/// Where a cached client id lives (the Keychain in the app, memory in tests), with when it was
+/// last used for a sign-in or refresh.
 public protocol ClientIDCache: Sendable {
-  func clientID(issuer: URL) -> String?
-  func save(_ clientID: String, issuer: URL)
+  func entry(issuer: URL) -> (clientID: String, lastUsed: Date)?
+  func save(_ clientID: String, issuer: URL, lastUsed: Date)
   func forget(issuer: URL)
+}
+
+extension ClientIDCache {
+  /// Marks the client used now (a sign-in or refresh succeeded with it).
+  public func touch(issuer: URL, now: Date = Date()) {
+    guard let entry = entry(issuer: issuer) else { return }
+    save(entry.clientID, issuer: issuer, lastUsed: now)
+  }
 }
 
 extension ClientRegistrationStore: ClientIDCache {}
@@ -27,6 +36,11 @@ public struct CallbackExpectation: Sendable, Equatable {
 /// A cached client the Gateway no longer knows (`invalid_client`) is forgotten and the sign-in
 /// runs once more with a fresh registration.
 public struct SignInFlow: Sendable {
+  /// The Gateway drops a client unused for 60 days, and its authorize page then shows an error
+  /// instead of redirecting (RFC 6749 §4.1.2.1), so `invalid_client` never reaches us. Register
+  /// again before that.
+  public static let clientMaxIdle: TimeInterval = 50 * 24 * 3600
+
   let client: OAuthClient
   let cache: ClientIDCache
 
@@ -60,9 +74,11 @@ public struct SignInFlow: Sendable {
           metadata: metadata, clientID: clientID, redirectURI: redirectURI, pkce: pkce, state: expectation.state,
           resource: resource)
         let code = try await authorize(url, expectation)
-        return try await client.exchange(
+        let grant = try await client.exchange(
           code: code, metadata: metadata, clientID: clientID, redirectURI: redirectURI, pkce: pkce, resource: resource,
           appURL: origin)
+        cache.touch(issuer: metadata.issuer)
+        return grant
       } catch OAuthError.invalidClient where !fresh && !retried {
         cache.forget(issuer: metadata.issuer)
         retried = true
@@ -70,13 +86,15 @@ public struct SignInFlow: Sendable {
     }
   }
 
-  private func clientID(metadata: AuthorizationServerMetadata) async throws -> (String, fresh: Bool) {
-    if let cached = cache.clientID(issuer: metadata.issuer) { return (cached, false) }
+  private func clientID(metadata: AuthorizationServerMetadata, now: Date = Date()) async throws -> (String, fresh: Bool) {
+    if let cached = cache.entry(issuer: metadata.issuer), now.timeIntervalSince(cached.lastUsed) < Self.clientMaxIdle {
+      return (cached.clientID, false)
+    }
     guard let endpoint = metadata.registrationEndpoint else {
       throw OAuthError.registrationFailed("It doesn't offer dynamic client registration.")
     }
     let id = try await client.register(at: endpoint)
-    cache.save(id, issuer: metadata.issuer)
+    cache.save(id, issuer: metadata.issuer, lastUsed: now)
     return (id, true)
   }
 }

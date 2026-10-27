@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import OpenZenCLI
 import OpenZenCore
 
 /// The app's state: who's signed in, the calendar, the recorder.
@@ -41,7 +42,34 @@ final class AppModel: ObservableObject {
         await self?.refresh()
       }
     }
+    // `openzen-smoke signin|refresh|signout` changed the stored sign-in: pick it up.
+    credentialsObserver = DistributedNotificationCenter.default().addObserver(
+      forName: CLI.credentialsChanged, object: nil, queue: .main
+    ) { [weak self] _ in
+      Task { @MainActor in self?.reloadCredentials() }
+    }
     if let saved = store.load() { use(saved) }
+  }
+
+  private var credentialsObserver: NSObjectProtocol?
+
+  /// Re-reads the Keychain after another process (the CLI) changed it.
+  func reloadCredentials() {
+    let saved = store.load()
+    guard saved != credentials else { return }
+    if let saved {
+      me = nil
+      signInError = nil
+      use(saved)
+    } else {
+      credentials = nil
+      api = nil
+      me = nil
+      events = []
+      meetings = []
+      pollTask?.cancel()
+      reminders.removeAll()
+    }
   }
 
   var isSignedIn: Bool { credentials != nil }
@@ -135,7 +163,8 @@ final class AppModel: ObservableObject {
       let provider = OAuthAuthProvider(
         grant: grant, client: OAuthClient(),
         persist: { renewed in if let renewed { store.save(.oauth(renewed)) } },
-        forgetClient: { ClientRegistrationStore().forget(issuer: $0) })
+        forgetClient: { ClientRegistrationStore().forget(issuer: $0) },
+        touchClient: { ClientRegistrationStore().touch(issuer: $0) })
       return APIClient(auth: provider)
     }
   }

@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-@main
 struct OpenZenApp: App {
   @StateObject private var model = AppModel()
 

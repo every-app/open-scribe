@@ -94,19 +94,22 @@ public actor OAuthAuthProvider: AuthProvider {
   let client: OAuthClient
   let persist: @Sendable (OAuthGrant?) -> Void
   let forgetClient: @Sendable (URL) -> Void
+  let touchClient: @Sendable (URL) -> Void
   var refreshing: Task<OAuthGrant, Error>?
 
   /// `persist` stores a rotated grant (before its access token is used) or clears it (nil);
   /// `forgetClient` drops the cached client id for an issuer that answered `invalid_client`.
   public init(
     grant: OAuthGrant, client: OAuthClient, persist: @escaping @Sendable (OAuthGrant?) -> Void,
-    forgetClient: @escaping @Sendable (URL) -> Void = { _ in }
+    forgetClient: @escaping @Sendable (URL) -> Void = { _ in },
+    touchClient: @escaping @Sendable (URL) -> Void = { _ in }
   ) {
     self.appURL = grant.appURL
     self.grant = grant
     self.client = client
     self.persist = persist
     self.forgetClient = forgetClient
+    self.touchClient = touchClient
   }
 
   public func accessToken() async throws -> String {
@@ -134,6 +137,7 @@ public actor OAuthAuthProvider: AuthProvider {
       let renewed = try await task.value
       grant = renewed
       persist(renewed)
+      touchClient(renewed.issuer)
       return renewed
     } catch OAuthError.invalidGrant {
       persist(nil)
