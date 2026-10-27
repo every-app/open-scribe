@@ -15,13 +15,69 @@ final class SystemAudioCapture: @unchecked Sendable {
   private var converter: AudioConverter24k?
   private var format = AudioStreamBasicDescription()
   private let queue = DispatchQueue(label: "openzen.systemaudio", qos: .userInitiated)
+  /// Device-change handling, apart from the IO queue (stopping a device from its own IO queue can hang).
+  private let control = DispatchQueue(label: "openzen.systemaudio.control")
+  private var outputListener: AudioObjectPropertyListenerBlock?
   private let onAudio: @Sendable (Data) -> Void
+  private let onInterrupted: @Sendable (String?) -> Void
 
-  init(onAudio: @escaping @Sendable (Data) -> Void) { self.onAudio = onAudio }
+  init(onAudio: @escaping @Sendable (Data) -> Void, onInterrupted: @escaping @Sendable (String?) -> Void = { _ in }) {
+    self.onAudio = onAudio
+    self.onInterrupted = onInterrupted
+  }
 
   deinit { stop() }
 
   func start() throws {
+    control.setSpecific(key: Self.controlKey, value: true)
+    try startTap()
+    // The aggregate device hangs off the output device of the moment; when the output changes
+    // (headphones in, AirPods gone), build it again on the new one.
+    var address = Self.defaultOutputAddress
+    let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in self?.outputChanged() }
+    if AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, control, listener) == noErr {
+      outputListener = listener
+    }
+  }
+
+  /// Runs on `control`, so a device-change restart can't race it and bring the tap back.
+  func stop() {
+    if DispatchQueue.getSpecific(key: Self.controlKey) != nil {
+      stopOnControl()
+    } else {
+      control.sync { stopOnControl() }
+    }
+  }
+
+  private func stopOnControl() {
+    if let outputListener {
+      var address = Self.defaultOutputAddress
+      AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, control, outputListener)
+    }
+    outputListener = nil
+    stopTap()
+  }
+
+  private static let controlKey = DispatchSpecificKey<Bool>()
+
+  static var defaultOutputAddress: AudioObjectPropertyAddress {
+    AudioObjectPropertyAddress(
+      mSelector: kAudioHardwarePropertyDefaultSystemOutputDevice, mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain)
+  }
+
+  private func outputChanged() {
+    guard outputListener != nil else { return }
+    stopTap()
+    do {
+      try startTap()
+      onInterrupted(nil)
+    } catch {
+      onInterrupted("Lost the other side after the output device changed: \(error.localizedDescription)")
+    }
+  }
+
+  private func startTap() throws {
     // All processes but this one (it plays nothing, but excluding it is free).
     let own = Self.processObject(pid: getpid())
     let description = CATapDescription(stereoGlobalTapButExcludeProcesses: own.map { [$0] } ?? [])
@@ -63,7 +119,7 @@ final class SystemAudioCapture: @unchecked Sendable {
     try check(AudioDeviceStart(aggregateID, procID), "start system audio")
   }
 
-  func stop() {
+  private func stopTap() {
     if aggregateID != kAudioObjectUnknown {
       if let procID {
         AudioDeviceStop(aggregateID, procID)
@@ -109,7 +165,7 @@ final class SystemAudioCapture: @unchecked Sendable {
 
   private func check(_ status: OSStatus, _ what: String) throws {
     guard status == noErr else {
-      stop()
+      stopTap()
       throw CaptureError("Couldn't \(what) (error \(status)).")
     }
   }

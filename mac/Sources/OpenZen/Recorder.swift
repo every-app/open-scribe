@@ -34,6 +34,7 @@ final class Recorder: ObservableObject {
   private var problems: [Speaker: String] = [:]
   private var systemWarning: String?
   private var fallbackNotice: String?
+  private var captureProblems: [Speaker: String] = [:]
 
   var isActive: Bool { state != .idle }
 
@@ -45,6 +46,7 @@ final class Recorder: ObservableObject {
     problems = [:]
     systemWarning = nil
     fallbackNotice = nil
+    captureProblems = [:]
     guard await Permissions.ensureMicrophone() else {
       lastError = "OpenZen needs the microphone. Allow it in System Settings → Privacy & Security → Microphone."
       return
@@ -149,12 +151,16 @@ final class Recorder: ObservableObject {
     }
 
     let micSink = continuations[.me]!
-    let mic = MicCapture { micSink.yield($0) }
+    let mic = MicCapture(onAudio: { micSink.yield($0) }, onInterrupted: { [weak self] problem in
+      Task { @MainActor in self?.setCaptureProblem(.me, problem) }
+    })
     try mic.start()
     self.mic = mic
 
     let systemSink = continuations[.them]!
-    let system = SystemAudioCapture { systemSink.yield($0) }
+    let system = SystemAudioCapture(onAudio: { systemSink.yield($0) }, onInterrupted: { [weak self] problem in
+      Task { @MainActor in self?.setCaptureProblem(.them, problem) }
+    })
     do {
       try system.start()
       self.system = system
@@ -194,13 +200,18 @@ final class Recorder: ObservableObject {
     }
   }
 
+  private func setCaptureProblem(_ speaker: Speaker, _ problem: String?) {
+    captureProblems[speaker] = problem
+    updateWarning()
+  }
+
   private func setProblem(_ speaker: Speaker, _ problem: String?) {
     problems[speaker] = problem
     updateWarning()
   }
 
   private func updateWarning() {
-    let parts = [fallbackNotice, systemWarning] + [Speaker.me, .them].map { s in problems[s].map { "\(s == .me ? "Your mic" : "Their side"): \($0)" } }
+    let parts = [fallbackNotice, systemWarning, captureProblems[.me], captureProblems[.them]] + [Speaker.me, .them].map { s in problems[s].map { "\(s == .me ? "Your mic" : "Their side"): \($0)" } }
     let text = parts.compactMap { $0 }.joined(separator: " · ")
     warning = text.isEmpty ? nil : text
   }

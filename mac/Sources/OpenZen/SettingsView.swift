@@ -1,4 +1,5 @@
 import OpenZenCore
+import ServiceManagement
 import SwiftUI
 
 /// Sign-in (or the account, once signed in) and the three permissions.
@@ -13,6 +14,7 @@ struct SettingsView: View {
         SignInSection(model: model)
       }
       PermissionsSection()
+      GeneralSection()
     }
     .formStyle(.grouped)
     .frame(width: 460)
@@ -164,6 +166,32 @@ private struct PermissionsSection: View {
     } label: {
       Text(title)
       Text(detail)
+    }
+  }
+}
+
+/// Launch at login through SMAppService (as Scrawl does): reminders only arrive while OpenZen runs.
+private struct GeneralSection: View {
+  @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+  @State private var error: String?
+
+  var body: some View {
+    Section("General") {
+      Toggle("Open OpenZen at login", isOn: $launchAtLogin)
+        .onChange(of: launchAtLogin) { _, on in
+          do {
+            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            error = nil
+          } catch {
+            self.error = error.localizedDescription
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+          }
+        }
+      if SMAppService.mainApp.status == .requiresApproval {
+        Text("Allow OpenZen in System Settings → General → Login Items.")
+          .font(.caption).foregroundStyle(.secondary)
+      }
+      if let error { Text(error).font(.caption).foregroundStyle(.red) }
     }
   }
 }

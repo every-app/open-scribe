@@ -8,10 +8,36 @@ final class MicCapture: @unchecked Sendable {
   private let engine = AVAudioEngine()
   private var converter: AudioConverter24k?
   private let onAudio: @Sendable (Data) -> Void
+  private var configObserver: NSObjectProtocol?
+  private let onInterrupted: @Sendable (String?) -> Void
 
-  init(onAudio: @escaping @Sendable (Data) -> Void) { self.onAudio = onAudio }
+  /// `onInterrupted` gets a sentence when the mic stops and can't be restarted, nil when it's back.
+  init(onAudio: @escaping @Sendable (Data) -> Void, onInterrupted: @escaping @Sendable (String?) -> Void = { _ in }) {
+    self.onAudio = onAudio
+    self.onInterrupted = onInterrupted
+  }
 
   func start() throws {
+    try startEngine()
+    // The engine stops itself when the input device changes (AirPods plugged in, the default mic
+    // switched mid-meeting). Start again on the new device, in its format.
+    configObserver = NotificationCenter.default.addObserver(
+      forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main
+    ) { [weak self] _ in self?.restart() }
+  }
+
+  private func restart() {
+    engine.inputNode.removeTap(onBus: 0)
+    engine.stop()
+    do {
+      try startEngine()
+      onInterrupted(nil)
+    } catch {
+      onInterrupted("The microphone stopped: \(error.localizedDescription)")
+    }
+  }
+
+  private func startEngine() throws {
     let input = engine.inputNode
     let format = input.outputFormat(forBus: 0)
     guard format.sampleRate > 0, format.channelCount > 0 else { throw CaptureError("No microphone is available.") }
@@ -26,6 +52,8 @@ final class MicCapture: @unchecked Sendable {
   }
 
   func stop() {
+    if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
+    configObserver = nil
     engine.inputNode.removeTap(onBus: 0)
     engine.stop()
   }
