@@ -13,6 +13,7 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 | Lane b: perimeter/SDK | mcp:bb842312-e66c-4ce6-9245-e94511884f2a | Fable | `native-sign-in/b-perimeter` | perimeter, manifest `bearerRoutes`, RFC 9728 metadata, everyapp dev |
 | Lane c: Gateway UI | mcp:4ddbe96b-faaa-4889-a31b-52a14cfea9a2 | Opus | `native-sign-in/c-ui` | consent.tsx, connections.tsx |
 | E2E (owns loop-1) | mcp:c30ffccd-3c30-47bd-80c3-7cf66d5717b9 | Opus | `native-sign-in/e2e` | the live test account, the e2e run |
+| Security review | mcp:d92efa34-90f7-4bca-a969-598ab3c14684 | Fable | `native-sign-in/security-review` | review fixes, review doc, threat-model path:line |
 | Lane d: docs + CLI | mcp:3444b6ca-8d64-4035-a3c8-a37c272ebcb4 | Opus | `native-sign-in/d-docs-cli` | agent docs, runbooks, security-model, cli access plan |
 
 ## Log
@@ -51,3 +52,4 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 03:00 Lane a #861 merged (feec0234a, 02:39). E2E: a Gateway from the branch is live on loop-1 (Access off), OpenZen deployed, the OpenZen.app build is in. Blocked on lane b #860 (green, mergeable), told to merge now. Finding: a required openai provider makes the app 503 until it's configured; e2e set a placeholder key, and I asked web to make it optional.
 - 03:05 Kept OpenZen's openai and ai.routes required; `ai.routes` can't be optional today. Filed it as a platform question.
 - 03:10 Lane c #859 merged (b9e80034): native consent page, Apps on your devices; OpenHack found 0 issues.
+- 03:15 All lanes merged into feature/native-sign-in: a feec0234a, b 3b2e81b86, c b9e800342, d 7ab315120. Told e2e to GO. Launched the Fable security review (security-review + adversarial pass + review doc).
