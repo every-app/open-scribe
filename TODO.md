@@ -36,3 +36,5 @@
 - **Should Record on a reminder also open the conference link?** Recommended: no for v1; the menu has "Join Call".
 - **A mic picker in the Mac app?** Recommended: no for v1. Following the system default is what people expect from a call app.
 - **Let `ai.routes` be optional in the platform**, with the same need fields as providers? Then an app like OpenZen opens without AI set up and falls back gracefully. Recommended: yes, as a small platform change after launch, kept out of the sign-in branch.
+- **Gateway "Apps on your devices" table: hidden until a native app has signed in?** Recommended: yes (it's on the feature branch).
+- **Gateway local dev in ~/.t3 worktrees:** Vite won't serve files under a hidden folder. Recommended: add the repo root to the gateway's Vite allowed paths (a dev-only fix on main).
