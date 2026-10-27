@@ -39,3 +39,4 @@
 - **Gateway "Apps on your devices" table: hidden until a native app has signed in?** Recommended: yes (it's on the feature branch).
 - **Gateway local dev in ~/.t3 worktrees:** Vite won't serve files under a hidden folder. Recommended: add the repo root to the gateway's Vite allowed paths (a dev-only fix on main).
 - **Managed OAuth and bearer routes:** bearer routes stay bypassed with Access Managed OAuth on, but native sign-in needs Managed OAuth off. Recommended: document it, don't enforce it.
+- **"Apps on your devices" keeps a signed-out device listed for up to ~5 min** (a grant grace period plus KV list lag). Recommended: accept for now; filter revoked grants in the list later.
