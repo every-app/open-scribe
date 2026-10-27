@@ -2,6 +2,10 @@ import AppKit
 import Foundation
 import OpenZenCLI
 import OpenZenCore
+import os
+
+/// `log show --predicate 'subsystem == "com.everyapp.openzen"'`. Hosts and counts only, never tokens.
+let log = Logger(subsystem: "com.everyapp.openzen", category: "app")
 
 /// The app's state: who's signed in, the calendar, the recorder.
 @MainActor
@@ -48,14 +52,86 @@ final class AppModel: ObservableObject {
     ) { [weak self] _ in
       Task { @MainActor in self?.reloadCredentials() }
     }
+    // `openzen-smoke app-state`: answer with what the menu shows.
+    stateObserver = DistributedNotificationCenter.default().addObserver(
+      forName: CLI.stateRequest, object: nil, queue: .main
+    ) { note in
+      guard let nonce = note.object as? String else { return }
+      MainActor.assumeIsolated {
+        guard let self = AppModel.current else { return }
+        DistributedNotificationCenter.default().postNotificationName(
+          CLI.stateReply, object: nonce, userInfo: self.stateSnapshot(), deliverImmediately: true)
+      }
+    }
     if let saved = store.load() { use(saved) }
+    AppModel.current = self
+    log.notice("launched; signed in: \(self.credentials != nil, privacy: .public)")
   }
 
+  /// The one model, for the state query.
+  static weak var current: AppModel?
   private var credentialsObserver: NSObjectProtocol?
+  private var stateObserver: NSObjectProtocol?
+  private(set) var lastRefresh: Date?
+
+  /// What the menu shows, as text: for `app-state` and nothing else. Counts, not meeting titles.
+  func stateSnapshot() -> [String: String] {
+    var state: [String: String] = [
+      "pid": String(ProcessInfo.processInfo.processIdentifier),
+      "signedIn": String(isSignedIn),
+      "recorder": "\(recorder.state)".components(separatedBy: "(").first ?? "",
+      "icon": recorder.state.isRecording ? "record.circle.fill (red)" : "waveform",
+    ]
+    if let credentials {
+      state["host"] = credentials.appURL.host ?? ""
+      if case .oauth(let grant) = credentials {
+        state["method"] = "every-app"
+        state["gateway"] = grant.issuer.host ?? ""
+      } else {
+        state["method"] = "access-token"
+      }
+    }
+    if let email = me?.email { state["email"] = email }
+    state["calendar.connected"] = String(calendarConnected)
+    state["calendar.upcoming"] = String(events.count)
+    if let calendarError { state["calendar.error"] = calendarError }
+    if let lastRefresh { state["calendar.lastRefresh"] = lastRefresh.formatted(.iso8601) }
+    state["meetingsLoaded"] = String(meetings.count)
+    for (i, line) in menuLines().enumerated() { state["menu.\(i)"] = line }
+    return state
+  }
+
+  /// The menu's items in order, as MenuContent draws them (meeting titles left out).
+  func menuLines() -> [String] {
+    var lines: [String] = []
+    if isSignedIn {
+      switch recorder.state {
+      case .idle: lines.append("Record Now")
+      case .starting: lines.append("Starting…")
+      case .recording: lines += ["● Recording", recorder.liveLine == nil ? "Listening…" : "(live line)", "Stop Recording"]
+      case .stopping: lines.append("Saving…")
+      }
+      if !calendarConnected {
+        lines.append("Connect Google Calendar…")
+      } else if events.isEmpty {
+        lines.append(calendarError.map { "Calendar: \($0)" } ?? "No meetings in the next 24 hours")
+      } else {
+        lines.append("Upcoming")
+        lines.append("(\(min(events.count, 8)) meeting\(events.count == 1 ? "" : "s"))")
+      }
+      lines += ["Meetings…", "Open OpenZen in Browser"]
+      if let host = appURL?.host { lines.append("Signed in to \(host)") }
+    } else {
+      lines += ["Not signed in", "Sign In…"]
+    }
+    lines += ["Settings…", "Quit OpenZen"]
+    return lines
+  }
 
   /// Re-reads the Keychain after another process (the CLI) changed it.
   func reloadCredentials() {
     let saved = store.load()
+    log.notice("sign-in changed elsewhere; now signed in to \(saved?.appURL.host ?? "nothing", privacy: .public)")
     guard saved != credentials else { return }
     if let saved {
       me = nil
@@ -196,11 +272,15 @@ final class AppModel: ObservableObject {
       calendarConnected = upcoming.connected
       connectURL = upcoming.connectURL ?? me?.connectURL
       calendarError = nil
+      lastRefresh = Date()
+      log.notice("calendar: connected \(upcoming.connected, privacy: .public), \(self.events.count, privacy: .public) upcoming")
       await reminders.reconcile(events: upcoming.connected ? events : [])
     } catch APIError.signedOut {
       handleSignedOut()
     } catch {
       calendarError = error.localizedDescription
+      lastRefresh = Date()
+      log.error("calendar: \(error.localizedDescription, privacy: .public)")
     }
   }
 

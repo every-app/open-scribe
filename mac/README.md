@@ -16,11 +16,14 @@ swift run openzen-smoke status                           # host, method, expiry 
 swift run openzen-smoke https://open-zen.<base> --keychain   # API smoke with the stored sign-in + one forced refresh
 swift run openzen-smoke token --out F [--refresh-out G]   # tokens to new 0600 files, for negative checks (prints no token)
 swift run openzen-smoke refresh                          # one forced refresh (rotated refresh token saved at once)
+swift run openzen-smoke app-state                        # asks the RUNNING app what its menu shows (host, email, calendar, menu lines)
 swift run openzen-smoke signout [--keep-copy <file>]     # revoke the refresh token, clear the sign-in
                                                          # --keep-copy: first write the access token to a new 0600 file (to check it then gets 401)
 ```
 
 These run the app's real `SignInFlow`. The Keychain commands are handed to the installed app binary (`OpenZen --cli …`, from `scripts/build-app.sh`) so the tokens belong to the app's signed identity: the app reads them without a Keychain prompt, and a running app reloads them at once (a distributed notification). `OPENZEN_SIGNIN_TIMEOUT` (seconds, default 600) bounds the wait; `OPENZEN_APP_BINARY` points at another build.
+
+The app logs sign-in and calendar changes (hosts and counts, never tokens): `log show --last 10m --predicate 'subsystem == "com.everyapp.openzen"'`.
 
 `OPENZEN_NO_LAUNCH=1` builds and installs without restarting. `OPENZEN_CONFIG=release` builds optimized. `OPENZEN_DIAG=1` (when you run the binary directly) prints the app's windows, the status item's among them.
 

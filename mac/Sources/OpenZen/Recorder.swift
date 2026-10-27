@@ -12,6 +12,11 @@ final class Recorder: ObservableObject {
     case starting(title: String)
     case recording(meetingID: String, title: String, since: Date)
     case stopping(title: String)
+
+    var isRecording: Bool {
+      if case .recording = self { return true }
+      return false
+    }
   }
 
   @Published private(set) var state: State = .idle

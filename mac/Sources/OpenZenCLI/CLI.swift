@@ -17,9 +17,14 @@ import OpenZenCore
 ///                             prints only "ok wrote …", never a token
 ///   api --keychain            the API smoke with the stored sign-in, including a forced refresh
 ///   api <app-url> <token>     the API smoke with a pasted token (no Keychain)
+///   app-state                 asks the RUNNING app what its menu shows (signed-in host, calendar)
 public enum CLI {
   /// Posted after the stored sign-in changes, so a running app reloads it.
   public static let credentialsChanged = Notification.Name("com.everyapp.openzen.credentialsChanged")
+  /// `app-state`: the CLI asks (object = a nonce), the running app answers (same object, the
+  /// state as string userInfo). Counts only, no meeting titles: any local process can ask.
+  public static let stateRequest = Notification.Name("com.everyapp.openzen.stateRequest")
+  public static let stateReply = Notification.Name("com.everyapp.openzen.stateReply")
 
   public static let usage = """
     usage: openzen-smoke signin <app-url>
@@ -27,12 +32,14 @@ public enum CLI {
            openzen-smoke token --out <file> [--refresh-out <file>]
            openzen-smoke <app-url> --keychain
            openzen-smoke <app-url> <token>
+           openzen-smoke app-state
     """
 
   public static func run(_ args: [String]) async -> Int32 {
     switch args.first {
     case "signin" where args.count == 2: return await signIn(args[1])
     case "status": return status()
+    case "app-state": return appState()
     case "refresh": return await refresh()
     case "token": return await token(Array(args.dropFirst()))
     case "signout" where args.count == 1: return await signOut(keepCopy: nil)
@@ -125,6 +132,39 @@ public enum CLI {
     store.delete()
     changed()
     say("ok   signed out of \(credentials.appURL.host ?? "?")\(credentials.isOAuth ? " (refresh token revoked)" : "")")
+    return 0
+  }
+
+  // MARK: The running app
+
+  /// Asks the running app for its state and prints it as `key: value` lines, sorted, `menu.N`
+  /// lines last in menu order. Exit 1 if no app answers within 5 s.
+  static func appState() -> Int32 {
+    let nonce = Random.token()
+    final class Box: @unchecked Sendable { var reply: [String: String]? }
+    let box = Box()
+    let done = DispatchSemaphore(value: 0)
+    // Distributed notifications arrive through a run loop; async top-level code has none, so
+    // listen on a thread that runs one.
+    let thread = Thread {
+      let center = DistributedNotificationCenter.default()
+      let observer = center.addObserver(forName: stateReply, object: nonce, queue: nil) { note in
+        box.reply = (note.userInfo as? [String: String]) ?? [:]
+      }
+      center.postNotificationName(stateRequest, object: nonce, userInfo: nil, deliverImmediately: true)
+      let deadline = Date().addingTimeInterval(5)
+      while box.reply == nil && Date() < deadline {
+        RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.1))
+      }
+      center.removeObserver(observer)
+      done.signal()
+    }
+    thread.start()
+    done.wait()
+    guard let reply = box.reply else { return fail("no running OpenZen answered (is the app open?)") }
+    let menu = reply.keys.filter { $0.hasPrefix("menu.") }.sorted { Int($0.dropFirst(5)) ?? 0 < Int($1.dropFirst(5)) ?? 0 }
+    for key in reply.keys.filter({ !$0.hasPrefix("menu.") }).sorted() { say("\(key): \(reply[key]!)") }
+    for key in menu { say("\(key): \(reply[key]!)") }
     return 0
   }
 

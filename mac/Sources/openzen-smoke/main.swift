@@ -8,7 +8,7 @@ import OpenZenCLI
 // them, and this `swift run` binary's ad-hoc identity changes every build, so the app (or this
 // tool) would hit a Keychain prompt nobody can click. OPENZEN_APP_BINARY overrides the path.
 var args = Array(CommandLine.arguments.dropFirst())
-let keychainCommands: Set<String> = ["signin", "status", "refresh", "signout", "token"]
+let keychainCommands: Set<String> = ["signin", "status", "refresh", "signout", "token", "app-state"]
 
 if args.count == 2 && args[1] == "--keychain" {
   args = ["api", "--keychain"]
