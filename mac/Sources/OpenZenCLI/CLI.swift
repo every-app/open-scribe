@@ -9,7 +9,8 @@ import OpenZenCore
 ///   signin <app-url>          the real SignInFlow; prints the authorize URL, waits for the callback
 ///   status                    who's signed in (host, method, expiry); never prints a token
 ///   refresh                   one forced refresh, the rotated grant saved at once
-///   signout                   revoke the refresh token, clear the sign-in
+///   signout [--keep-copy F]   revoke the refresh token, clear the sign-in; with --keep-copy, first
+///                             write the access token to a new 0600 file F, to check it now gets 401
 ///   api --keychain            the API smoke with the stored sign-in, including a forced refresh
 ///   api <app-url> <token>     the API smoke with a pasted token (no Keychain)
 public enum CLI {
@@ -18,7 +19,7 @@ public enum CLI {
 
   public static let usage = """
     usage: openzen-smoke signin <app-url>
-           openzen-smoke status | refresh | signout
+           openzen-smoke status | refresh | signout [--keep-copy <file>]
            openzen-smoke <app-url> --keychain
            openzen-smoke <app-url> <token>
     """
@@ -28,7 +29,8 @@ public enum CLI {
     case "signin" where args.count == 2: return await signIn(args[1])
     case "status": return status()
     case "refresh": return await refresh()
-    case "signout": return await signOut()
+    case "signout" where args.count == 1: return await signOut(keepCopy: nil)
+    case "signout" where args.count == 3 && args[1] == "--keep-copy": return await signOut(keepCopy: args[2])
     case "api" where args.count == 2 && args[1] == "--keychain": return await keychainSmoke()
     case "api" where args.count == 3:
       guard let url = URL.typed(args[1])?.origin else { return fail("not an app URL: \(args[1])") }
@@ -99,10 +101,19 @@ public enum CLI {
     }
   }
 
-  static func signOut() async -> Int32 {
+  static func signOut(keepCopy: String?) async -> Int32 {
     guard let credentials = store.load() else {
       say("already signed out")
       return 0
+    }
+    if let keepCopy {
+      let token: String
+      switch credentials {
+      case .accessToken(_, let t): token = t
+      case .oauth(let grant): token = grant.accessToken
+      }
+      guard writeSecret(token, to: keepCopy) else { return fail("couldn't create \(keepCopy) (it must not exist yet)") }
+      say("kept a copy of the access token in \(keepCopy) (mode 600); delete it after the check")
     }
     if case .oauth(let grant) = credentials { await OAuthClient().revoke(grant) }
     store.delete()
@@ -177,6 +188,15 @@ public enum CLI {
       return "\(list.count) total; this one \(m.status ?? "?") → \(m.pageURL(appURL: appURL))"
     }) || failed
     return failed ? 1 : 0
+  }
+
+  /// A new file only (O_EXCL), owner read/write only, for a test that needs the revoked token.
+  static func writeSecret(_ secret: String, to path: String) -> Bool {
+    let fd = open(path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
+    guard fd >= 0 else { return false }
+    defer { close(fd) }
+    let bytes = Array(secret.utf8)
+    return bytes.withUnsafeBufferPointer { write(fd, $0.baseAddress, $0.count) } == bytes.count
   }
 
   // MARK: Output

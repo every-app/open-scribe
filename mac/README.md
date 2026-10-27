@@ -15,7 +15,8 @@ swift run openzen-smoke signin https://open-zen.<base>   # prints AUTHORIZE_URL 
 swift run openzen-smoke status                           # host, method, expiry (never a token)
 swift run openzen-smoke https://open-zen.<base> --keychain   # API smoke with the stored sign-in + one forced refresh
 swift run openzen-smoke refresh                          # one forced refresh (rotated refresh token saved at once)
-swift run openzen-smoke signout                          # revoke the refresh token, clear the sign-in
+swift run openzen-smoke signout [--keep-copy <file>]     # revoke the refresh token, clear the sign-in
+                                                         # --keep-copy: first write the access token to a new 0600 file (to check it then gets 401)
 ```
 
 These run the app's real `SignInFlow`. The Keychain commands are handed to the installed app binary (`OpenZen --cli …`, from `scripts/build-app.sh`) so the tokens belong to the app's signed identity: the app reads them without a Keychain prompt, and a running app reloads them at once (a distributed notification). `OPENZEN_SIGNIN_TIMEOUT` (seconds, default 600) bounds the wait; `OPENZEN_APP_BINARY` points at another build.

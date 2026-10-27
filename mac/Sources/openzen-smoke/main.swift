@@ -12,7 +12,7 @@ let keychainCommands: Set<String> = ["signin", "status", "refresh", "signout"]
 
 if args.count == 2 && args[1] == "--keychain" {
   args = ["api", "--keychain"]
-} else if args.count == 2 && !keychainCommands.contains(args[0]) {
+} else if args.count == 2 && !keychainCommands.contains(args[0]) && !args[1].hasPrefix("--") {
   // <app-url> <token>: no Keychain, run here.
   exit(await CLI.run(["api"] + args))
 }
