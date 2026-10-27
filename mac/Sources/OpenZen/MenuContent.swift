@@ -14,6 +14,9 @@ struct MenuContent: View {
       Button("Meetings…") { show("meetings") }
         .keyboardShortcut("m")
       Button("Open OpenZen in Browser") { model.openWebApp() }
+      if let host = model.appURL?.host {
+        Text("Signed in to \(host)")
+      }
     } else {
       Text("Not signed in")
       Button("Sign In…") { show("settings") }

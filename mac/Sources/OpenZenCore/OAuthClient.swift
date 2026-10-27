@@ -62,7 +62,7 @@ public enum OAuthError: Error, LocalizedError, Equatable {
 /// (RFC 8707), `iss` on the callback (RFC 9207). No `scope` anywhere: the grant is for the app.
 /// The browser and the loopback listener are the caller's; this is only the HTTP.
 public struct OAuthClient: Sendable {
-  public static let clientName = "OpenZen for Mac"
+  public static let clientName = "OpenZen"
   /// Registered once; the Gateway matches it on any loopback port (RFC 8252 §7.3).
   public static let registeredRedirectURI = "http://127.0.0.1/callback"
 
@@ -112,6 +112,7 @@ public struct OAuthClient: Sendable {
   }
 
   /// Registers this install as a public client, once per Gateway; the caller caches the id.
+  /// TODO(after v1): a Client ID Metadata Document instead of dynamic registration (design §12).
   public func register(at endpoint: URL) async throws -> String {
     let body: [String: Any] = [
       "client_name": Self.clientName,
@@ -119,7 +120,6 @@ public struct OAuthClient: Sendable {
       "grant_types": ["authorization_code", "refresh_token"],
       "response_types": ["code"],
       "token_endpoint_auth_method": "none",
-      "application_type": "native",
     ]
     var request = URLRequest(url: endpoint)
     request.httpMethod = "POST"
@@ -161,7 +161,7 @@ public struct OAuthClient: Sendable {
     resource: String, appURL: URL, now: Date = Date()
   ) async throws -> OAuthGrant {
     let token = try await tokenRequest(
-      metadata.tokenEndpoint,
+      metadata.tokenEndpoint, resource: resource,
       [
         ("grant_type", "authorization_code"),
         ("code", code),
@@ -182,7 +182,7 @@ public struct OAuthClient: Sendable {
   public func refresh(_ grant: OAuthGrant, now: Date = Date()) async throws -> OAuthGrant {
     guard let refreshToken = grant.refreshToken else { throw OAuthError.invalidGrant }
     let token = try await tokenRequest(
-      grant.tokenEndpoint,
+      grant.tokenEndpoint, resource: grant.resource,
       [
         ("grant_type", "refresh_token"),
         ("refresh_token", refreshToken),
@@ -215,8 +215,11 @@ public struct OAuthClient: Sendable {
     var expiresIn: Int?
     var refreshToken: String?
     var scope: String?
+    /// The Gateway echoes the resource the token is for.
+    var resource: String?
 
     enum CodingKeys: String, CodingKey {
+      case resource
       case accessToken = "access_token"
       case tokenType = "token_type"
       case expiresIn = "expires_in"
@@ -245,7 +248,8 @@ public struct OAuthClient: Sendable {
     }
   }
 
-  private func tokenRequest(_ endpoint: URL, _ fields: [(String, String)]) async throws -> TokenResponse {
+  /// A token for another resource than the one asked for is refused.
+  private func tokenRequest(_ endpoint: URL, resource: String, _ fields: [(String, String)]) async throws -> TokenResponse {
     var request = URLRequest(url: endpoint)
     request.httpMethod = "POST"
     request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
@@ -266,6 +270,11 @@ public struct OAuthClient: Sendable {
       let token = try JSONDecoder().decode(TokenResponse.self, from: data)
       if let type = token.tokenType, type.lowercased() != "bearer" {
         throw OAuthError.tokenFailed("Unexpected token type \(type).")
+      }
+      if let echoed = token.resource, let a = URL(string: echoed), let b = URL(string: resource),
+        Self.normalized(a) != Self.normalized(b)
+      {
+        throw OAuthError.tokenFailed("The token is for \(echoed), not \(resource).")
       }
       return token
     } catch let error as OAuthError {

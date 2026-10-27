@@ -18,6 +18,8 @@ final class FakeGateway: @unchecked Sendable {
   /// Client ids the Gateway knows.
   var known: Set<String> = []
   var lastAuthorizeURL: URL?
+  /// What the token endpoint says the token is for.
+  var resource = "https://open-zen.example.com"
 
   lazy var transport = StubTransport { [unowned self] request in
     let url = request.url!
@@ -38,7 +40,12 @@ final class FakeGateway: @unchecked Sendable {
       let form = String(decoding: request.httpBody!, as: UTF8.self)
       let id = form.split(separator: "&").first { $0.hasPrefix("client_id=") }.map { String($0.dropFirst(10)) } ?? ""
       guard self.lock.withLock({ self.known.contains(id) }) else { return (401, #"{"error":"invalid_client"}"#, [:]) }
-      return (200, #"{"access_token":"at","token_type":"bearer","expires_in":3600,"refresh_token":"rt","scope":"*"}"#, [:])
+      // The design's §12 token response.
+      return (
+        200,
+        #"{"access_token":"at","token_type":"Bearer","expires_in":3600,"refresh_token":"rt","scope":"*","resource":"\#(self.resource)"}"#,
+        [:]
+      )
     default:
       return (404, "", [:])
     }
@@ -107,6 +114,22 @@ final class FakeGateway: @unchecked Sendable {
       try await flow(gateway, cache).run(appURL: app, redirectURI: redirect) { _, _ in throw OAuthError.invalidClient }
     }
     #expect(gateway.registrations == 1)
+  }
+
+  @Test func tokenForAnotherResourceIsRefused() async {
+    let gateway = FakeGateway(), cache = MemoryCache()
+    gateway.resource = "https://other-app.example.com"
+    await #expect(throws: OAuthError.self) {
+      try await flow(gateway, cache).run(appURL: app, redirectURI: redirect) { _, _ in "code" }
+    }
+  }
+
+  @Test func grantKeepsTheDesignsScopeAndExpiry() async throws {
+    let gateway = FakeGateway(), cache = MemoryCache()
+    let grant = try await flow(gateway, cache).run(appURL: app, redirectURI: redirect) { _, _ in "code" }
+    #expect(grant.scope == "*")
+    #expect(grant.refreshToken == "rt")
+    #expect(abs(grant.expiresAt!.timeIntervalSinceNow - 3600) < 5)
   }
 
   @Test func providerForgetsTheClientOnInvalidClient() async {

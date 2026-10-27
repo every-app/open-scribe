@@ -202,6 +202,10 @@ final class StubTransport: HTTPTransport, @unchecked Sendable {
     #expect(body["redirect_uris"] as? [String] == ["http://127.0.0.1/callback"])
     #expect(body["grant_types"] as? [String] == ["authorization_code", "refresh_token"])
     #expect(body["scope"] == nil)
+    // Exactly the design's §12 registration body.
+    #expect(Set(body.keys) == ["client_name", "redirect_uris", "grant_types", "response_types", "token_endpoint_auth_method"])
+    #expect(body["client_name"] as? String == "OpenZen")
+    #expect(body["response_types"] as? [String] == ["code"])
   }
 
   @Test func authorizationURLCarriesPKCEStateAndResourceButNoScope() throws {
