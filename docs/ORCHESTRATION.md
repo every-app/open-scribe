@@ -8,7 +8,11 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 | --- | --- | --- | --- | --- |
 | Spec + web | mcp:b25b41f1-6aac-472f-8718-e9836ca1d96c | Fable | open-notes root | `web/`, `docs/SPEC.md` |
 | Mac app | mcp:dfbe9056-bf89-4b0e-8227-4438c318615e | Opus | open-notes root | `mac/` |
-| Native sign-in design | mcp:0132ffd3-8144-4596-b817-ea6a5ad0a107 | Fable | private-every-app, `native-sign-in/design` | design note, threat model, TODO section |
+| Native sign-in design | mcp:0132ffd3-8144-4596-b817-ea6a5ad0a107 | Fable | private-every-app, `native-sign-in/design` | design note, threat model, TODO section (done, #854) |
+| Lane a: Gateway auth server | mcp:f9f1c5de-40fd-491d-976e-30d975ddba4a | Fable | `native-sign-in/a-gateway-as` | mcp-auth/*, mcp schema + migration, connection repo/service |
+| Lane b: perimeter/SDK | mcp:bb842312-e66c-4ce6-9245-e94511884f2a | Fable | `native-sign-in/b-perimeter` | perimeter, manifest `bearerRoutes`, RFC 9728 metadata, everyapp dev |
+| Lane c: Gateway UI | mcp:4ddbe96b-faaa-4889-a31b-52a14cfea9a2 | Opus | `native-sign-in/c-ui` | consent.tsx, connections.tsx |
+| Lane d: docs + CLI | mcp:3444b6ca-8d64-4035-a3c8-a37c272ebcb4 | Opus | `native-sign-in/d-docs-cli` | agent docs, runbooks, security-model, cli access plan |
 
 ## Log
 
@@ -22,3 +26,6 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 01:40 Web lane done (6fe27ea): created with the published CLI 0.3.0-rc.8; D1, the full /api/v1, web UI and share links verified with `everyapp dev` in stub mode; 5 tests pass. Asked it for the audio-chunk fallback route.
 - 01:50 SPEC sign-in section rewritten for Sign in with Every App (3d53f6d), with eight platform asks; forwarded them to the design thread.
 - 02:00 Web: audio-chunk fallback route committed (gpt-4o-mini-transcribe). Web lane idle.
+- 02:15 Design merged into feature/native-sign-in (#854). Umbrella draft PR #855 → main (never ready). Design: docs/design/native-sign-in.md on the branch.
+- 02:20 Sent the client contract (§12) to the mac thread, and the `bearerRoutes` TODO to the web thread.
+- 02:25 Launched sign-in lanes a (Fable), b (Fable), c (Opus) and d (Opus) in parallel; a merges first. Sent each the sibling roster.
