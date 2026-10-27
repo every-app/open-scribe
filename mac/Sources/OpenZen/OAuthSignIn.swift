@@ -3,42 +3,23 @@ import Foundation
 import Network
 import OpenZenCore
 
-/// "Sign in with Every App": discovery and registration on the Gateway, the authorization page
-/// in the system browser, the code back on a loopback redirect, then the token exchange.
+/// "Sign in with Every App" (docs/SPEC.md): `SignInFlow` does the protocol; this adds the system
+/// browser and the loopback listener. The client id is registered once per Gateway and kept in the
+/// Keychain.
 enum OAuthSignIn {
-  /// What a sign-in asks the Gateway for: OpenZen's API only (docs/SPEC.md, "Sign in with Every App").
-  static let scope: String? = "app:open-zen"
   static let timeout: TimeInterval = 5 * 60
 
-  /// `gatewayURL` is the issuer; `appURL` is the resource the token is for (the app's origin).
-  static func run(gatewayURL: URL, appURL: URL, client: OAuthClient = OAuthClient()) async throws -> OAuthGrant {
-    guard let resource = appURL.origin?.absoluteString else { throw AuthError.message("That app URL isn't valid.") }
-    let metadata = try await client.discover(issuer: gatewayURL)
-
+  /// `appURL` is the OpenZen app the person typed; its origin is the OAuth `resource`.
+  static func run(appURL: URL, cache: ClientIDCache = ClientRegistrationStore()) async throws -> OAuthGrant {
     let server = try LoopbackServer()
     defer { server.stop() }
     let port = try await server.start()
-    // RFC 8252 §7.3: the IP literal, not "localhost".
+    // RFC 8252 §7.3: the IP literal, not "localhost"; the registered URI has no port.
     let redirectURI = "http://127.0.0.1:\(port)\(LoopbackRedirect.path)"
-
-    guard let registration = metadata.registrationEndpoint else {
-      throw OAuthError.registrationFailed("It doesn't offer dynamic client registration.")
+    return try await SignInFlow(cache: cache).run(appURL: appURL, redirectURI: redirectURI) { url, expectation in
+      await MainActor.run { _ = NSWorkspace.shared.open(url) }
+      return try await server.waitForCode(expectation, timeout: timeout)
     }
-    // A fresh client per sign-in; the grant (in the Keychain) keeps its id for refreshes.
-    let clientID = try await client.register(
-      at: registration, redirectURIs: ["http://127.0.0.1\(LoopbackRedirect.path)", redirectURI], scope: scope)
-
-    let pkce = PKCE()
-    let state = Random.token()
-    let url = OAuthClient.authorizationURL(
-      metadata: metadata, clientID: clientID, redirectURI: redirectURI, pkce: pkce, state: state, resource: resource,
-      scope: scope)
-    await MainActor.run { _ = NSWorkspace.shared.open(url) }
-
-    let code = try await server.waitForCode(state: state, timeout: timeout)
-    return try await client.exchange(
-      code: code, metadata: metadata, clientID: clientID, redirectURI: redirectURI, pkce: pkce, resource: resource,
-      appURL: appURL.origin ?? appURL)
   }
 }
 
@@ -46,9 +27,10 @@ enum OAuthSignIn {
 final class LoopbackServer: @unchecked Sendable {
   private let listener: NWListener
   private let queue = DispatchQueue(label: "openzen.loopback")
-  private var expectedState = ""
+  private var expectation: CallbackExpectation?
   private var result: CheckedContinuation<String, Error>?
-  private var finished = false
+  /// Bumped per wait, so an earlier wait's timer can't end a later one.
+  private var generation = 0
 
   init() throws {
     let parameters = NWParameters.tcp
@@ -85,13 +67,17 @@ final class LoopbackServer: @unchecked Sendable {
     }
   }
 
-  func waitForCode(state: String, timeout: TimeInterval) async throws -> String {
+  /// Waits for one callback meeting `expectation`. Can be called again (a retried sign-in).
+  func waitForCode(_ expectation: CallbackExpectation, timeout: TimeInterval) async throws -> String {
     try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
         queue.async {
-          self.expectedState = state
+          self.generation += 1
+          let generation = self.generation
+          self.expectation = expectation
           self.result = continuation
           self.queue.asyncAfter(deadline: .now() + timeout) {
+            guard self.generation == generation else { return }
             self.finish(.failure(AuthError.message("Sign-in timed out. Try again.")))
           }
         }
@@ -122,7 +108,13 @@ final class LoopbackServer: @unchecked Sendable {
   }
 
   private func respond(_ connection: NWConnection, head: String) {
-    let outcome = LoopbackRedirect.parse(head: head, expectedState: expectedState)
+    guard let expectation, result != nil else {
+      let reply = LoopbackRedirect.response(status: 404, title: "Not found", message: "")
+      connection.send(content: reply, completion: .contentProcessed { _ in connection.cancel() })
+      return
+    }
+    let outcome = LoopbackRedirect.parse(
+      head: head, expectedState: expectation.state, expectedIssuer: expectation.issuer, issRequired: expectation.issRequired)
     let reply: Data
     switch outcome {
     case .code(let code):
@@ -130,8 +122,12 @@ final class LoopbackServer: @unchecked Sendable {
       finish(.success(code))
     case .denied(let error, let description):
       reply = LoopbackRedirect.response(status: 200, title: "Sign-in cancelled", message: "You can close this tab.")
-      let why = error == "access_denied" ? "Sign-in was cancelled." : "Sign-in failed: \(description ?? error)."
-      finish(.failure(AuthError.message(why)))
+      if error == "invalid_client" {
+        finish(.failure(OAuthError.invalidClient))
+      } else {
+        let why = error == "access_denied" ? "Sign-in was cancelled." : "Sign-in failed: \(description ?? error)."
+        finish(.failure(AuthError.message(why)))
+      }
     case .invalid(let why):
       reply = LoopbackRedirect.response(status: 400, title: "Sign-in failed", message: why)
       finish(.failure(AuthError.message(why)))
@@ -142,9 +138,9 @@ final class LoopbackServer: @unchecked Sendable {
   }
 
   private func finish(_ outcome: Result<String, Error>) {
-    guard !finished, let result else { return }
-    finished = true
+    guard let result else { return }
     self.result = nil
+    expectation = nil
     result.resume(with: outcome)
   }
 }

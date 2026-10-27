@@ -14,7 +14,7 @@ swift run openzen-smoke http://open-zen.localhost:8787 any-token   # API client 
 
 | Path | What |
 | --- | --- |
-| `Sources/OpenZenCore` | No hardware, no UI, all tested: PKCE, the loopback redirect parser, the OAuth client, `AuthProvider`, the API client and its lenient decoders, `SegmentBatcher`, `ChunkCutter`, `Resampler` (windowed sinc) and PCM16, `TurnDetector`, `ReminderPlanner`, WAV, the Keychain store |
+| `Sources/OpenZenCore` | No hardware, no UI, all tested: PKCE, the loopback redirect parser, the OAuth client, `AuthProvider`, `SignInFlow`, the API client and its lenient decoders, `SegmentBatcher`, `ChunkCutter`, `Resampler` (windowed sinc) and PCM16, `TurnDetector`, `ReminderPlanner`, WAV, the Keychain store |
 | `Sources/OpenZen` | The app: menu, Settings (sign-in, permissions), Meetings window, `OAuthSignIn` (the loopback listener), `MicCapture` (AVAudioEngine), `SystemAudioCapture` (Core Audio process tap), `RealtimeSession`/`TranscriptionChannel`, `ChunkChannel` (fallback), `Recorder`, `Reminders` |
 | `Resources` | Info.plist and entitlements, copied by the build script |
 
@@ -23,7 +23,7 @@ swift run openzen-smoke http://open-zen.localhost:8787 any-token   # API client 
 `AuthProvider` hands the API client a bearer token, whatever kind of sign-in made it:
 
 - **Access token** (works today): the app URL plus a personal access token, kept in the Keychain. Behind Cloudflare Access a bearer alone gets Access's login; the API client spots that (a redirect to, or a page from, `*.cloudflareaccess.com`, even on a 401/403) and says "Gateway requires Sign in with Every App" instead of signing out.
-- **Every App** (built against SPEC's contract; it needs the Gateway's `feature/native-sign-in`): discovery at `<gateway>/.well-known/oauth-authorization-server`, dynamic registration as a public client, PKCE S256, the system browser, a loopback redirect on `127.0.0.1` with an ephemeral port, `resource=https://open-zen.<gateway host>`, `scope=app:open-zen`, then the token exchange. It refreshes a minute before expiry, and again once on a 401. It revokes on sign-out.
+- **Every App** (the design's §12/§13; needs the Gateway's `feature/native-sign-in`): the person types the OpenZen app URL, the same field the token uses. `GET {app}/.well-known/oauth-protected-resource` (RFC 9728) must name the app's origin as `resource` and gives the Gateway (`authorization_servers[0]`); the Gateway's `/.well-known/oauth-authorization-server` must name the same `issuer`. The client registers once per install (redirect `http://127.0.0.1/callback`, any port), its id cached in the Keychain per issuer and re-registered only on `invalid_client`. PKCE S256, the system browser, a loopback listener on an ephemeral port that checks `state` and `iss`, then the token exchange. `resource={origin}` on authorize, token and refresh; no `scope` anywhere. Rotated refresh tokens are stored before the new access token is used; `invalid_grant` means sign in again; sign-out revokes the refresh token. The logic is `SignInFlow` in Core (tested); the app adds the browser and the listener.
 
 ## Recording
 

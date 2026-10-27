@@ -56,7 +56,6 @@ private struct SignInSection: View {
 
   @ObservedObject var model: AppModel
   @AppStorage("signIn.method") private var method: Method = .token
-  @AppStorage("signIn.gateway") private var gateway = ""
   @AppStorage("signIn.appURL") private var appURL = ""
   @State private var token = ""
 
@@ -67,14 +66,12 @@ private struct SignInSection: View {
       }
       .pickerStyle(.segmented)
 
+      TextField("App URL", text: $appURL, prompt: Text("https://open-zen.example.com"))
       switch method {
       case .everyApp:
-        TextField("Gateway", text: $gateway, prompt: Text("https://example.com"))
-        TextField("App (optional)", text: $appURL, prompt: Text(appPlaceholder))
-        Text("Your browser opens to sign in, then comes back here.")
+        Text("Your browser opens your Gateway to sign in, then comes back here.")
           .font(.caption).foregroundStyle(.secondary)
       case .token:
-        TextField("App URL", text: $appURL, prompt: Text("https://open-zen.example.com"))
         SecureField("Token", text: $token, prompt: Text("epat_…"))
         Text("Make one in Manage workspace → Tokens → New token: Full access, bound to OpenZen.")
           .font(.caption).foregroundStyle(.secondary)
@@ -99,14 +96,9 @@ private struct SignInSection: View {
     }
   }
 
-  private var appPlaceholder: String {
-    guard let url = URL.typed(gateway) else { return "open-zen.<your gateway>" }
-    return AppModel.defaultAppURL(gateway: url).absoluteString
-  }
-
   private func submit() {
     switch method {
-    case .everyApp: model.signInWithEveryApp(gatewayText: gateway, appURLText: appURL)
+    case .everyApp: model.signInWithEveryApp(appURLText: appURL)
     case .token: model.signIn(appURLText: appURL, token: token)
     }
   }

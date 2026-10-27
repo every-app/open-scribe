@@ -48,3 +48,41 @@ public struct CredentialStore: Sendable {
     ]
   }
 }
+
+/// The client id this install registered with each Gateway, so it registers once (the design's
+/// §13). Keyed by the Gateway's issuer.
+public struct ClientRegistrationStore: Sendable {
+  let service: String
+
+  public init(service: String = CredentialStore.service) { self.service = service }
+
+  public func clientID(issuer: URL) -> String? {
+    var query = baseQuery(issuer)
+    query[kSecReturnData as String] = true
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+    var result: CFTypeRef?
+    guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess, let data = result as? Data else { return nil }
+    return String(data: data, encoding: .utf8)
+  }
+
+  public func save(_ clientID: String, issuer: URL) {
+    forget(issuer: issuer)
+    var add = baseQuery(issuer)
+    add[kSecValueData as String] = Data(clientID.utf8)
+    add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+    add[kSecAttrLabel as String] = "OpenZen client registration"
+    SecItemAdd(add as CFDictionary, nil)
+  }
+
+  public func forget(issuer: URL) {
+    SecItemDelete(baseQuery(issuer) as CFDictionary)
+  }
+
+  func baseQuery(_ issuer: URL) -> [String: Any] {
+    [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: service,
+      kSecAttrAccount as String: "client:" + OAuthClient.normalized(issuer),
+    ]
+  }
+}

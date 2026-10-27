@@ -15,8 +15,10 @@ public enum LoopbackRedirect {
     case invalid(String)
   }
 
-  /// Parses the request line of `head` (`GET /callback?code=…&state=… HTTP/1.1`).
-  public static func parse(head: String, expectedState: String) -> Outcome {
+  /// Parses the request line of `head` (`GET /callback?code=…&state=…&iss=… HTTP/1.1`).
+  /// `expectedIssuer` is the Gateway's issuer: an `iss` that differs is refused (RFC 9207, mix-up
+  /// defense), and a missing one too when the Gateway said it sends `iss` (`issRequired`).
+  public static func parse(head: String, expectedState: String, expectedIssuer: String? = nil, issRequired: Bool = false) -> Outcome {
     guard let line = head.split(whereSeparator: { $0 == "\r" || $0 == "\n" }).first else { return .ignore }
     let parts = line.split(separator: " ")
     guard parts.count >= 2, parts[0] == "GET" else { return .ignore }
@@ -30,6 +32,14 @@ public enum LoopbackRedirect {
     // A response without our state isn't ours, whatever else it says (RFC 6749 §10.12).
     guard let state = query["state"] else { return .invalid("The sign-in response had no state.") }
     guard constantTimeEqual(state, expectedState) else { return .invalid("The sign-in response didn't match this sign-in.") }
+    if let expectedIssuer {
+      if let iss = query["iss"] {
+        let same = URL(string: iss).map(OAuthClient.normalized) == URL(string: expectedIssuer).map(OAuthClient.normalized)
+        guard same else { return .invalid("The sign-in response came from a different server.") }
+      } else if issRequired {
+        return .invalid("The sign-in response didn't say which server sent it.")
+      }
+    }
     if let error = query["error"] {
       return .denied(error: error, description: query["error_description"])
     }

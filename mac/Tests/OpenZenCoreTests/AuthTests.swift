@@ -84,6 +84,22 @@ import Testing
     #expect(LoopbackRedirect.parse(head: head, expectedState: state) == .code("first"))
   }
 
+  @Test func issuerOnTheCallback() {
+    let ok = "GET /callback?code=c&state=s7aTe-123&iss=https%3A%2F%2Fgw.example.com HTTP/1.1\r\n\r\n"
+    #expect(LoopbackRedirect.parse(head: ok, expectedState: state, expectedIssuer: "https://gw.example.com", issRequired: true) == .code("c"))
+    let mixedUp = "GET /callback?code=c&state=s7aTe-123&iss=https%3A%2F%2Fevil.example.com HTTP/1.1\r\n\r\n"
+    guard case .invalid = LoopbackRedirect.parse(head: mixedUp, expectedState: state, expectedIssuer: "https://gw.example.com") else {
+      Issue.record("a different iss must be refused")
+      return
+    }
+    let missing = "GET /callback?code=c&state=s7aTe-123 HTTP/1.1\r\n\r\n"
+    #expect(LoopbackRedirect.parse(head: missing, expectedState: state, expectedIssuer: "https://gw.example.com") == .code("c"))
+    guard case .invalid = LoopbackRedirect.parse(head: missing, expectedState: state, expectedIssuer: "https://gw.example.com", issRequired: true) else {
+      Issue.record("a missing iss must be refused when the Gateway sends it")
+      return
+    }
+  }
+
   @Test func headCompleteness() {
     #expect(!LoopbackRedirect.isComplete(Data("GET /callback HTTP/1.1\r\nHost: x\r\n".utf8)))
     #expect(LoopbackRedirect.isComplete(Data("GET /callback HTTP/1.1\r\nHost: x\r\n\r\n".utf8)))
@@ -138,24 +154,35 @@ final class StubTransport: HTTPTransport, @unchecked Sendable {
      "revocation_endpoint":"https://gw.example.com/oauth/revoke","code_challenge_methods_supported":["S256"]}
     """
 
-  @Test func metadataURLsFollowRFC8414() {
+  @Test func metadataURLFollowsRFC8414() {
+    #expect(OAuthClient.metadataURL(for: URL(string: "https://gw.example.com")!).absoluteString == "https://gw.example.com/.well-known/oauth-authorization-server")
     #expect(
-      OAuthClient.metadataURLs(for: URL(string: "https://gw.example.com")!).map(\.absoluteString) == [
-        "https://gw.example.com/.well-known/oauth-authorization-server",
-        "https://gw.example.com/.well-known/openid-configuration",
-      ])
-    #expect(
-      OAuthClient.metadataURLs(for: URL(string: "https://gw.example.com/tenant/")!).first?.absoluteString
+      OAuthClient.metadataURL(for: URL(string: "https://gw.example.com/tenant/")!).absoluteString
         == "https://gw.example.com/.well-known/oauth-authorization-server/tenant")
   }
 
-  @Test func discoveryFallsBackToOpenIDConfiguration() async throws {
-    let stub = StubTransport { request in
-      request.url!.path.contains("oauth-authorization-server") ? (404, "", [:]) : (200, Self.metadataJSON, [:])
+  @Test func normalizedOrigins() {
+    #expect(OAuthClient.normalized(URL(string: "HTTPS://Open-Zen.Example.com:443/")!) == "https://open-zen.example.com")
+    #expect(OAuthClient.normalized(URL(string: "http://open-zen.localhost:8787")!) == "http://open-zen.localhost:8787")
+  }
+
+  @Test func protectedResourceDiscoveryChecksTheResource() async throws {
+    let good = StubTransport { request in
+      #expect(request.url?.absoluteString == "https://open-zen.example.com/.well-known/oauth-protected-resource")
+      return (200, #"{"resource":"https://open-zen.example.com","authorization_servers":["https://gw.example.com"]}"#, [:])
     }
-    let metadata = try await OAuthClient(transport: stub).discover(issuer: URL(string: "https://gw.example.com")!)
-    #expect(metadata.tokenEndpoint.absoluteString == "https://gw.example.com/oauth/token")
-    #expect(stub.requests.count == 2)
+    let metadata = try await OAuthClient(transport: good).discoverResource(origin: URL(string: "https://open-zen.example.com")!)
+    #expect(metadata.authorizationServers == [URL(string: "https://gw.example.com")!])
+
+    let wrong = StubTransport { _ in (200, #"{"resource":"https://other.example.com","authorization_servers":["https://gw.example.com"]}"#, [:]) }
+    await #expect(throws: OAuthError.self) {
+      try await OAuthClient(transport: wrong).discoverResource(origin: URL(string: "https://open-zen.example.com")!)
+    }
+  }
+
+  @Test func gatewayIssuerMustMatch() async {
+    let stub = StubTransport { _ in (200, Self.metadataJSON.replacingOccurrences(of: #""issuer":"https://gw.example.com""#, with: #""issuer":"https://evil.example.com""#), [:]) }
+    await #expect(throws: OAuthError.self) { try await OAuthClient(transport: stub).discover(issuer: URL(string: "https://gw.example.com")!) }
   }
 
   @Test func discoveryRefusesServersWithoutS256() async {
@@ -166,31 +193,29 @@ final class StubTransport: HTTPTransport, @unchecked Sendable {
     }
   }
 
-  @Test func registrationIsAPublicNativeClient() async throws {
+  @Test func registrationIsAPublicNativeClientWithoutScope() async throws {
     let stub = StubTransport { _ in (201, #"{"client_id":"c-123"}"#, [:]) }
-    let id = try await OAuthClient(transport: stub).register(
-      at: URL(string: "https://gw.example.com/oauth/register")!,
-      redirectURIs: ["http://127.0.0.1/callback", "http://127.0.0.1:5000/callback"], scope: "app:open-zen")
+    let id = try await OAuthClient(transport: stub).register(at: URL(string: "https://gw.example.com/oauth/register")!)
     #expect(id == "c-123")
     let body = try JSONSerialization.jsonObject(with: stub.requests[0].httpBody!) as! [String: Any]
     #expect(body["token_endpoint_auth_method"] as? String == "none")
-    #expect(body["redirect_uris"] as? [String] == ["http://127.0.0.1/callback", "http://127.0.0.1:5000/callback"])
-    #expect(body["scope"] as? String == "app:open-zen")
+    #expect(body["redirect_uris"] as? [String] == ["http://127.0.0.1/callback"])
     #expect(body["grant_types"] as? [String] == ["authorization_code", "refresh_token"])
+    #expect(body["scope"] == nil)
   }
 
-  @Test func authorizationURLCarriesPKCEStateAndResource() throws {
+  @Test func authorizationURLCarriesPKCEStateAndResourceButNoScope() throws {
     let metadata = try JSONDecoder().decode(AuthorizationServerMetadata.self, from: Data(Self.metadataJSON.utf8))
     let pkce = PKCE(verifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")
     let url = OAuthClient.authorizationURL(
       metadata: metadata, clientID: "c-1", redirectURI: "http://127.0.0.1:5000/callback", pkce: pkce, state: "st",
-      resource: "https://openzen.example.com", scope: nil)
+      resource: "https://open-zen.example.com")
     let items = Dictionary(uniqueKeysWithValues: URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!.map { ($0.name, $0.value!) })
     #expect(items["response_type"] == "code")
     #expect(items["code_challenge"] == "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
     #expect(items["code_challenge_method"] == "S256")
     #expect(items["state"] == "st")
-    #expect(items["resource"] == "https://openzen.example.com")
+    #expect(items["resource"] == "https://open-zen.example.com")
     #expect(items["redirect_uri"] == "http://127.0.0.1:5000/callback")
     #expect(items["scope"] == nil)
   }
@@ -214,19 +239,22 @@ final class StubTransport: HTTPTransport, @unchecked Sendable {
     let pkce = PKCE()
     let grant = try await client.exchange(
       code: "code1", metadata: metadata, clientID: "c-1", redirectURI: "http://127.0.0.1:5000/callback", pkce: pkce,
-      resource: "https://openzen.example.com", appURL: URL(string: "https://openzen.example.com")!, now: now)
+      resource: "https://open-zen.example.com", appURL: URL(string: "https://open-zen.example.com")!, now: now)
     #expect(grant.accessToken == "at1")
     #expect(grant.refreshToken == "rt1")
     #expect(grant.expiresAt == now.addingTimeInterval(3600))
     let form = stub.form(stub.requests[0])
     #expect(form["code_verifier"] == pkce.verifier)
-    #expect(form["resource"] == "https://openzen.example.com")
+    #expect(form["resource"] == "https://open-zen.example.com")
     #expect(form["client_id"] == "c-1")
+    #expect(form["scope"] == nil)
 
     let renewed = try await client.refresh(grant, now: now)
     #expect(renewed.accessToken == "at2")
     #expect(renewed.refreshToken == "rt2")
     #expect(stub.form(stub.requests[1])["refresh_token"] == "rt1")
+    #expect(stub.form(stub.requests[1])["resource"] == "https://open-zen.example.com")
+    #expect(stub.form(stub.requests[1])["scope"] == nil)
     let again = try await client.refresh(renewed, now: now)
     #expect(again.refreshToken == "rt2")
     #expect(again.needsRefresh(now: now))
@@ -263,14 +291,14 @@ final class StubTransport: HTTPTransport, @unchecked Sendable {
   }
 
   @Test func credentialsRoundTrip() throws {
-    let creds = Credentials.accessToken(appURL: URL(string: "https://openzen.example.com")!, token: "epat_x")
+    let creds = Credentials.accessToken(appURL: URL(string: "https://open-zen.example.com")!, token: "epat_x")
     let data = try JSONEncoder().encode(creds)
     #expect(try JSONDecoder().decode(Credentials.self, from: data) == creds)
   }
 
   @Test func typedURLs() {
-    #expect(URL.typed("openzen.example.com")?.absoluteString == "https://openzen.example.com")
-    #expect(URL.typed("https://openzen.example.com/meetings")?.origin?.absoluteString == "https://openzen.example.com")
+    #expect(URL.typed("open-zen.example.com")?.absoluteString == "https://open-zen.example.com")
+    #expect(URL.typed("https://open-zen.example.com/meetings")?.origin?.absoluteString == "https://open-zen.example.com")
     #expect(URL.typed("http://evil.example.com") == nil)
     #expect(URL.typed("http://localhost:3000")?.origin?.absoluteString == "http://localhost:3000")
     #expect(URL.typed("  ") == nil)

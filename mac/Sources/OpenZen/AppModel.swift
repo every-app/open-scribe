@@ -63,26 +63,17 @@ final class AppModel: ObservableObject {
     verifyAndSave(credentials)
   }
 
-  func signInWithEveryApp(gatewayText: String, appURLText: String) {
-    guard let gateway = URL.typed(gatewayText) else {
-      signInError = "Enter your Gateway's address, like https://example.com."
+  /// The person types only the OpenZen app's URL; the app names its Gateway (RFC 9728).
+  func signInWithEveryApp(appURLText: String) {
+    guard let appURL = URL.typed(appURLText)?.origin else {
+      signInError = "Enter the OpenZen app's address, like https://open-zen.example.com."
       return
-    }
-    let appURL: URL
-    if !appURLText.trimmingCharacters(in: .whitespaces).isEmpty {
-      guard let typed = URL.typed(appURLText)?.origin else {
-        signInError = "That app address isn't valid."
-        return
-      }
-      appURL = typed
-    } else {
-      appURL = Self.defaultAppURL(gateway: gateway)
     }
     signingIn = true
     signInError = nil
     signInTask = Task {
       do {
-        let grant = try await OAuthSignIn.run(gatewayURL: gateway, appURL: appURL)
+        let grant = try await OAuthSignIn.run(appURL: appURL)
         verifyAndSave(.oauth(grant))
       } catch is CancellationError {
         signingIn = false
@@ -97,15 +88,6 @@ final class AppModel: ObservableObject {
     signInTask?.cancel()
     signInTask = nil
     signingIn = false
-  }
-
-  /// The app lives at open-zen.<gateway host> (app id `open-zen`) unless the person says otherwise.
-  static func defaultAppURL(gateway: URL) -> URL {
-    var c = URLComponents()
-    c.scheme = gateway.scheme ?? "https"
-    c.host = "open-zen.\(gateway.host ?? "")"
-    c.port = gateway.port
-    return c.url!
   }
 
   func signOut() {
@@ -150,9 +132,10 @@ final class AppModel: ObservableObject {
       return APIClient(auth: AccessTokenAuthProvider(appURL: url, token: token))
     case .oauth(let grant):
       let store = self.store
-      let provider = OAuthAuthProvider(grant: grant, client: OAuthClient()) { renewed in
-        if let renewed { store.save(.oauth(renewed)) }
-      }
+      let provider = OAuthAuthProvider(
+        grant: grant, client: OAuthClient(),
+        persist: { renewed in if let renewed { store.save(.oauth(renewed)) } },
+        forgetClient: { ClientRegistrationStore().forget(issuer: $0) })
       return APIClient(auth: provider)
     }
   }
