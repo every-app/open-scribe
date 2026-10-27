@@ -22,6 +22,7 @@
 - **The end-to-end sign-in test runs on the onboarding loop's test account (loop-1)**, with the Gateway deployed from `feature/native-sign-in`. Local `everyapp dev` can't verify the new token (mirror mode is deferred in the design).
 - **Fallback chunks are ≥20 s, cut at a turn end, max 30 s**, not a fixed 30 s, so words aren't split mid-sentence.
 - **The Mac app treats a Cloudflare Access redirect or login page as "needs Sign in with Every App"**, never as a sign-out.
+- **The Mac mic follows the system default input,** including hot-plug (e.g. AirPods mid-meeting); system audio follows the default output. A Launch at login toggle exists (reminders only arrive while OpenZen runs).
 
 ## Questions for Ben
 
@@ -32,3 +33,4 @@
 - **Echo on laptop speakers:** without headphones, the mic also hears the other side, so `me` transcribes `them`. Recommended: try AVAudioEngine voice processing in a hardware test and turn it on if capture stays clean.
 - **Mac signing identity:** reuse "Scrawl Dev" locally, a separate "OpenZen Dev" cert, or a Developer ID? Recommended: keep Scrawl Dev for now; get a Developer ID before anyone else installs it.
 - **Should Record on a reminder also open the conference link?** Recommended: no for v1; the menu has "Join Call".
+- **A mic picker in the Mac app?** Recommended: no for v1. Following the system default is what people expect from a call app.
