@@ -10,6 +10,14 @@ public struct URLSessionTransport: HTTPTransport {
 
   public init(session: URLSession = .shared) { self.session = session }
 
+  /// `followRedirects: false` hands a 3xx back as it is (to spot a bounce to a login page).
+  public init(followRedirects: Bool) {
+    session = followRedirects ? .shared : Self.noRedirects
+  }
+
+  /// One for the app's life: a session keeps its delegate until invalidated.
+  static let noRedirects = URLSession(configuration: .ephemeral, delegate: NoRedirects(), delegateQueue: nil)
+
   public func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
     let (data, response) = try await session.data(for: request)
     guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
@@ -55,4 +63,11 @@ extension URL {
     }
     return url
   }
+}
+
+final class NoRedirects: NSObject, URLSessionTaskDelegate, Sendable {
+  func urlSession(
+    _ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+    newRequest request: URLRequest
+  ) async -> URLRequest? { nil }
 }

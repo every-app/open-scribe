@@ -31,6 +31,9 @@ public struct TurnDetector: Sendable {
 
   public var elapsedMs: Int { total * 1000 / rate }
 
+  /// Whether the stretch not yet committed holds speech.
+  public var inSpeech: Bool { stretchSpeech }
+
   /// Feeds samples; returns what to do after they're appended to the server's buffer.
   public mutating func feed(_ samples: [Int16]) -> [Action] {
     var actions: [Action] = []

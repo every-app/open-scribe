@@ -2,6 +2,9 @@ import Foundation
 
 public enum APIError: Error, LocalizedError, Equatable {
   case signedOut
+  /// Cloudflare Access stood in front of the app and wanted a browser login: a bearer alone
+  /// (a personal access token) doesn't get through this Gateway.
+  case accessLogin
   /// `code` is the server's machine-readable `error` (e.g. `ai_route_not_allowed`).
   case server(status: Int, code: String? = nil, message: String?)
   case decoding(String)
@@ -11,9 +14,21 @@ public enum APIError: Error, LocalizedError, Equatable {
     return nil
   }
 
+  /// The transcription-token route says live keys can't be had (the Gateway doesn't allow the
+  /// Realtime route, or the upstream refused): use the audio-chunk fallback. Not for a missing
+  /// OpenAI key, which the fallback can't fix either, nor for sign-in problems.
+  public var isRealtimeUnavailable: Bool {
+    guard case .server(let status, let code, _) = self else { return false }
+    if code == "ai_route_not_allowed" { return true }
+    if code == "ai_provider_not_configured" { return false }
+    return [403, 501, 502, 503].contains(status)
+  }
+
   public var errorDescription: String? {
     switch self {
     case .signedOut: "You're signed out. Sign in again."
+    case .accessLogin:
+      "Gateway requires Sign in with Every App. Its Cloudflare Access login stopped the request, so an access token alone can't reach OpenZen."
     case .server(let status, _, let message): message ?? "OpenZen answered HTTP \(status)."
     case .decoding(let what): "OpenZen sent something unexpected (\(what))."
     }
@@ -25,7 +40,8 @@ public struct APIClient: Sendable {
   public let auth: AuthProvider
   let transport: HTTPTransport
 
-  public init(auth: AuthProvider, transport: HTTPTransport = URLSessionTransport()) {
+  /// The default transport doesn't follow redirects, so a bounce to the Access login is seen as one.
+  public init(auth: AuthProvider, transport: HTTPTransport = URLSessionTransport(followRedirects: false)) {
     self.auth = auth
     self.transport = transport
   }
@@ -131,6 +147,8 @@ public struct APIClient: Sendable {
       throw APIError.signedOut
     }
     var (data, response) = try await transport.send(makeRequest(method, path, query: query, body: body, token: token, contentType: contentType))
+    // Before the 401 handling: Access can answer 401/403 too, and that isn't a dead token.
+    if Self.isAccessLogin(data, response) { throw APIError.accessLogin }
     if response.statusCode == 401 {
       do {
         token = try await auth.tokenRejected(token)
@@ -138,6 +156,7 @@ public struct APIClient: Sendable {
         throw APIError.signedOut
       }
       (data, response) = try await transport.send(makeRequest(method, path, query: query, body: body, token: token, contentType: contentType))
+      if Self.isAccessLogin(data, response) { throw APIError.accessLogin }
       if response.statusCode == 401 { throw APIError.signedOut }
     }
     guard (200..<300).contains(response.statusCode) else {
@@ -154,6 +173,22 @@ public struct APIClient: Sendable {
     } catch {
       throw APIError.decoding("\(T.self)")
     }
+  }
+
+  /// Whether Cloudflare Access answered instead of the app: a redirect to (or a page from)
+  /// `*.cloudflareaccess.com`, or Access's own login page or headers.
+  static func isAccessLogin(_ data: Data, _ response: HTTPURLResponse) -> Bool {
+    func isAccessHost(_ url: URL?) -> Bool {
+      guard let host = url?.host?.lowercased() else { return false }
+      return host == "cloudflareaccess.com" || host.hasSuffix(".cloudflareaccess.com")
+    }
+    if isAccessHost(response.url) { return true }
+    if (300..<400).contains(response.statusCode), let location = response.value(forHTTPHeaderField: "Location") {
+      if isAccessHost(URL(string: location)) || location.contains("/cdn-cgi/access/") { return true }
+    }
+    guard let type = response.value(forHTTPHeaderField: "Content-Type"), type.contains("text/html") else { return false }
+    let page = String(decoding: data.prefix(64 * 1024), as: UTF8.self).lowercased()
+    return page.contains("cloudflareaccess.com") || page.contains("/cdn-cgi/access/")
   }
 
   /// `{ error: code, message? }` (SPEC), or `{ error: { code, message } }`, or `{ message }`.

@@ -119,8 +119,8 @@ final class Recorder: ObservableObject {
     // Both keys first: if the Worker can't mint them, decide before touching audio.
     do {
       try await startChannels()
-    } catch let error as APIError where error.code == "ai_route_not_allowed" {
-      // The Gateway doesn't allow Realtime keys: send turns to the Worker instead (SPEC "Fallback").
+    } catch let error as APIError where error.isRealtimeUnavailable {
+      // No live keys: send 30 s chunks to the Worker instead (SPEC "Fallback").
       for channel in channels.values { await channel.cancel() }
       let seq = SeqCounter()
       for speaker in [Speaker.me, .them] {
@@ -133,7 +133,7 @@ final class Recorder: ObservableObject {
           onLive: onLive, onProblem: onProblem)
       }
       try await startChannels()
-      fallbackNotice = "Near-live transcription (the Gateway doesn't allow live keys)"
+      fallbackNotice = "Near-live transcription: live keys aren't available, so audio goes in 30-second chunks"
       updateWarning()
     }
     for speaker in [Speaker.me, .them] {

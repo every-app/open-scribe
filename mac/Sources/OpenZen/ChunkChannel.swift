@@ -1,9 +1,9 @@
 import Foundation
 import OpenZenCore
 
-/// The fallback when the Gateway won't mint Realtime keys (`ai_route_not_allowed`): each turn
-/// the detector finds (30 s at most) goes to the Worker as an in-memory WAV, which it passes to
-/// OpenAI's transcription endpoint and drops. The Worker stores the segment itself.
+/// The fallback when the Worker can't mint Realtime keys (`APIError.isRealtimeUnavailable`):
+/// chunks of up to 30 s, cut at turn ends, go to `POST …/audio-chunk` as in-memory WAVs; the
+/// Worker passes each to OpenAI's transcription endpoint, stores the segment and drops the audio.
 actor ChunkChannel: SpeakerChannel {
   static let maxAttempts = 3
 
@@ -14,9 +14,7 @@ actor ChunkChannel: SpeakerChannel {
   let onLive: @Sendable (Speaker, String) -> Void
   let onProblem: @Sendable (Speaker, String?) -> Void
 
-  private var detector = TurnDetector()
-  /// Audio since the current turn started.
-  private var pending = Data()
+  private var cutter = ChunkCutter()
   private var queue: Task<Void, Never>?
   private var stopped = false
 
@@ -38,32 +36,26 @@ actor ChunkChannel: SpeakerChannel {
 
   func feed(_ pcm: Data) async {
     guard !stopped else { return }
-    pending.append(pcm)
-    for action in detector.feed(PCM16.decode(pcm)) {
-      switch action {
-      case .commit(let t0, let t1): send(t0: t0, t1: t1)
-      case .skipSilence: pending.removeAll(keepingCapacity: true)
-      }
-    }
+    for chunk in cutter.feed(pcm) { send(chunk) }
   }
 
   func finish() async {
     guard !stopped else { return }
     stopped = true
-    if case .commit(let t0, let t1)? = detector.flush() { send(t0: t0, t1: t1) }
+    if let chunk = cutter.finish() { send(chunk) }
     await queue?.value
   }
 
   func cancel() async {
     stopped = true
     queue?.cancel()
-    pending = Data()
+    cutter = ChunkCutter()
   }
 
   /// Uploads in order, one at a time, so the Worker sees seqs ascending.
-  private func send(t0: Int, t1: Int) {
-    let wav = WAV.encode(pcm16: pending)
-    pending = Data()
+  private func send(_ chunk: ChunkCutter.Chunk) {
+    let wav = WAV.encode(pcm16: chunk.pcm)
+    let (t0, t1) = (chunk.startedMs, chunk.endedMs)
     let number = seq.next()
     let previous = queue
     let speaker = self.speaker
