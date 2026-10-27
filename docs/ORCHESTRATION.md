@@ -31,4 +31,4 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 01:25 Launched sign-in lanes a (Fable), b (Fable), c (Opus) and d (Opus) in parallel; a merges first. Sent each the sibling roster.
 - 01:25 Web: audio-chunk format agreed with mac; (meeting, seq) unique (7ba6a5a); 7 tests pass. `everyapp dev` left running at http://open-zen.localhost:8787. Web lane idle.
 - 01:26 Design follow-up #856: works behind Access through `bearerRoutes` path bypasses (cookies are 401 there); groups become a question for Ben. Asked web to confirm the UI never uses /api/v1 with cookies.
-- 01:35 Tick: mac app committed (86a5d0f). It builds and 61 tests pass, and its API client was smoke-tested against local \`everyapp dev\`. Lanes a–d and the design follow-up are running; nobody is stuck.
+- 01:35 Tick: mac app committed (86a5d0f). It builds and 61 tests pass, and its API client was smoke-tested against local `everyapp dev`. Lanes a–d and the design follow-up are running; nobody is stuck.
