@@ -73,6 +73,14 @@ import Testing
   }
 }
 
+@Suite struct FinishTests {
+  @Test func finishingTwiceIsDone() async throws {
+    let stub = StubTransport { _ in (404, #"{"error":"not_found"}"#, [:]) }
+    let api = APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://open-zen.example.com")!, token: "t"), transport: stub)
+    try await api.finish(meetingID: "m1")
+  }
+}
+
 @Suite struct ChunkCutterTests {
   func tone(ms: Int) -> Data { PCM16.encode((0..<(24 * ms)).map { Float(0.25 * sin(Double($0) * 0.1)) }) }
   func silence(ms: Int) -> Data { Data(count: 48 * ms) }

@@ -106,8 +106,13 @@ public struct APIClient: Sendable {
     let _: Empty = try await request("POST", "api/v1/meetings/\(Self.escape(meetingID))/segments", body: body)
   }
 
+  /// Idempotent: the Worker answers 404 for a meeting that's already finished, which is done too.
   public func finish(meetingID: String) async throws {
-    let _: Empty = try await send("POST", "api/v1/meetings/\(Self.escape(meetingID))/finish", json: [String: Any]())
+    do {
+      let _: Empty = try await send("POST", "api/v1/meetings/\(Self.escape(meetingID))/finish", json: [String: Any]())
+    } catch APIError.server(404, _, _) {
+      return
+    }
   }
 
   public func meetings() async throws -> [MeetingSummary] {
