@@ -17,6 +17,7 @@ import { Route as ApiV1MeRouteImport } from './routes/api/v1/me'
 import { Route as ApiV1CalendarUpcomingRouteImport } from './routes/api/v1/calendar.upcoming'
 import { Route as ApiV1MeetingsIndexRouteImport } from './routes/api/v1/meetings.index'
 import { Route as ApiV1MeetingsIdIndexRouteImport } from './routes/api/v1/meetings.$id.index'
+import { Route as ApiV1MeetingsIdAudioChunkRouteImport } from './routes/api/v1/meetings.$id.audio-chunk'
 import { Route as ApiV1MeetingsIdFinishRouteImport } from './routes/api/v1/meetings.$id.finish'
 import { Route as ApiV1MeetingsIdSegmentsRouteImport } from './routes/api/v1/meetings.$id.segments'
 import { Route as ApiV1MeetingsIdTranscriptionTokenRouteImport } from './routes/api/v1/meetings.$id.transcription-token'
@@ -63,6 +64,12 @@ const ApiV1MeetingsIdIndexRoute = ApiV1MeetingsIdIndexRouteImport.update({
   path: '/api/v1/meetings/$id/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1MeetingsIdAudioChunkRoute =
+  ApiV1MeetingsIdAudioChunkRouteImport.update({
+    id: '/api/v1/meetings/$id/audio-chunk',
+    path: '/api/v1/meetings/$id/audio-chunk',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1MeetingsIdFinishRoute = ApiV1MeetingsIdFinishRouteImport.update({
   id: '/api/v1/meetings/$id/finish',
   path: '/api/v1/meetings/$id/finish',
@@ -100,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/me': typeof ApiV1MeRoute
   '/api/v1/calendar/upcoming': typeof ApiV1CalendarUpcomingRoute
   '/api/v1/meetings/': typeof ApiV1MeetingsIndexRoute
+  '/api/v1/meetings/$id/audio-chunk': typeof ApiV1MeetingsIdAudioChunkRoute
   '/api/v1/meetings/$id/finish': typeof ApiV1MeetingsIdFinishRoute
   '/api/v1/meetings/$id/segments': typeof ApiV1MeetingsIdSegmentsRoute
   '/api/v1/meetings/$id/transcription-token': typeof ApiV1MeetingsIdTranscriptionTokenRoute
@@ -115,6 +123,7 @@ export interface FileRoutesByTo {
   '/api/v1/me': typeof ApiV1MeRoute
   '/api/v1/calendar/upcoming': typeof ApiV1CalendarUpcomingRoute
   '/api/v1/meetings': typeof ApiV1MeetingsIndexRoute
+  '/api/v1/meetings/$id/audio-chunk': typeof ApiV1MeetingsIdAudioChunkRoute
   '/api/v1/meetings/$id/finish': typeof ApiV1MeetingsIdFinishRoute
   '/api/v1/meetings/$id/segments': typeof ApiV1MeetingsIdSegmentsRoute
   '/api/v1/meetings/$id/transcription-token': typeof ApiV1MeetingsIdTranscriptionTokenRoute
@@ -131,6 +140,7 @@ export interface FileRoutesById {
   '/api/v1/me': typeof ApiV1MeRoute
   '/api/v1/calendar/upcoming': typeof ApiV1CalendarUpcomingRoute
   '/api/v1/meetings/': typeof ApiV1MeetingsIndexRoute
+  '/api/v1/meetings/$id/audio-chunk': typeof ApiV1MeetingsIdAudioChunkRoute
   '/api/v1/meetings/$id/finish': typeof ApiV1MeetingsIdFinishRoute
   '/api/v1/meetings/$id/segments': typeof ApiV1MeetingsIdSegmentsRoute
   '/api/v1/meetings/$id/transcription-token': typeof ApiV1MeetingsIdTranscriptionTokenRoute
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/api/v1/me'
     | '/api/v1/calendar/upcoming'
     | '/api/v1/meetings/'
+    | '/api/v1/meetings/$id/audio-chunk'
     | '/api/v1/meetings/$id/finish'
     | '/api/v1/meetings/$id/segments'
     | '/api/v1/meetings/$id/transcription-token'
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/api/v1/me'
     | '/api/v1/calendar/upcoming'
     | '/api/v1/meetings'
+    | '/api/v1/meetings/$id/audio-chunk'
     | '/api/v1/meetings/$id/finish'
     | '/api/v1/meetings/$id/segments'
     | '/api/v1/meetings/$id/transcription-token'
@@ -178,6 +190,7 @@ export interface FileRouteTypes {
     | '/api/v1/me'
     | '/api/v1/calendar/upcoming'
     | '/api/v1/meetings/'
+    | '/api/v1/meetings/$id/audio-chunk'
     | '/api/v1/meetings/$id/finish'
     | '/api/v1/meetings/$id/segments'
     | '/api/v1/meetings/$id/transcription-token'
@@ -194,6 +207,7 @@ export interface RootRouteChildren {
   ApiV1MeRoute: typeof ApiV1MeRoute
   ApiV1CalendarUpcomingRoute: typeof ApiV1CalendarUpcomingRoute
   ApiV1MeetingsIndexRoute: typeof ApiV1MeetingsIndexRoute
+  ApiV1MeetingsIdAudioChunkRoute: typeof ApiV1MeetingsIdAudioChunkRoute
   ApiV1MeetingsIdFinishRoute: typeof ApiV1MeetingsIdFinishRoute
   ApiV1MeetingsIdSegmentsRoute: typeof ApiV1MeetingsIdSegmentsRoute
   ApiV1MeetingsIdTranscriptionTokenRoute: typeof ApiV1MeetingsIdTranscriptionTokenRoute
@@ -260,6 +274,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MeetingsIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/meetings/$id/audio-chunk': {
+      id: '/api/v1/meetings/$id/audio-chunk'
+      path: '/api/v1/meetings/$id/audio-chunk'
+      fullPath: '/api/v1/meetings/$id/audio-chunk'
+      preLoaderRoute: typeof ApiV1MeetingsIdAudioChunkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/meetings/$id/finish': {
       id: '/api/v1/meetings/$id/finish'
       path: '/api/v1/meetings/$id/finish'
@@ -306,6 +327,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1MeRoute: ApiV1MeRoute,
   ApiV1CalendarUpcomingRoute: ApiV1CalendarUpcomingRoute,
   ApiV1MeetingsIndexRoute: ApiV1MeetingsIndexRoute,
+  ApiV1MeetingsIdAudioChunkRoute: ApiV1MeetingsIdAudioChunkRoute,
   ApiV1MeetingsIdFinishRoute: ApiV1MeetingsIdFinishRoute,
   ApiV1MeetingsIdSegmentsRoute: ApiV1MeetingsIdSegmentsRoute,
   ApiV1MeetingsIdTranscriptionTokenRoute:

@@ -1,4 +1,5 @@
 import {
+  aiBaseUrl,
   createGatewayFetch,
   gatewayRefusal,
   providerBaseUrl,
@@ -9,6 +10,10 @@ import { z } from "zod";
 
 /** The streaming transcription model (OpenAI's Realtime transcription session). */
 const TRANSCRIPTION_MODEL = "gpt-live-transcribe";
+/** The fallback's model, for chunks posted to the Worker (the manifest's `ai.models`). */
+const CHUNK_MODEL = "gpt-4o-mini-transcribe";
+/** A 30 s chunk of 24 kHz PCM16 is 1.4 MB; OpenAI takes 25 MB. */
+export const MAX_CHUNK_BYTES = 25 * 1024 * 1024;
 /** Realtime client secrets live at most two hours; the Mac app re-mints past that. */
 const SECRET_SECONDS = 7200;
 
@@ -38,21 +43,7 @@ export async function mintTranscriptionToken(
   request: Request,
   input: z.infer<typeof transcriptionTokenInput>,
 ): Promise<TranscriptionToken> {
-  let ai: ReturnType<typeof createGatewayFetch>;
-  try {
-    ai = createGatewayFetch({ env, for: request });
-  } catch (error) {
-    // Local dev without OPENAI_API_KEY in .dev.vars: the same refusal the Gateway sends.
-    const refusal = refusalFromError(error);
-    if (refusal) {
-      throw new TranscriptionRefused(
-        refusal.code,
-        refusal.setup ?? refusal.message,
-        refusal.status,
-      );
-    }
-    throw error;
-  }
+  const ai = openai(request);
   const response = await ai(
     `${providerBaseUrl("openai")}/v1/realtime/client_secrets`,
     {
@@ -101,6 +92,63 @@ export async function mintTranscriptionToken(
     model: TRANSCRIPTION_MODEL,
     sampleRate: 24000,
   };
+}
+
+/** The Gateway's OpenAI fetch; local dev without a key throws the same refusal. */
+function openai(request: Request): ReturnType<typeof createGatewayFetch> {
+  try {
+    return createGatewayFetch({ env, for: request });
+  } catch (error) {
+    const refusal = refusalFromError(error);
+    if (refusal) {
+      throw new TranscriptionRefused(
+        refusal.code,
+        refusal.setup ?? refusal.message,
+        refusal.status,
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * The fallback when the Gateway's operator hasn't allowed the Realtime
+ * route: the Mac app posts a short WAV chunk, the Worker forwards it to
+ * OpenAI's transcription endpoint (an inference route, always allowed) and
+ * keeps the text only. The audio is read once and dropped.
+ */
+export async function transcribeChunk(
+  request: Request,
+  file: File,
+  language?: string,
+): Promise<string> {
+  const ai = openai(request);
+  const form = new FormData();
+  form.set("model", CHUNK_MODEL);
+  form.set("file", file, file.name || "chunk.wav");
+  form.set("response_format", "json");
+  if (language) form.set("language", language);
+  const response = await ai(`${aiBaseUrl("openai")}/audio/transcriptions`, {
+    method: "POST",
+    body: form,
+  });
+  const refused = await gatewayRefusal(response);
+  if (refused) {
+    throw new TranscriptionRefused(
+      refused.code,
+      refused.setup ?? refused.message,
+      refused.status,
+    );
+  }
+  if (!response.ok) {
+    throw new TranscriptionRefused(
+      "openai_error",
+      `OpenAI answered ${response.status}`,
+      502,
+    );
+  }
+  const body = (await response.json()) as { text?: string };
+  return (body.text ?? "").trim();
 }
 
 export class TranscriptionRefused extends Error {

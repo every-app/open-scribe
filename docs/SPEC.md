@@ -44,44 +44,45 @@ OpenZen's Worker changes nothing for this: its routes read the person with the S
 
 **What OpenZen needs from the platform** (each is missing today, verified in the checkout on 2026-10-27):
 
-| # | Need | Today |
-| --- | --- | --- |
-| 1 | The perimeter accepts a Gateway-issued OAuth access token on an app host's private routes, minting an identity for that person (`chan: "api"` or a new channel, `act.sub: "oauth:<id>"`, `scopes: ["*"]` for that one app) | An OAuth-shaped bearer on an app host is `401 unauthenticated`; only `epat_` tokens and sessions open app routes |
-| 2 | A token scoped to one app (`scope=app:<id>` or `resource=<app host>`), refused on every other app, like a bound personal token | OAuth tokens carry `mcp:` scopes only and open `/mcp` alone |
-| 3 | Dynamic registration of a public native client with loopback redirect URIs and `token_endpoint_auth_method: none` | Registration exists for MCP clients; loopback URIs and app scopes unverified |
-| 4 | Cloudflare Access lets the app's API paths through for bearer calls, the way `access on` bypasses `/mcp` on hosts whose manifest sets `mcp`: a manifest opt-in (say `nativeClients: { paths: ["/api/**"], why }`) that becomes a path override on the apps' Access application, with the perimeter still demanding the token | A bearer alone to an app host behind Access gets the Access login page; the service-token workaround is "unverified live" |
-| 5 | Any member can approve a native app, as any member connects an AI client | Personal access tokens are created on an owner/admin page (`tokens.tsx` TODO) |
-| 6 | Revocation: the token on the Connected AI clients page, a revocation endpoint, and deactivation revoking it | Exists for MCP connections; must cover app-scoped grants |
-| 7 | `everyapp dev` mirror mode verifies the new token on app routes; stub mode keeps "any bearer is the dev user" | Stub works today; mirror forwards `epat_` only |
-| 8 | Short access tokens (an hour or less) with rotating refresh tokens, so a stolen token is worth little | Whatever the OAuth server's defaults are |
+| #   | Need                                                                                                                                                                                                                                                                                                                         | Today                                                                                                                     |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1   | The perimeter accepts a Gateway-issued OAuth access token on an app host's private routes, minting an identity for that person (`chan: "api"` or a new channel, `act.sub: "oauth:<id>"`, `scopes: ["*"]` for that one app)                                                                                                   | An OAuth-shaped bearer on an app host is `401 unauthenticated`; only `epat_` tokens and sessions open app routes          |
+| 2   | A token scoped to one app (`scope=app:<id>` or `resource=<app host>`), refused on every other app, like a bound personal token                                                                                                                                                                                               | OAuth tokens carry `mcp:` scopes only and open `/mcp` alone                                                               |
+| 3   | Dynamic registration of a public native client with loopback redirect URIs and `token_endpoint_auth_method: none`                                                                                                                                                                                                            | Registration exists for MCP clients; loopback URIs and app scopes unverified                                              |
+| 4   | Cloudflare Access lets the app's API paths through for bearer calls, the way `access on` bypasses `/mcp` on hosts whose manifest sets `mcp`: a manifest opt-in (say `nativeClients: { paths: ["/api/**"], why }`) that becomes a path override on the apps' Access application, with the perimeter still demanding the token | A bearer alone to an app host behind Access gets the Access login page; the service-token workaround is "unverified live" |
+| 5   | Any member can approve a native app, as any member connects an AI client                                                                                                                                                                                                                                                     | Personal access tokens are created on an owner/admin page (`tokens.tsx` TODO)                                             |
+| 6   | Revocation: the token on the Connected AI clients page, a revocation endpoint, and deactivation revoking it                                                                                                                                                                                                                  | Exists for MCP connections; must cover app-scoped grants                                                                  |
+| 7   | `everyapp dev` mirror mode verifies the new token on app routes; stub mode keeps "any bearer is the dev user"                                                                                                                                                                                                                | Stub works today; mirror forwards `epat_` only                                                                            |
+| 8   | Short access tokens (an hour or less) with rotating refresh tokens, so a stolen token is worth little                                                                                                                                                                                                                        | Whatever the OAuth server's defaults are                                                                                  |
 
 Fallback that works today: a **personal access token** (Manage workspace → Tokens → New token, Full access, bound to OpenZen) pasted into the Mac app and sent as `Authorization: Bearer epat_…`. It needs Access off or an Access service token alongside, and only owners and admins can make one.
 
 ## Data model (D1)
 
-| Table | Columns |
-| --- | --- |
-| `meetings` | `id`, `org_id`, `owner_user_id`, `title`, `starts_at`, `ends_at`, `calendar_event_id?`, `status` (`recording`, `processing`, `done`, `failed`), `visibility` (`private`, `team`), `created_at`, `updated_at` |
-| `transcript_segments` | `id`, `meeting_id`, `seq`, `started_ms`, `ended_ms`, `speaker` (`me`, `them`, or null), `text`, `created_at` |
-| `notes` | `meeting_id` (pk), `markdown`, `model`, `generated_at`, `edited_at?` |
-| `share_links` | `id` (32 random bytes, base64url), `meeting_id`, `created_by`, `created_at`, `revoked_at?` |
+| Table                 | Columns                                                                                                                                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `meetings`            | `id`, `org_id`, `owner_user_id`, `title`, `starts_at`, `ends_at`, `calendar_event_id?`, `status` (`recording`, `processing`, `done`, `failed`), `visibility` (`private`, `team`), `created_at`, `updated_at` |
+| `transcript_segments` | `id`, `meeting_id`, `seq`, `started_ms`, `ended_ms`, `speaker` (`me`, `them`, or null), `text`, `created_at`                                                                                                 |
+| `notes`               | `meeting_id` (pk), `markdown`, `model`, `generated_at`, `edited_at?`                                                                                                                                         |
+| `share_links`         | `id` (32 random bytes, base64url), `meeting_id`, `created_by`, `created_at`, `revoked_at?`                                                                                                                   |
 
 Every query takes `org_id` and the user: private rows by `owner_user_id`, team rows by `org_id`. No table of users; identity is the Gateway's.
 
 ## API (bearer token; JSON)
 
-| Route | Does |
-| --- | --- |
-| `GET /api/v1/me` | `{ user: { id, email, orgName }, google: { connected, connectUrl } }` |
-| `GET /api/v1/calendar/upcoming?hours=24` | `{ events: [{ id, title, start, end, attendees: [{ email, self }], conferenceUrl, location }], connected }`; 409 with `connectUrl` when Google isn't connected |
-| `POST /api/v1/meetings` | `{ title, startsAt?, calendarEventId? }` → 201 `{ meeting: { id, … } }` |
-| `POST /api/v1/meetings/:id/transcription-token` | `{ source?: "mic" \| "system" \| "mixed", language? }` → `{ value, expiresAt, model, sampleRate }`; 503 with the Gateway's setup sentence when OpenAI isn't set up |
-| `POST /api/v1/meetings/:id/segments` | a bare array or `{ segments }` of `{ seq, startedMs, endedMs, speaker, text }` |
-| `POST /api/v1/meetings/:id/finish` | stop; the Worker writes the notes in the background (`waitUntil`) |
-| `GET /api/v1/meetings`, `GET /api/v1/meetings/:id` | `{ meetings }`; `{ meeting }` with `segments`, `notes`, `shareLinks` |
-| `PATCH /api/v1/meetings/:id` | `{ title?, visibility? }` (owner only) |
-| `POST /api/v1/meetings/:id/share` → `{ link: { id, url } }`, `DELETE …/share/:linkId` | make or revoke a public link (owner only) |
-| `GET /s/:token` (public route) | the shared page, read-only, `noindex` |
+| Route                                                                                 | Does                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/me`                                                                      | `{ user: { id, email, orgName }, google: { connected, connectUrl } }`                                                                                                                                                                                                                 |
+| `GET /api/v1/calendar/upcoming?hours=24`                                              | `{ events: [{ id, title, start, end, attendees: [{ email, self }], conferenceUrl, location }], connected }`; 409 with `connectUrl` when Google isn't connected                                                                                                                        |
+| `POST /api/v1/meetings`                                                               | `{ title, startsAt?, calendarEventId? }` → 201 `{ meeting: { id, … } }`                                                                                                                                                                                                               |
+| `POST /api/v1/meetings/:id/transcription-token`                                       | `{ source?: "mic" \| "system" \| "mixed", language? }` → `{ value, expiresAt, model, sampleRate }`; 503 with the Gateway's setup sentence when OpenAI isn't set up                                                                                                                    |
+| `POST /api/v1/meetings/:id/audio-chunk`                                               | the fallback: multipart `file` (WAV, ≤ 30 s, ≤ 25 MB) + `seq`, `startedMs`, `endedMs`, `speaker?`, `language?` → `{ segment }`; the Worker forwards the audio to `/v1/audio/transcriptions` through the Gateway (model `gpt-4o-mini-transcribe`), stores the text and drops the audio |
+| `POST /api/v1/meetings/:id/segments`                                                  | a bare array or `{ segments }` of `{ seq, startedMs, endedMs, speaker, text }`                                                                                                                                                                                                        |
+| `POST /api/v1/meetings/:id/finish`                                                    | stop; the Worker writes the notes in the background (`waitUntil`)                                                                                                                                                                                                                     |
+| `GET /api/v1/meetings`, `GET /api/v1/meetings/:id`                                    | `{ meetings }`; `{ meeting }` with `segments`, `notes`, `shareLinks`                                                                                                                                                                                                                  |
+| `PATCH /api/v1/meetings/:id`                                                          | `{ title?, visibility? }` (owner only)                                                                                                                                                                                                                                                |
+| `POST /api/v1/meetings/:id/share` → `{ link: { id, url } }`, `DELETE …/share/:linkId` | make or revoke a public link (owner only)                                                                                                                                                                                                                                             |
+| `GET /s/:token` (public route)                                                        | the shared page, read-only, `noindex`                                                                                                                                                                                                                                                 |
 
 Every route answers JSON with `cache-control: no-store`; errors are `{ error, message? }` with 400, 401, 404, 409, 502, 503 or 500.
 
@@ -105,7 +106,7 @@ Google Calendar is read-only through the Gateway's `google-workspace` client, sc
 
 **Verified against the platform:** `/v1/realtime/client_secrets` is not an inference route, so it needs both the manifest's `ai.routes: ["/v1/realtime/client_secrets"]` and the operator's Gateway setting `AI_PROXY_EXTRA_ROUTES` covering it (`echo "/v1/realtime/client_secrets" | everyapp secret set AI_PROXY_EXTRA_ROUTES`). Only `openai` supports extra routes. Note the Mac app's `/me` and `/upcoming` decoders are lenient, so the shapes above may grow fields. The route streams through the proxy unread, which is what we want. The setting is required once the manifest has `ai.routes`, so the app shows Needs setup until it's set.
 
-**Fallback** if Ben won't set the extra route: the Mac app sends 30-second WAV chunks to the Worker, which forwards them to `/v1/audio/transcriptions` (an inference route) and discards the audio. Near-live, no key on the Mac at all, one more hop.
+**Fallback** (built, `POST /api/v1/meetings/:id/audio-chunk`): when the transcription-token route answers `ai_route_not_allowed`, the Mac app sends 30-second WAV chunks to the Worker, which forwards them to `/v1/audio/transcriptions` (an inference route, always allowed) and discards the audio. Near-live, no key on the Mac at all, one more hop.
 
 ## Sharing and visibility
 
@@ -116,11 +117,11 @@ Google Calendar is read-only through the Gateway's `google-workspace` client, sc
 
 ## Permissions (macOS)
 
-| Permission | Why | How |
-| --- | --- | --- |
-| Microphone | your voice | `AVCaptureDevice.requestAccess(for: .audio)`, `NSMicrophoneUsageDescription` |
+| Permission                  | Why                        | How                                                                                                                                                                                           |
+| --------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Microphone                  | your voice                 | `AVCaptureDevice.requestAccess(for: .audio)`, `NSMicrophoneUsageDescription`                                                                                                                  |
 | System Audio Recording Only | the other side of the call | Core Audio process tap (`CATapDescription`, `AudioHardwareCreateProcessTap`, macOS 14.2+), `NSAudioCaptureUsageDescription`. No Screen Recording prompt; ScreenCaptureKit audio would need it |
-| Notifications | the reminder | `UNUserNotificationCenter.requestAuthorization` |
+| Notifications               | the reminder               | `UNUserNotificationCenter.requestAuthorization`                                                                                                                                               |
 
 Lessons kept from Scrawl: the app must be a signed `.app` bundle at a stable path with a stable identity (ad-hoc signing loses TCC grants every rebuild), `LSUIElement` for no Dock icon, hardened runtime with `com.apple.security.device.audio-input`, and no permission prompts from inside capture code. Minimum macOS 15.
 

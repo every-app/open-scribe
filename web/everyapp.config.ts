@@ -24,7 +24,9 @@ export default defineEveryApp({
   ai: {
     // The one chat model the notes are written with (the Gateway's OpenAI
     // seed); src/server/notes.ts reads it back from env.EVERYAPP_MANIFEST.
-    models: ["gpt-6-luna"],
+    // First the notes model, then the model of the chunked-transcription
+    // fallback (/v1/audio/transcriptions, an inference route).
+    models: ["gpt-6-luna", "gpt-4o-mini-transcribe"],
     // Minting a Realtime client secret for the Mac app is not an inference
     // route: the operator also allows it with
     //   echo "/v1/realtime/client_secrets" | everyapp secret set AI_PROXY_EXTRA_ROUTES
