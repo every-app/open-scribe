@@ -41,3 +41,4 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 02:15 Lane d: #858 rebased on #857 and green, now on the object `bearerRoutes`; steered lane b, which still has string[] in its worktree.
 - 02:20 Lane c: #859 open (consent app variant, Apps on your devices; 15 tests), held for lane a. Contract sent to a.
 - 02:25 Mac 61d401f/6fcda5d: device-change restarts, launch at login; 73 tests. Sign-in corrections still unapplied (scope, per-sign-in registration, no RFC 9728), so I steered it.
+- 02:35 Mac 3f6b0cf: sign-in now matches design §12/§13 (RFC 9728 discovery, no scope, register once, invalid_client re-register); 83 tests. 38ed78a: no retry on a 4xx chunk. Mac waits for the end-to-end run.
