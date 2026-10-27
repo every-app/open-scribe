@@ -82,7 +82,14 @@ public enum CLI {
     }
   }
 
+  public static let unreadableSentence =
+    "a saved sign-in exists, but this build can't read it (it was written by another build signed without a Team ID); sign in again"
+
   static func status() -> Int32 {
+    if store.probe() == .unreadable {
+      say("signed out: \(unreadableSentence)")
+      return 0
+    }
     switch store.load() {
     case nil:
       say("signed out")

@@ -63,7 +63,14 @@ final class AppModel: ObservableObject {
           CLI.stateReply, object: nonce, userInfo: self.stateSnapshot(), deliverImmediately: true)
       }
     }
-    if let saved = store.load() { use(saved) }
+    switch store.probe() {
+    case .readable(let saved): use(saved)
+    case .unreadable:
+      keychainUnreadable = true
+      signInError = "This build of OpenZen can't read your saved sign-in. Sign in again."
+      log.error("saved sign-in unreadable (another build's Keychain partition)")
+    case .missing: break
+    }
     AppModel.current = self
     log.notice("launched; signed in: \(self.credentials != nil, privacy: .public)")
   }
@@ -73,6 +80,8 @@ final class AppModel: ObservableObject {
   private var credentialsObserver: NSObjectProtocol?
   private var stateObserver: NSObjectProtocol?
   private(set) var lastRefresh: Date?
+  /// A saved sign-in exists but this build can't read it (a dev rebuild without a Team ID).
+  private(set) var keychainUnreadable = false
 
   /// What the menu shows, as text: for `app-state` and nothing else. Counts, not meeting titles.
   func stateSnapshot() -> [String: String] {
@@ -92,6 +101,7 @@ final class AppModel: ObservableObject {
       }
     }
     if let email = me?.email { state["email"] = email }
+    if keychainUnreadable && !isSignedIn { state["keychain"] = "unreadable: \(CLI.unreadableSentence)" }
     state["calendar.connected"] = String(calendarConnected)
     state["calendar.upcoming"] = String(events.count)
     if let calendarError { state["calendar.error"] = calendarError }
@@ -131,6 +141,7 @@ final class AppModel: ObservableObject {
   /// Re-reads the Keychain after another process (the CLI) changed it.
   func reloadCredentials() {
     let saved = store.load()
+    if saved != nil { keychainUnreadable = false }
     log.notice("sign-in changed elsewhere; now signed in to \(saved?.appURL.host ?? "nothing", privacy: .public)")
     guard saved != credentials else { return }
     if let saved {
