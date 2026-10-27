@@ -38,3 +38,4 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 01:55 Mac b35ecc7: Access login detection, chunked fallback (ChunkCutter); 71 tests. Still to apply from the queue: no scope, register once, user types the app URL.
 - 02:10 Tick: the Mac slept from about 01:55 to 02:09, and lane b's turn died. Nudged a and b to resume. c renders the consent page in local dev; d's #858 is open and held for a and b; the design thread is done. a and b have no PRs yet.
 - 02:11 Started `caffeinate -is -t 21600` (6 h) so idle sleep stops killing turns. Stop it with `pkill caffeinate`.
+- 02:15 Lane d: #858 rebased on #857 and green, now on the object `bearerRoutes`; steered lane b, which still has string[] in its worktree.
