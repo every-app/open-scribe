@@ -17,9 +17,12 @@ export default defineEveryApp({
   public: [{ path: "/s/:token" }],
   // TODO(native-sign-in): once the SDK from private-every-app's
   // feature/native-sign-in branch is published, add
-  //   bearerRoutes: ["/api/v1/**"],
-  // the paths Cloudflare Access lets through for bearer-only calls from the
-  // Mac app (the perimeter still demands the token on each of them).
+  //   bearerRoutes: {
+  //     paths: ["/api/v1/**"],
+  //     why: "The Mac app calls the API with a bearer token.",
+  //   },
+  // the paths Cloudflare Access lets through for bearer-only calls (the
+  // perimeter still demands the token, and refuses a cookie there).
   providers: [
     {
       id: "openai",
