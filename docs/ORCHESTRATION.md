@@ -53,3 +53,4 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 03:05 Kept OpenZen's openai and ai.routes required; `ai.routes` can't be optional today. Filed it as a platform question.
 - 03:10 Lane c #859 merged (b9e80034): native consent page, Apps on your devices; OpenHack found 0 issues.
 - 03:15 All lanes merged into feature/native-sign-in: a feec0234a, b 3b2e81b86, c b9e800342, d 7ab315120. Told e2e to GO. Launched the Fable security review (security-review + adversarial pass + review doc).
+- 03:00 Tick: e2e updated the loop-1 Gateway to 7ab315120; bearerRoutes is on in web (3335087). It's waiting for this Mac's negative DNS cache on the Gateway host to clear (~03:06), then runs signin. Security review started. Web and mac idle, nothing pending.
