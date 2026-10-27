@@ -14,6 +14,7 @@ Headless sign-in, for agents and the end-to-end lane (no browser click from the 
 swift run openzen-smoke signin https://open-zen.<base>   # prints AUTHORIZE_URL …; open it, approve; waits on the loopback
 swift run openzen-smoke status                           # host, method, expiry (never a token)
 swift run openzen-smoke https://open-zen.<base> --keychain   # API smoke with the stored sign-in + one forced refresh
+swift run openzen-smoke token --out F [--refresh-out G]   # tokens to new 0600 files, for negative checks (prints no token)
 swift run openzen-smoke refresh                          # one forced refresh (rotated refresh token saved at once)
 swift run openzen-smoke signout [--keep-copy <file>]     # revoke the refresh token, clear the sign-in
                                                          # --keep-copy: first write the access token to a new 0600 file (to check it then gets 401)

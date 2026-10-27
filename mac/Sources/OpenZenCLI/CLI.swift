@@ -11,6 +11,10 @@ import OpenZenCore
 ///   refresh                   one forced refresh, the rotated grant saved at once
 ///   signout [--keep-copy F]   revoke the refresh token, clear the sign-in; with --keep-copy, first
 ///                             write the access token to a new 0600 file F, to check it now gets 401
+///   token --out F [--refresh-out G]
+///                             for negative checks: the current access token (refreshed first if it's
+///                             within a minute of expiry) to a new 0600 file F, the refresh token to G;
+///                             prints only "ok wrote …", never a token
 ///   api --keychain            the API smoke with the stored sign-in, including a forced refresh
 ///   api <app-url> <token>     the API smoke with a pasted token (no Keychain)
 public enum CLI {
@@ -20,6 +24,7 @@ public enum CLI {
   public static let usage = """
     usage: openzen-smoke signin <app-url>
            openzen-smoke status | refresh | signout [--keep-copy <file>]
+           openzen-smoke token --out <file> [--refresh-out <file>]
            openzen-smoke <app-url> --keychain
            openzen-smoke <app-url> <token>
     """
@@ -29,6 +34,7 @@ public enum CLI {
     case "signin" where args.count == 2: return await signIn(args[1])
     case "status": return status()
     case "refresh": return await refresh()
+    case "token": return await token(Array(args.dropFirst()))
     case "signout" where args.count == 1: return await signOut(keepCopy: nil)
     case "signout" where args.count == 3 && args[1] == "--keep-copy": return await signOut(keepCopy: args[2])
     case "api" where args.count == 2 && args[1] == "--keychain": return await keychainSmoke()
@@ -188,6 +194,48 @@ public enum CLI {
       return "\(list.count) total; this one \(m.status ?? "?") → \(m.pageURL(appURL: appURL))"
     }) || failed
     return failed ? 1 : 0
+  }
+
+  static func token(_ options: [String]) async -> Int32 {
+    var out: String?
+    var refreshOut: String?
+    var rest = options[...]
+    while let flag = rest.popFirst() {
+      guard let value = rest.popFirst() else { say(usage); return 2 }
+      switch flag {
+      case "--out": out = value
+      case "--refresh-out": refreshOut = value
+      default: say(usage); return 2
+      }
+    }
+    guard let out else { say(usage); return 2 }
+    guard var credentials = store.load() else { return fail("signed out; run signin first") }
+    // A token about to expire would make a later 401 mean the wrong thing.
+    if case .oauth(let grant) = credentials, grant.needsRefresh() {
+      do {
+        let renewed = try await OAuthClient().refresh(grant)
+        guard store.save(.oauth(renewed)) else { return fail("couldn't write the Keychain") }
+        ClientRegistrationStore().touch(issuer: renewed.issuer)
+        changed()
+        credentials = .oauth(renewed)
+      } catch {
+        return fail("refresh before writing: \(error.localizedDescription)")
+      }
+    }
+    let access: String
+    var refresh: String?
+    switch credentials {
+    case .accessToken(_, let t): access = t
+    case .oauth(let grant): (access, refresh) = (grant.accessToken, grant.refreshToken)
+    }
+    if refreshOut != nil && refresh == nil { return fail("this sign-in has no refresh token") }
+    guard writeSecret(access, to: out) else { return fail("couldn't create \(out) (it must not exist yet)") }
+    say("ok wrote \(out)")
+    if let refreshOut, let refresh {
+      guard writeSecret(refresh, to: refreshOut) else { return fail("couldn't create \(refreshOut) (it must not exist yet)") }
+      say("ok wrote \(refreshOut)")
+    }
+    return 0
   }
 
   /// A new file only (O_EXCL), owner read/write only, for a test that needs the revoked token.
