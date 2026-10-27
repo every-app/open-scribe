@@ -18,3 +18,4 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 01:12 Re-briefed the spec thread: rename to OpenZen, own web/ only, build web/ all the way.
 - 01:13 Launched the OpenZen mac thread (Opus).
 - 01:14 Scheduled a 25-minute check-in.
+- 01:20 Launch orchestrator forwarded the spec thread's Step 1 answers; filed Q1–Q9 as decided (app id `open-zen`, Access on). Sent the decisions to the spec, mac and design threads.
