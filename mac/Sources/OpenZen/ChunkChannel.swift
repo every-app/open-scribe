@@ -68,8 +68,14 @@ actor ChunkChannel: SpeakerChannel {
           onProblem(speaker, nil)
           return
         } catch {
-          if attempt == Self.maxAttempts {
+          // A bad, oversized or refused chunk (4xx) fails the same way every time.
+          let permanent: Bool = {
+            if case APIError.server(let status, _, _) = error { return (400..<500).contains(status) && status != 429 }
+            return error is APIError
+          }()
+          if permanent || attempt == Self.maxAttempts {
             onProblem(speaker, "A stretch of audio couldn't be transcribed: \(error.localizedDescription)")
+            return
           } else {
             try? await Task.sleep(for: .seconds(Double(attempt * 2)))
           }

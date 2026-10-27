@@ -37,6 +37,12 @@ if !meetingID.isEmpty {
     let t = try await api.transcriptionToken(meetingID: meetingID, source: "mic", language: "en")
     return "model=\(t.model ?? "?") expires=\(t.expiresAt)"
   }
+  _ = await step("audio-chunk (needs OpenAI set up)") {
+    let wav = WAV.encode(pcm16: Data(count: 48 * 1_000))
+    let segment = try await api.appendAudioChunk(
+      meetingID: meetingID, wav: wav, seq: 100, startedMs: 0, endedMs: 1_000, speaker: .me, language: "en")
+    return "segment=\(segment?.text ?? "none")"
+  }
   var batcher = SegmentBatcher()
   batcher.add(speaker: .me, startedMs: 0, endedMs: 1_200, text: "Let's start with the roadmap.")
   batcher.add(speaker: .them, startedMs: 1_400, endedMs: 3_000, text: "Sounds good, I have two updates.")
