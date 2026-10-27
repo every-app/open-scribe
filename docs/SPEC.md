@@ -27,20 +27,35 @@ OpenAI (Realtime, chat) ──(key)─┤
 - **mac/** is a SwiftUI menu-bar app. It never holds an API key. It calls `web/` over HTTPS with a bearer token, and streams audio to OpenAI with a short-lived key the Worker mints.
 - Audio is never uploaded to the Worker and never stored. Only text leaves the Mac.
 
-## How the Mac app signs in
+## How the Mac app signs in: Sign in with Every App
 
-Two ways, decided for Ben (TODO.md):
+The person types their Gateway URL. The Mac app signs in through it with OAuth as a public client and gets a token that works against OpenZen's API. The platform side is built on private-every-app's `feature/native-sign-in` branch; this section is OpenZen's side of the contract and the exact list of what it needs.
 
-1. **Sign in with Every App** (the goal): the Mac app asks for the Gateway URL, registers as a public OAuth client, and signs in with PKCE and a loopback redirect. That needs platform work on private-every-app's `feature/native-sign-in` branch: today the Gateway's OAuth tokens open only its `/mcp`, and a bearer alone hits Cloudflare Access's login on an app host. The design lives there, not here.
-2. **A personal access token** (works today): Manage workspace → Tokens → New token, Full access, bound to OpenZen, expiry up to a year. The Mac app keeps it in the Keychain and sends `Authorization: Bearer epat_…`. The perimeter admits it to every private route as that person (`channel: "api"`); the app reads the user with the SDK as for a browser. A 401 sends the person back to sign-in.
+The flow (RFC 8252 native app, PKCE):
 
-The API is plain route files under `/api/v1`, not server functions: the Gateway only admits same-origin `fetch` to `/_serverFn/*`.
+1. **Discover.** `GET <gateway>/.well-known/oauth-authorization-server` (RFC 8414): the authorize, token, registration and revocation endpoints. The Gateway already serves this for MCP clients.
+2. **Register once.** `POST /oauth/register` (RFC 7591) as a public client: `token_endpoint_auth_method: "none"`, `redirect_uris: ["http://127.0.0.1/callback"]` (loopback, any port, RFC 8252 §7.3), `client_name: "OpenZen for Mac"`. The Mac app keeps the `client_id` in the Keychain.
+3. **Authorize.** The default browser opens `/oauth/authorize` with `code_challenge` (S256), a one-use `state`, `resource=https://open-zen.<base>` (RFC 8707) and `scope=app:open-zen`. Cloudflare Access and the Gateway's consent page are ordinary web pages, so Access is no obstacle here. The browser comes back to the loopback listener with the code.
+4. **Exchange.** `POST /oauth/token` with the verifier. The answer is a short-lived access token and a refresh token.
+5. **Call.** Every API call is `Authorization: Bearer <access token>` to `https://open-zen.<base>/api/v1/...`. On 401 the Mac app refreshes once, then signs the person out.
+6. **Sign out.** `POST` the revocation endpoint; the Gateway's Connected AI clients page lists and revokes the grant too, and deactivating the person revokes it.
 
-What the platform is missing (inputs for the feature branch):
+OpenZen's Worker changes nothing for this: its routes read the person with the SDK, so whatever identity the perimeter mints for the token is the user. The API is plain route files under `/api/v1`, not server functions, because the Gateway admits only same-origin `fetch` to `/_serverFn/*`.
 
-- The Tokens page is owner/admin-gated (`tokens.tsx` carries a TODO to move it to a member page), so a plain member can't make a token today.
-- No device or OAuth flow for native clients to app hosts; an MCP-style OAuth token is refused on app routes by design.
-- Behind Cloudflare Access a bearer alone gets Access's login page on app hosts; the documented workaround (an Access service token alongside) is marked "unverified live".
+**What OpenZen needs from the platform** (each is missing today, verified in the checkout on 2026-10-27):
+
+| # | Need | Today |
+| --- | --- | --- |
+| 1 | The perimeter accepts a Gateway-issued OAuth access token on an app host's private routes, minting an identity for that person (`chan: "api"` or a new channel, `act.sub: "oauth:<id>"`, `scopes: ["*"]` for that one app) | An OAuth-shaped bearer on an app host is `401 unauthenticated`; only `epat_` tokens and sessions open app routes |
+| 2 | A token scoped to one app (`scope=app:<id>` or `resource=<app host>`), refused on every other app, like a bound personal token | OAuth tokens carry `mcp:` scopes only and open `/mcp` alone |
+| 3 | Dynamic registration of a public native client with loopback redirect URIs and `token_endpoint_auth_method: none` | Registration exists for MCP clients; loopback URIs and app scopes unverified |
+| 4 | Cloudflare Access lets the app's API paths through for bearer calls, the way `access on` bypasses `/mcp` on hosts whose manifest sets `mcp`: a manifest opt-in (say `nativeClients: { paths: ["/api/**"], why }`) that becomes a path override on the apps' Access application, with the perimeter still demanding the token | A bearer alone to an app host behind Access gets the Access login page; the service-token workaround is "unverified live" |
+| 5 | Any member can approve a native app, as any member connects an AI client | Personal access tokens are created on an owner/admin page (`tokens.tsx` TODO) |
+| 6 | Revocation: the token on the Connected AI clients page, a revocation endpoint, and deactivation revoking it | Exists for MCP connections; must cover app-scoped grants |
+| 7 | `everyapp dev` mirror mode verifies the new token on app routes; stub mode keeps "any bearer is the dev user" | Stub works today; mirror forwards `epat_` only |
+| 8 | Short access tokens (an hour or less) with rotating refresh tokens, so a stolen token is worth little | Whatever the OAuth server's defaults are |
+
+Fallback that works today: a **personal access token** (Manage workspace → Tokens → New token, Full access, bound to OpenZen) pasted into the Mac app and sent as `Authorization: Bearer epat_…`. It needs Access off or an Access service token alongside, and only owners and admins can make one.
 
 ## Data model (D1)
 
@@ -111,6 +126,6 @@ Lessons kept from Scrawl: the app must be a signed `.app` bundle at a stable pat
 
 ## v1 and later
 
-v1: menu bar app, token sign-in, calendar reminders, one-click record, live transcription, notes, private and team visibility, public links, web UI.
+v1: menu bar app, Sign in with Every App (token paste as the fallback), calendar reminders, one-click record, live transcription, notes, private and team visibility, public links, web UI.
 
-Later: email sharing with one-time code; speaker names from attendees; editing notes; search; per-group sharing if the platform exposes groups; a device-link sign-in if the platform adds a native-client flow; Windows.
+Later: email sharing with one-time code; speaker names from attendees; editing notes; search; per-group sharing if the platform exposes groups; Windows.
