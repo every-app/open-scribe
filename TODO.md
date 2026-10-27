@@ -23,7 +23,7 @@
 - **Fallback chunks are ≥20 s, cut at a turn end, max 30 s**, not a fixed 30 s, so words aren't split mid-sentence.
 - **The Mac app treats a Cloudflare Access redirect or login page as "needs Sign in with Every App"**, never as a sign-out.
 - **The Mac mic follows the system default input,** including hot-plug (e.g. AirPods mid-meeting); system audio follows the default output. A Launch at login toggle exists (reminders only arrive while OpenZen runs).
-- **OpenZen should open without OpenAI configured** (list, notes and sharing work; transcription and notes answer 503), if the platform lets the provider be optional.
+- **OpenZen requires OpenAI to open, for now.** `ai.routes` always makes `AI_PROXY_EXTRA_ROUTES` a required setting (packages/sdk appSettings.ts), so an optional provider wouldn't help. The operator sets `OPENAI_API_KEY` and `AI_PROXY_EXTRA_ROUTES` once.
 
 ## Questions for Ben
 
@@ -35,3 +35,4 @@
 - **Mac signing identity:** reuse "Scrawl Dev" locally, a separate "OpenZen Dev" cert, or a Developer ID? Recommended: keep Scrawl Dev for now; get a Developer ID before anyone else installs it.
 - **Should Record on a reminder also open the conference link?** Recommended: no for v1; the menu has "Join Call".
 - **A mic picker in the Mac app?** Recommended: no for v1. Following the system default is what people expect from a call app.
+- **Let `ai.routes` be optional in the platform**, with the same need fields as providers? Then an app like OpenZen opens without AI set up and falls back gracefully. Recommended: yes, as a small platform change after launch, kept out of the sign-in branch.
