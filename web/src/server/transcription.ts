@@ -58,7 +58,9 @@ export async function mintTranscriptionToken(
               format: { type: "audio/pcm", rate: 24000 },
               transcription: {
                 model: TRANSCRIPTION_MODEL,
-                ...(input.language ? { language: input.language } : {}),
+                // `languages` is what the reference documents and what
+                // Scrawl's working gpt-live-transcribe session sends.
+                ...(input.language ? { languages: [input.language] } : {}),
               },
               noise_reduction:
                 input.source === "mic" ? { type: "near_field" } : null,
