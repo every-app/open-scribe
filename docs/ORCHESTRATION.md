@@ -12,6 +12,7 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 | Lane a: Gateway auth server | mcp:f9f1c5de-40fd-491d-976e-30d975ddba4a | Fable | `native-sign-in/a-gateway-as` | mcp-auth/*, mcp schema + migration, connection repo/service |
 | Lane b: perimeter/SDK | mcp:bb842312-e66c-4ce6-9245-e94511884f2a | Fable | `native-sign-in/b-perimeter` | perimeter, manifest `bearerRoutes`, RFC 9728 metadata, everyapp dev |
 | Lane c: Gateway UI | mcp:4ddbe96b-faaa-4889-a31b-52a14cfea9a2 | Opus | `native-sign-in/c-ui` | consent.tsx, connections.tsx |
+| E2E (owns loop-1) | mcp:c30ffccd-3c30-47bd-80c3-7cf66d5717b9 | Opus | `native-sign-in/e2e` | the live test account, the e2e run |
 | Lane d: docs + CLI | mcp:3444b6ca-8d64-4035-a3c8-a37c272ebcb4 | Opus | `native-sign-in/d-docs-cli` | agent docs, runbooks, security-model, cli access plan |
 
 ## Log
@@ -44,3 +45,4 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 02:35 Mac 3f6b0cf: sign-in now matches design §12/§13 (RFC 9728 discovery, no scope, register once, invalid_client re-register); 83 tests. 38ed78a: no retry on a 4xx chunk. Mac waits for the end-to-end run.
 - 02:40 Mac 0450c4b: the client checks the echoed token `resource`; 86 tests. All ten contract items are built. Mac idle until the end-to-end run.
 - 02:45 Lane c: with lane a's code overlaid, the native flow works end to end in local dev (consent → token → listed → sign out → revoked); 34 tests. Reported a lane a bug: on an http Gateway, a non-loopback app host makes the OAuth build throw (all OAuth off). Waiting on lane a.
+- 02:34 Tick: lanes a (#861, CI running) and b (#860, green) have PRs open; c (#859) and d (#858) are held for a. Asked mac for `openzen-smoke signin` (prints the authorize URL for headless consent). Launched the e2e thread (Opus), which owns the loop-1 test account; phase 1 is prep only.
