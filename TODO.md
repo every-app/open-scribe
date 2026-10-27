@@ -23,6 +23,7 @@
 - **Fallback chunks are ≥20 s, cut at a turn end, max 30 s**, not a fixed 30 s, so words aren't split mid-sentence.
 - **The Mac app treats a Cloudflare Access redirect or login page as "needs Sign in with Every App"**, never as a sign-out.
 - **The Mac mic follows the system default input,** including hot-plug (e.g. AirPods mid-meeting); system audio follows the default output. A Launch at login toggle exists (reminders only arrive while OpenZen runs).
+- **OpenZen should open without OpenAI configured** (list, notes and sharing work; transcription and notes answer 503), if the platform lets the provider be optional.
 
 ## Questions for Ben
 
