@@ -19,6 +19,7 @@
 - **Mac transcription:** one ephemeral key per channel, two per meeting. Scrawl's session.update shape. Its own windowed-sinc resampler (testable). Echo cancellation off until a hardware test.
 - **Mac reminders:** for events with a conference link or any attendee who isn't you. An event already inside the 2-minute window gets one immediate reminder. Ad hoc meetings are titled "Meeting at 3:04 PM".
 - **Mac fallback:** each detected turn (≤30 s) goes as an in-memory WAV to the Worker, which drops it after transcription.
+- **The end-to-end sign-in test runs on the onboarding loop's test account (loop-1)**, with the Gateway deployed from `feature/native-sign-in`. Local `everyapp dev` can't verify the new token (mirror mode is deferred in the design).
 
 ## Questions for Ben
 
