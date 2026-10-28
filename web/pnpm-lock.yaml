@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@every-app/sdk':
-        specifier: link:/Users/bensenescu/.t3/worktrees/private-every-app/native-sign-in-e2e/packages/sdk
-        version: link:../../../.t3/worktrees/private-every-app/native-sign-in-e2e/packages/sdk
+        specifier: link:/Users/bensenescu/.t3/worktrees/private-every-app/feature-linked-dev/packages/sdk
+        version: link:../../../.t3/worktrees/private-every-app/feature-linked-dev/packages/sdk
       '@tanstack/react-router':
         specifier: 1.170.42
         version: 1.170.42(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -67,8 +67,8 @@ importers:
         specifier: ^0.31.11
         version: 0.31.11
       everyapp:
-        specifier: link:/Users/bensenescu/.t3/worktrees/private-every-app/native-sign-in-e2e/packages/cli
-        version: link:../../../.t3/worktrees/private-every-app/native-sign-in-e2e/packages/cli
+        specifier: link:/Users/bensenescu/.t3/worktrees/private-every-app/feature-linked-dev/packages/cli
+        version: link:../../../.t3/worktrees/private-every-app/feature-linked-dev/packages/cli
       knip:
         specifier: ^5.66.4
         version: 5.88.1(@types/node@22.20.5)(typescript@5.9.3)
