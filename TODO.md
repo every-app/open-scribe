@@ -36,7 +36,7 @@
 - **Mac transcription:** one ephemeral key per channel, two per meeting. Scrawl's session.update shape. Its own windowed-sinc resampler (testable). Echo cancellation off until a hardware test.
 - **Mac reminders:** for events with a conference link or any attendee who isn't you. An event already inside the 2-minute window gets one immediate reminder. Ad hoc meetings are titled "Meeting at 3:04 PM".
 - **Mac fallback:** each detected turn (≤30 s) goes as an in-memory WAV to the Worker, which drops it after transcription.
-- **The end-to-end sign-in test runs on the onboarding loop's test account (loop-1)**, with the Gateway deployed from `feature/native-sign-in`. Local `everyapp dev` can't verify the new token (mirror mode is deferred in the design).
+- **The end-to-end sign-in test ran once on the onboarding loop's test account (loop-1); any rerun needs Ben to ask for it**, with the Gateway deployed from `feature/native-sign-in`. Local `everyapp dev` can't verify the new token (mirror mode is deferred in the design).
 - **Fallback chunks are ≥20 s, cut at a turn end, max 30 s**, not a fixed 30 s, so words aren't split mid-sentence.
 - **The Mac app treats a Cloudflare Access redirect or login page as "needs Sign in with Every App"**, never as a sign-out.
 - **The Mac mic follows the system default input,** including hot-plug (e.g. AirPods mid-meeting); system audio follows the default output. A Launch at login toggle exists (reminders only arrive while OpenZen runs).

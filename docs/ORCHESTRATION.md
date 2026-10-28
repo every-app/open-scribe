@@ -12,7 +12,7 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 | Lane a: Gateway auth server | mcp:f9f1c5de-40fd-491d-976e-30d975ddba4a | Fable | `native-sign-in/a-gateway-as` | mcp-auth/*, mcp schema + migration, connection repo/service |
 | Lane b: perimeter/SDK | mcp:bb842312-e66c-4ce6-9245-e94511884f2a | Fable | `native-sign-in/b-perimeter` | perimeter, manifest `bearerRoutes`, RFC 9728 metadata, everyapp dev |
 | Lane c: Gateway UI | mcp:4ddbe96b-faaa-4889-a31b-52a14cfea9a2 | Opus | `native-sign-in/c-ui` | consent.tsx, connections.tsx |
-| E2E (owns loop-1) | mcp:c30ffccd-3c30-47bd-80c3-7cf66d5717b9 | Opus | `native-sign-in/e2e` | the live test account, the e2e run |
+| E2E (retired 2026-10-28) | mcp:c30ffccd-3c30-47bd-80c3-7cf66d5717b9 | Opus | `native-sign-in/e2e` | done; owns nothing. Live tests only when Ben asks for that run |
 | Security review | mcp:d92efa34-90f7-4bca-a969-598ab3c14684 | Fable | `native-sign-in/security-review` | review fixes, review doc, threat-model path:line |
 | Lane d: docs + CLI | mcp:3444b6ca-8d64-4035-a3c8-a37c272ebcb4 | Opus | `native-sign-in/d-docs-cli` | agent docs, runbooks, security-model, cli access plan |
 
@@ -61,3 +61,4 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 03:45 Web done (f791d24: home hint, README). Mac README has the Keychain note. Everything delivered: deleted the check-in schedule and stopped caffeinate. The folder rename to open-zen was skipped (optional).
 - 00:34 (Oct 28) Ben asked for "linked dev": `everyapp dev --gateway <real Gateway>`, so local apps use the Gateway's providers and keys. Handed the design and build to the EveryApp launch orchestrator (4b2ee96d) for a feature branch with a draft PR only. No merge to main and no deploy.
 - 00:34 (Oct 28) 4b2ee96d accepted linked dev. Owner is mcp:9edfa64c-92df-420d-b866-ba694a879031 (Fable), on branch feature/linked-dev cut from feature/native-sign-in. The draft PR targets feature/native-sign-in. Live check is on the second test account, since loop-1 is held by the demo lock for about 24 h. OpenZen will be asked to show it runs with no provider keys in .dev.vars.
+- 00:42 (Oct 28) Live tests now run only when Ben asks (#865 on private main). Retired the E2E lane (its thread finished Oct 27 and has nothing scheduled). The 25-min check-in was deleted Oct 27; this project has no scheduled tasks.
