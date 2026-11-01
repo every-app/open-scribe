@@ -116,14 +116,27 @@ export async function upcomingEvents(
         name: a.displayName ?? null,
         self: a.self === true,
       })),
-      conferenceUrl:
+      conferenceUrl: httpsOnly(
         event.hangoutLink ??
-        event.conferenceData?.entryPoints?.find(
-          (entry) => entry.entryPointType === "video",
-        )?.uri ??
-        null,
+          event.conferenceData?.entryPoints?.find(
+            (entry) => entry.entryPointType === "video",
+          )?.uri,
+      ),
       location: event.location ?? null,
     }));
+}
+
+/**
+ * A call link, only when it is https: whoever made the event wrote it, and
+ * the web page and the Mac app both open it.
+ */
+function httpsOnly(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
 }
 
 export class CalendarError extends Error {
