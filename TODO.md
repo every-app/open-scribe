@@ -19,7 +19,7 @@
 
 ## Decided for Ben
 
-- **Lanes run in parallel in one local checkout.** web/ and mac/ have separate owners. No GitHub repo yet; everything is local commits on main.
+- **Lanes run in parallel in one local checkout.** web/ and mac/ have separate owners. main is pushed to github.com/every-app/private-talk (private).
 - **Mac sign-in has two providers.** It ships the interim PAT paste (works with today's platform) and "Sign in with Every App" (OAuth, PKCE, loopback), which needs the private-every-app feature branch.
 - **The product is renamed to Talk** (from OpenZen, 2026-11-01), with app id `talk`, on macOS 15+. Repo: github.com/every-app/private-talk. The folder rename to ~/workspaces/talk waits until no thread runs in it.
 
