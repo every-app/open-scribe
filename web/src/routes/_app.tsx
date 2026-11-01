@@ -11,6 +11,9 @@ import { getAccount } from "@/serverFunctions/home";
 
 /** Every signed-in page: the sidebar, a slim top bar, and the page. */
 export const Route = createFileRoute("/_app")({
+  // Dates and day groups are the viewer's local time, which the Worker
+  // doesn't know: load on the server, render in the browser.
+  ssr: "data-only",
   loader: async () => {
     const [account, folders] = await Promise.all([getAccount(), listFolders()]);
     return { account, folders };

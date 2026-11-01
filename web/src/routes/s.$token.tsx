@@ -1,4 +1,5 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { Markdown } from "@/client/components/Markdown";
 import { Transcript } from "@/client/components/Transcript";
 import { getSharedMeeting } from "@/serverFunctions/meetings";
@@ -20,6 +21,22 @@ export const Route = createFileRoute("/s/$token")({
   component: Shared,
 });
 
+/**
+ * The page is rendered on the server, which doesn't know the reader's time
+ * zone: it shows UTC until the browser puts it in local time.
+ */
+function When({ iso }: { iso: string }) {
+  const format = (timeZone?: "UTC") =>
+    new Date(iso).toLocaleString("en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone,
+    }) + (timeZone ? " UTC" : "");
+  const [text, setText] = useState(() => format("UTC"));
+  useEffect(() => setText(format()), [iso]);
+  return <time dateTime={iso}>{text}</time>;
+}
+
 function Shared() {
   const { shared } = Route.useLoaderData();
   return (
@@ -31,10 +48,7 @@ function Shared() {
             {shared.title}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {new Date(shared.startsAt).toLocaleString(undefined, {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
+            <When iso={shared.startsAt} />
           </p>
         </header>
         <section className="text-[15px]">
