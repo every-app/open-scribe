@@ -62,9 +62,17 @@ public struct APIClient: Sendable {
     }
   }
 
-  public func createMeeting(title: String, startsAt: Date, calendarEventId: String?) async throws -> CreatedMeeting {
+  /// `attendees` (a calendar event's) go along only when there are some.
+  public func createMeeting(
+    title: String, startsAt: Date, calendarEventId: String?, attendees: [Attendee] = []
+  ) async throws -> CreatedMeeting {
     var body: [String: Any] = ["title": title, "startsAt": Self.iso(startsAt)]
     if let calendarEventId { body["calendarEventId"] = calendarEventId }
+    if !attendees.isEmpty {
+      body["attendees"] = attendees.map { a -> [String: Any] in
+        ["email": a.email ?? NSNull(), "name": a.name ?? NSNull(), "self": a.isSelf ?? false]
+      }
+    }
     return try await send("POST", "api/v1/meetings", json: body)
   }
 

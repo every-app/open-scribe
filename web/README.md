@@ -1,10 +1,11 @@
 # Talk web
 
-The Every App side of Talk: a private web app on Cloudflare behind your Gateway. It holds meetings, transcripts, notes and share links in D1, serves the API the Mac app calls (`/api/v1`, see `../docs/SPEC.md`), and shows the notes in a browser.
+The Every App side of Talk: a private web app on Cloudflare behind your Gateway. It holds meetings, transcripts, notes, folders, templates and share links in D1, serves the API the Mac app calls (`/api/v1`, see `../docs/SPEC.md`), and is Talk's main window: a sidebar of folders, the coming week's meetings, the notes.
 
 - `everyapp.config.ts`: the manifest. OpenAI through the Gateway (plus the Realtime client-secret route the operator allows with `AI_PROXY_EXTRA_ROUTES`), Google Calendar through the Gateway's `google-workspace` client (`calendar.read`), one public route for shared pages.
-- `src/server/`: the queries (`meetings.ts`), Google Calendar (`calendar.ts`), the Realtime token (`transcription.ts`), the notes writer (`notes.ts`), the API helpers (`api.ts`).
-- `src/routes/api/v1/`: the Mac app's routes. `src/routes/`: the pages. `src/tools.ts`: the same queries as AI tools.
+- `src/server/`: the queries (`meetings.ts`, `folders.ts`, `templates.ts`, who sees what in `access.ts`), Google Calendar (`calendar.ts`), the Realtime token (`transcription.ts`), the notes writer (`notes.ts`), the API helpers (`api.ts`).
+- `src/routes/api/v1/`: the Mac app's routes. `src/routes/_app/`: the pages behind the sidebar (`_app.tsx`). `src/tools.ts`: the same queries as AI tools.
+- `src/client/components/ui/`: the component library copied from OpenCRM/OpenSEO (shadcn on Base UI); `src/styles/app.css` is their theme. Add a component with `pnpm dlx shadcn add <name>` or copy it from them.
 
 ## Run it
 

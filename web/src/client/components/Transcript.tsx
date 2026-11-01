@@ -8,19 +8,19 @@ function clock(ms: number): string {
 
 export function Transcript({ segments }: { segments: Segment[] }) {
   if (segments.length === 0) {
-    return <p className="text-neutral-500">Nothing transcribed yet.</p>;
+    return <p className="text-muted-foreground">Nothing transcribed yet.</p>;
   }
   return (
-    <ol className="space-y-2">
+    <ol className="space-y-3">
       {segments.map((segment) => (
         <li key={segment.seq} className="flex gap-3">
-          <span className="w-12 shrink-0 font-mono text-xs text-neutral-500">
+          <span className="w-12 shrink-0 pt-0.5 font-mono text-xs text-muted-foreground">
             {clock(segment.startedMs)}
           </span>
-          <span>
+          <span className="leading-relaxed">
             {segment.speaker && (
-              <span className="mr-1 font-medium text-neutral-600 dark:text-neutral-400">
-                {segment.speaker === "me" ? "Me:" : "Them:"}
+              <span className="mr-1.5 font-medium text-muted-foreground">
+                {segment.speaker === "me" ? "Me" : "Them"}
               </span>
             )}
             {segment.text}

@@ -29,6 +29,7 @@ describe("tools", () => {
     const { tools: listed } = await listTools(tools);
     expect(listed.map(({ name, risk }) => [name, risk])).toEqual([
       ["get_meeting", "read"],
+      ["list_folders", "read"],
       ["list_meetings", "read"],
       ["set_meeting_visibility", "write"],
     ]);

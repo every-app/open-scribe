@@ -9,10 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/_app'
 import { Route as HealthRouteImport } from './routes/health'
-import { Route as MeetingsIdRouteImport } from './routes/meetings/$id'
+import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppSettingsRouteImport } from './routes/_app/settings'
+import { Route as AppSharedRouteImport } from './routes/_app/shared'
+import { Route as AppTemplatesRouteImport } from './routes/_app/templates'
 import { Route as STokenRouteImport } from './routes/s.$token'
+import { Route as AppFoldersIdRouteImport } from './routes/_app/folders/$id'
+import { Route as AppMeetingsIdRouteImport } from './routes/_app/meetings/$id'
 import { Route as ApiV1MeRouteImport } from './routes/api/v1/me'
 import { Route as ApiV1CalendarUpcomingRouteImport } from './routes/api/v1/calendar.upcoming'
 import { Route as ApiV1MeetingsIndexRouteImport } from './routes/api/v1/meetings.index'
@@ -24,9 +29,8 @@ import { Route as ApiV1MeetingsIdTranscriptionTokenRouteImport } from './routes/
 import { Route as ApiV1MeetingsIdShareIndexRouteImport } from './routes/api/v1/meetings.$id.share.index'
 import { Route as ApiV1MeetingsIdShareLinkIdRouteImport } from './routes/api/v1/meetings.$id.share.$linkId'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HealthRoute = HealthRouteImport.update({
@@ -34,15 +38,40 @@ const HealthRoute = HealthRouteImport.update({
   path: '/health',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MeetingsIdRoute = MeetingsIdRouteImport.update({
-  id: '/meetings/$id',
-  path: '/meetings/$id',
-  getParentRoute: () => rootRouteImport,
+const AppIndexRoute = AppIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSharedRoute = AppSharedRouteImport.update({
+  id: '/shared',
+  path: '/shared',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppTemplatesRoute = AppTemplatesRouteImport.update({
+  id: '/templates',
+  path: '/templates',
+  getParentRoute: () => AppRoute,
 } as any)
 const STokenRoute = STokenRouteImport.update({
   id: '/s/$token',
   path: '/s/$token',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppFoldersIdRoute = AppFoldersIdRouteImport.update({
+  id: '/folders/$id',
+  path: '/folders/$id',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMeetingsIdRoute = AppMeetingsIdRouteImport.update({
+  id: '/meetings/$id',
+  path: '/meetings/$id',
+  getParentRoute: () => AppRoute,
 } as any)
 const ApiV1MeRoute = ApiV1MeRouteImport.update({
   id: '/api/v1/me',
@@ -100,10 +129,14 @@ const ApiV1MeetingsIdShareLinkIdRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof AppIndexRoute
   '/health': typeof HealthRoute
-  '/meetings/$id': typeof MeetingsIdRoute
+  '/settings': typeof AppSettingsRoute
+  '/shared': typeof AppSharedRoute
+  '/templates': typeof AppTemplatesRoute
   '/s/$token': typeof STokenRoute
+  '/folders/$id': typeof AppFoldersIdRoute
+  '/meetings/$id': typeof AppMeetingsIdRoute
   '/api/v1/me': typeof ApiV1MeRoute
   '/api/v1/calendar/upcoming': typeof ApiV1CalendarUpcomingRoute
   '/api/v1/meetings/': typeof ApiV1MeetingsIndexRoute
@@ -116,10 +149,14 @@ export interface FileRoutesByFullPath {
   '/api/v1/meetings/$id/share/': typeof ApiV1MeetingsIdShareIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/health': typeof HealthRoute
-  '/meetings/$id': typeof MeetingsIdRoute
+  '/settings': typeof AppSettingsRoute
+  '/shared': typeof AppSharedRoute
+  '/templates': typeof AppTemplatesRoute
   '/s/$token': typeof STokenRoute
+  '/': typeof AppIndexRoute
+  '/folders/$id': typeof AppFoldersIdRoute
+  '/meetings/$id': typeof AppMeetingsIdRoute
   '/api/v1/me': typeof ApiV1MeRoute
   '/api/v1/calendar/upcoming': typeof ApiV1CalendarUpcomingRoute
   '/api/v1/meetings': typeof ApiV1MeetingsIndexRoute
@@ -133,10 +170,15 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
   '/health': typeof HealthRoute
-  '/meetings/$id': typeof MeetingsIdRoute
+  '/_app/settings': typeof AppSettingsRoute
+  '/_app/shared': typeof AppSharedRoute
+  '/_app/templates': typeof AppTemplatesRoute
   '/s/$token': typeof STokenRoute
+  '/_app/': typeof AppIndexRoute
+  '/_app/folders/$id': typeof AppFoldersIdRoute
+  '/_app/meetings/$id': typeof AppMeetingsIdRoute
   '/api/v1/me': typeof ApiV1MeRoute
   '/api/v1/calendar/upcoming': typeof ApiV1CalendarUpcomingRoute
   '/api/v1/meetings/': typeof ApiV1MeetingsIndexRoute
@@ -153,8 +195,12 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/health'
-    | '/meetings/$id'
+    | '/settings'
+    | '/shared'
+    | '/templates'
     | '/s/$token'
+    | '/folders/$id'
+    | '/meetings/$id'
     | '/api/v1/me'
     | '/api/v1/calendar/upcoming'
     | '/api/v1/meetings/'
@@ -167,10 +213,14 @@ export interface FileRouteTypes {
     | '/api/v1/meetings/$id/share/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/health'
-    | '/meetings/$id'
+    | '/settings'
+    | '/shared'
+    | '/templates'
     | '/s/$token'
+    | '/'
+    | '/folders/$id'
+    | '/meetings/$id'
     | '/api/v1/me'
     | '/api/v1/calendar/upcoming'
     | '/api/v1/meetings'
@@ -183,10 +233,15 @@ export interface FileRouteTypes {
     | '/api/v1/meetings/$id/share'
   id:
     | '__root__'
-    | '/'
+    | '/_app'
     | '/health'
-    | '/meetings/$id'
+    | '/_app/settings'
+    | '/_app/shared'
+    | '/_app/templates'
     | '/s/$token'
+    | '/_app/'
+    | '/_app/folders/$id'
+    | '/_app/meetings/$id'
     | '/api/v1/me'
     | '/api/v1/calendar/upcoming'
     | '/api/v1/meetings/'
@@ -200,9 +255,8 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
   HealthRoute: typeof HealthRoute
-  MeetingsIdRoute: typeof MeetingsIdRoute
   STokenRoute: typeof STokenRoute
   ApiV1MeRoute: typeof ApiV1MeRoute
   ApiV1CalendarUpcomingRoute: typeof ApiV1CalendarUpcomingRoute
@@ -218,11 +272,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
+    '/_app': {
+      id: '/_app'
+      path: ''
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/health': {
@@ -232,12 +286,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HealthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/meetings/$id': {
-      id: '/meetings/$id'
-      path: '/meetings/$id'
-      fullPath: '/meetings/$id'
-      preLoaderRoute: typeof MeetingsIdRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_app/': {
+      id: '/_app/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/shared': {
+      id: '/_app/shared'
+      path: '/shared'
+      fullPath: '/shared'
+      preLoaderRoute: typeof AppSharedRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/templates': {
+      id: '/_app/templates'
+      path: '/templates'
+      fullPath: '/templates'
+      preLoaderRoute: typeof AppTemplatesRouteImport
+      parentRoute: typeof AppRoute
     }
     '/s/$token': {
       id: '/s/$token'
@@ -245,6 +320,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/s/$token'
       preLoaderRoute: typeof STokenRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_app/folders/$id': {
+      id: '/_app/folders/$id'
+      path: '/folders/$id'
+      fullPath: '/folders/$id'
+      preLoaderRoute: typeof AppFoldersIdRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/meetings/$id': {
+      id: '/_app/meetings/$id'
+      path: '/meetings/$id'
+      fullPath: '/meetings/$id'
+      preLoaderRoute: typeof AppMeetingsIdRouteImport
+      parentRoute: typeof AppRoute
     }
     '/api/v1/me': {
       id: '/api/v1/me'
@@ -319,10 +408,29 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppRouteChildren {
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppSharedRoute: typeof AppSharedRoute
+  AppTemplatesRoute: typeof AppTemplatesRoute
+  AppIndexRoute: typeof AppIndexRoute
+  AppFoldersIdRoute: typeof AppFoldersIdRoute
+  AppMeetingsIdRoute: typeof AppMeetingsIdRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppSettingsRoute: AppSettingsRoute,
+  AppSharedRoute: AppSharedRoute,
+  AppTemplatesRoute: AppTemplatesRoute,
+  AppIndexRoute: AppIndexRoute,
+  AppFoldersIdRoute: AppFoldersIdRoute,
+  AppMeetingsIdRoute: AppMeetingsIdRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
   HealthRoute: HealthRoute,
-  MeetingsIdRoute: MeetingsIdRoute,
   STokenRoute: STokenRoute,
   ApiV1MeRoute: ApiV1MeRoute,
   ApiV1CalendarUpcomingRoute: ApiV1CalendarUpcomingRoute,

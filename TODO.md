@@ -36,7 +36,10 @@ Plan: docs/desktop-plan.md. Decided with Ben: Electron + Swift helper, private a
 - **Cloudflare Access is on.** Setup forces it and everyapp.team uses it, so Sign in with Every App must work behind Access. PAT sign-in stays as the fallback.
 - **Live transcription uses an OpenAI Realtime client secret**, which needs the manifest's `ai.routes: ["/v1/realtime/client_secrets"]` and the Gateway setting `AI_PROXY_EXTRA_ROUTES`. The fallback is 30 s chunks through the Worker to `/v1/audio/transcriptions`.
 - **Two transcription streams**, mic = `me` and system audio = `them`, which gives speaker labels at twice the cost.
-- **Reminders** go out 2 min before events that have attendees or a conference link.
+- **Reminders** go out 1 min before events that have attendees or a conference link, offering Join & Take Notes and Take Notes; a second one asks again once a meeting has started without notes.
+- **The web app is the main window** (2026-11-01): sidebar, coming up, folders, notes, templates, built with the OpenCRM/OpenSEO component library. The Mac app stays the recorder; web buttons open it through `talk://record`.
+- **Kept minimal on purpose:** no chat over notes, no typed-notes-plus-AI editor, no integrations beyond Google Calendar, no invites or avatars. Templates stay (per meeting, per folder, per person).
+- **Folders:** private or team; a meeting can be in several; filing in a team folder shares the meeting, and anyone on the team can manage team folders.
 - **Team means the whole workspace.** Apps can't read groups yet.
 - **A public link shows both the notes and the transcript.**
 - **Google Calendar isn't configured on any Gateway yet.** Ben follows setup/google.md with the `google-workspace` client and the `calendar.read` scope set.

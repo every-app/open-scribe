@@ -10,7 +10,7 @@ import { env } from "cloudflare:workers";
 
 const PROVIDER = "google-workspace";
 
-interface CalendarEvent {
+export interface CalendarEvent {
   id: string;
   title: string;
   start: string;
@@ -98,7 +98,7 @@ export async function upcomingEvents(
   );
   url.searchParams.set("singleEvents", "true");
   url.searchParams.set("orderBy", "startTime");
-  url.searchParams.set("maxResults", "50");
+  url.searchParams.set("maxResults", "100");
   const response = await fetchGoogle(url);
   const refused = await gatewayRefusal(response);
   if (refused) throw new CalendarError(refused.code, refused.status);
