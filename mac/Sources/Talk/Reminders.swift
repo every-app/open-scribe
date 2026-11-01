@@ -1,11 +1,11 @@
 import Foundation
-import OpenZenCore
+import TalkCore
 import UserNotifications
 
 /// A local notification two minutes before each meeting, with one action: Record.
 final class Reminders: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
-  static let category = "OPENZEN_MEETING"
-  static let recordAction = "OPENZEN_RECORD"
+  static let category = "TALK_MEETING"
+  static let recordAction = "TALK_RECORD"
 
   struct RecordRequest: Sendable {
     var eventID: String

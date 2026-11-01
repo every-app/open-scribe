@@ -1,4 +1,4 @@
-import OpenZenCore
+import TalkCore
 import ServiceManagement
 import SwiftUI
 
@@ -66,14 +66,14 @@ private struct SignInSection: View {
       }
       .pickerStyle(.segmented)
 
-      TextField("App URL", text: $appURL, prompt: Text("https://open-zen.example.com"))
+      TextField("App URL", text: $appURL, prompt: Text("https://talk.example.com"))
       switch method {
       case .everyApp:
         Text("Your browser opens your Gateway to sign in, then comes back here.")
           .font(.caption).foregroundStyle(.secondary)
       case .token:
         SecureField("Token", text: $token, prompt: Text("epat_…"))
-        Text("Make one in Manage workspace → Tokens → New token: Full access, bound to OpenZen.")
+        Text("Make one in Manage workspace → Tokens → New token: Full access, bound to Talk.")
           .font(.caption).foregroundStyle(.secondary)
       }
 
@@ -92,7 +92,7 @@ private struct SignInSection: View {
           .disabled(model.signingIn)
       }
     } header: {
-      Text("Sign in to OpenZen")
+      Text("Sign in to Talk")
     }
   }
 
@@ -162,14 +162,14 @@ private struct PermissionsSection: View {
   }
 }
 
-/// Launch at login through SMAppService (as Scrawl does): reminders only arrive while OpenZen runs.
+/// Launch at login through SMAppService (as Scrawl does): reminders only arrive while Talk runs.
 private struct GeneralSection: View {
   @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
   @State private var error: String?
 
   var body: some View {
     Section("General") {
-      Toggle("Open OpenZen at login", isOn: $launchAtLogin)
+      Toggle("Open Talk at login", isOn: $launchAtLogin)
         .onChange(of: launchAtLogin) { _, on in
           do {
             if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
@@ -180,7 +180,7 @@ private struct GeneralSection: View {
           }
         }
       if SMAppService.mainApp.status == .requiresApproval {
-        Text("Allow OpenZen in System Settings → General → Login Items.")
+        Text("Allow Talk in System Settings → General → Login Items.")
           .font(.caption).foregroundStyle(.secondary)
       }
       if let error { Text(error).font(.caption).foregroundStyle(.red) }

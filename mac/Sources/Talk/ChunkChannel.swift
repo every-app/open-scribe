@@ -1,5 +1,5 @@
 import Foundation
-import OpenZenCore
+import TalkCore
 
 /// The fallback when the Worker can't mint Realtime keys (`APIError.isRealtimeUnavailable`):
 /// chunks of up to 30 s, cut at turn ends, go to `POST …/audio-chunk` as in-memory WAVs; the

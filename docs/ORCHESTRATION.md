@@ -1,4 +1,4 @@
-# OpenZen orchestration log
+# Talk orchestration log (OpenZen until 2026-11-01)
 
 The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are UTC (2026-10-27).
 
@@ -64,3 +64,4 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 00:42 (Oct 28) Live tests now run only when Ben asks (#865 on private main). Retired the E2E lane (its thread finished Oct 27 and has nothing scheduled). The 25-min check-in was deleted Oct 27; this project has no scheduled tasks.
 - 00:42 (Oct 28) Linked dev design is ready: draft #866 (base feature/native-sign-in). Token is bound to the resource ${GATEWAY_URL}/linked-dev/<app> and stays in the CLI. The org opt-in is off by default. Five questions for Ben are relayed. Building next; I run the local proof against a localhost Gateway when pinged.
 - 01:42 (Oct 28) Linked dev is built: #866 is now based on main (#855 was merged to main at 01:03Z by the bensenescu account; unclear if Ben did it, flagged). Proved locally against a localhost Gateway with an empty .dev.vars. web/ now links the SDK and CLI from the feature-linked-dev worktree.
+- (Nov 1) Ben renamed the product to Talk: app id `talk`, bundle id `com.everyapp.talk`, Swift targets Talk/TalkCore/TalkCLI/talk-smoke, env vars `TALK_*`. Older entries keep the old name. Repo created: every-app/private-talk (private). The loop-1 deploy is still under `open-zen` and the Keychain service changed, so the Mac app needs a fresh sign-in.

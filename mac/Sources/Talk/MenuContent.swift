@@ -1,4 +1,4 @@
-import OpenZenCore
+import TalkCore
 import SwiftUI
 
 struct MenuContent: View {
@@ -13,7 +13,7 @@ struct MenuContent: View {
       Divider()
       Button("Meetings…") { show("meetings") }
         .keyboardShortcut("m")
-      Button("Open OpenZen in Browser") { model.openWebApp() }
+      Button("Open Talk in Browser") { model.openWebApp() }
       if let host = model.appURL?.host {
         Text("Signed in to \(host)")
       }
@@ -24,7 +24,7 @@ struct MenuContent: View {
     Divider()
     Button("Settings…") { show("settings") }
       .keyboardShortcut(",")
-    Button("Quit OpenZen") { NSApp.terminate(nil) }
+    Button("Quit Talk") { NSApp.terminate(nil) }
       .keyboardShortcut("q")
   }
 

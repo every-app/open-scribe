@@ -1,7 +1,7 @@
 import AudioToolbox
 import CoreAudio
 import Foundation
-import OpenZenCore
+import TalkCore
 
 /// Everything the Mac plays (the other side of the call) through a Core Audio process tap
 /// (`CATapDescription`, macOS 14.2+) on a private aggregate device, delivered as PCM16 24 kHz
@@ -14,9 +14,9 @@ final class SystemAudioCapture: @unchecked Sendable {
   private var procID: AudioDeviceIOProcID?
   private var converter: AudioConverter24k?
   private var format = AudioStreamBasicDescription()
-  private let queue = DispatchQueue(label: "openzen.systemaudio", qos: .userInitiated)
+  private let queue = DispatchQueue(label: "talk.systemaudio", qos: .userInitiated)
   /// Device-change handling, apart from the IO queue (stopping a device from its own IO queue can hang).
-  private let control = DispatchQueue(label: "openzen.systemaudio.control")
+  private let control = DispatchQueue(label: "talk.systemaudio.control")
   private var outputListener: AudioObjectPropertyListenerBlock?
   private let onAudio: @Sendable (Data) -> Void
   private let onInterrupted: @Sendable (String?) -> Void
@@ -82,7 +82,7 @@ final class SystemAudioCapture: @unchecked Sendable {
     let own = Self.processObject(pid: getpid())
     let description = CATapDescription(stereoGlobalTapButExcludeProcesses: own.map { [$0] } ?? [])
     description.uuid = UUID()
-    description.name = "OpenZen"
+    description.name = "Talk"
     description.isPrivate = true
     description.muteBehavior = .unmuted
 
@@ -94,13 +94,13 @@ final class SystemAudioCapture: @unchecked Sendable {
     try check(AudioObjectGetPropertyData(tapID, &address, 0, nil, &size, &format), "read the tap's format")
     guard format.mFormatID == kAudioFormatLinearPCM, format.mFormatFlags & kAudioFormatFlagIsFloat != 0,
       format.mBitsPerChannel == 32, format.mSampleRate > 0
-    else { throw CaptureError("System audio came in a format OpenZen can't read.") }
+    else { throw CaptureError("System audio came in a format Talk can't read.") }
     converter = AudioConverter24k(inputRate: format.mSampleRate)
 
     let outputUID = try Self.defaultOutputUID()
     let aggregate: [String: Any] = [
-      kAudioAggregateDeviceNameKey: "OpenZen System Audio",
-      kAudioAggregateDeviceUIDKey: "com.everyapp.openzen.tap.\(UUID().uuidString)",
+      kAudioAggregateDeviceNameKey: "Talk System Audio",
+      kAudioAggregateDeviceUIDKey: "com.everyapp.talk.tap.\(UUID().uuidString)",
       kAudioAggregateDeviceMainSubDeviceKey: outputUID,
       kAudioAggregateDeviceIsPrivateKey: true,
       kAudioAggregateDeviceIsStackedKey: false,

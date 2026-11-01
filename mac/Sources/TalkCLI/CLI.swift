@@ -1,9 +1,9 @@
 import Foundation
-import OpenZenCore
+import TalkCore
 
 /// The smoke and sign-in commands, for agents and the end-to-end lane (no browser clicks, no
-/// microphone). Two front doors share this: `openzen-smoke` (run with `swift run`) and the app's
-/// own binary (`OpenZen --cli …`). The Keychain commands run inside the signed app binary, so the
+/// microphone). Two front doors share this: `talk-smoke` (run with `swift run`) and the app's
+/// own binary (`Talk --cli …`). The Keychain commands run inside the signed app binary, so the
 /// items they write belong to the app's code identity and the app reads them without a prompt.
 ///
 ///   signin <app-url>          the real SignInFlow; prints the authorize URL, waits for the callback
@@ -20,19 +20,19 @@ import OpenZenCore
 ///   app-state                 asks the RUNNING app what its menu shows (signed-in host, calendar)
 public enum CLI {
   /// Posted after the stored sign-in changes, so a running app reloads it.
-  public static let credentialsChanged = Notification.Name("com.everyapp.openzen.credentialsChanged")
+  public static let credentialsChanged = Notification.Name("com.everyapp.talk.credentialsChanged")
   /// `app-state`: the CLI asks (object = a nonce), the running app answers (same object, the
   /// state as string userInfo). Counts only, no meeting titles: any local process can ask.
-  public static let stateRequest = Notification.Name("com.everyapp.openzen.stateRequest")
-  public static let stateReply = Notification.Name("com.everyapp.openzen.stateReply")
+  public static let stateRequest = Notification.Name("com.everyapp.talk.stateRequest")
+  public static let stateReply = Notification.Name("com.everyapp.talk.stateReply")
 
   public static let usage = """
-    usage: openzen-smoke signin <app-url>
-           openzen-smoke status | refresh | signout [--keep-copy <file>]
-           openzen-smoke token --out <file> [--refresh-out <file>]
-           openzen-smoke <app-url> --keychain
-           openzen-smoke <app-url> <token>
-           openzen-smoke app-state
+    usage: talk-smoke signin <app-url>
+           talk-smoke status | refresh | signout [--keep-copy <file>]
+           talk-smoke token --out <file> [--refresh-out <file>]
+           talk-smoke <app-url> --keychain
+           talk-smoke <app-url> <token>
+           talk-smoke app-state
     """
 
   public static func run(_ args: [String]) async -> Int32 {
@@ -65,7 +65,7 @@ public enum CLI {
       defer { server.stop() }
       let port = try await server.start()
       let redirectURI = "http://127.0.0.1:\(port)\(LoopbackRedirect.path)"
-      let timeout = TimeInterval(ProcessInfo.processInfo.environment["OPENZEN_SIGNIN_TIMEOUT"] ?? "") ?? 600
+      let timeout = TimeInterval(ProcessInfo.processInfo.environment["TALK_SIGNIN_TIMEOUT"] ?? "") ?? 600
       let grant = try await SignInFlow(cache: ClientRegistrationStore()).run(appURL: appURL, redirectURI: redirectURI) {
         url, expectation in
         say("Open this URL in a browser and approve:")
@@ -168,7 +168,7 @@ public enum CLI {
     }
     thread.start()
     done.wait()
-    guard let reply = box.reply else { return fail("no running OpenZen answered (is the app open?)") }
+    guard let reply = box.reply else { return fail("no running Talk answered (is the app open?)") }
     let menu = reply.keys.filter { $0.hasPrefix("menu.") }.sorted { Int($0.dropFirst(5)) ?? 0 < Int($1.dropFirst(5)) ?? 0 }
     for key in reply.keys.filter({ !$0.hasPrefix("menu.") }).sorted() { say("\(key): \(reply[key]!)") }
     for key in menu { say("\(key): \(reply[key]!)") }

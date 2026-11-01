@@ -1,6 +1,6 @@
 import Foundation
 
-// The shapes of OpenZen's /api/v1 (docs/SPEC.md). Decoding is lenient on purpose: a list may come
+// The shapes of Talk's /api/v1 (docs/SPEC.md). Decoding is lenient on purpose: a list may come
 // bare or wrapped, a date as ISO 8601 or epoch, an attendee as an object or a plain email.
 
 public struct Me: Decodable, Equatable, Sendable {

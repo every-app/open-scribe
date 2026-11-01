@@ -1,4 +1,4 @@
-import OpenZenCore
+import TalkCore
 import SwiftUI
 
 /// The meetings list. A meeting opens in the web app.

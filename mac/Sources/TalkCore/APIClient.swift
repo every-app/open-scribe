@@ -28,14 +28,14 @@ public enum APIError: Error, LocalizedError, Equatable {
     switch self {
     case .signedOut: "You're signed out. Sign in again."
     case .accessLogin:
-      "Gateway requires Sign in with Every App. Its Cloudflare Access login stopped the request, so an access token alone can't reach OpenZen."
-    case .server(let status, _, let message): message ?? "OpenZen answered HTTP \(status)."
-    case .decoding(let what): "OpenZen sent something unexpected (\(what))."
+      "Gateway requires Sign in with Every App. Its Cloudflare Access login stopped the request, so an access token alone can't reach Talk."
+    case .server(let status, _, let message): message ?? "Talk answered HTTP \(status)."
+    case .decoding(let what): "Talk sent something unexpected (\(what))."
     }
   }
 }
 
-/// OpenZen's /api/v1 over HTTPS with a bearer token (docs/SPEC.md "API").
+/// Talk's /api/v1 over HTTPS with a bearer token (docs/SPEC.md "API").
 public struct APIClient: Sendable {
   public let auth: AuthProvider
   let transport: HTTPTransport
@@ -80,7 +80,7 @@ public struct APIClient: Sendable {
   public func appendAudioChunk(
     meetingID: String, wav: Data, seq: Int, startedMs: Int, endedMs: Int, speaker: Speaker, language: String?
   ) async throws -> Segment? {
-    let boundary = "openzen-\(Random.token(bytes: 12))"
+    let boundary = "talk-\(Random.token(bytes: 12))"
     var fields = [("seq", String(seq)), ("startedMs", String(startedMs)), ("endedMs", String(endedMs)), ("speaker", speaker.rawValue)]
     if let language { fields.append(("language", language)) }
     let body = Multipart.encode(boundary: boundary, fields: fields, file: ("file", "chunk-\(seq).wav", "audio/wav", wav))

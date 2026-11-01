@@ -46,11 +46,11 @@ public enum OAuthError: Error, LocalizedError, Equatable {
   public var errorDescription: String? {
     switch self {
     case .discoveryFailed(let m): "Couldn't find Every App sign-in for that app. \(m)"
-    case .registrationFailed(let m): "The Gateway wouldn't register OpenZen. \(m)"
+    case .registrationFailed(let m): "The Gateway wouldn't register Talk. \(m)"
     case .invalidGrant: "The Gateway ended this sign-in. Sign in again."
     case .invalidClient: "The Gateway no longer knows this Mac. Sign in again."
     case .tokenFailed(let m): "The Gateway didn't issue a token. \(m)"
-    case .noPKCE: "The Gateway doesn't support PKCE (S256), which OpenZen needs."
+    case .noPKCE: "The Gateway doesn't support PKCE (S256), which Talk needs."
     }
   }
 }
@@ -62,7 +62,7 @@ public enum OAuthError: Error, LocalizedError, Equatable {
 /// (RFC 8707), `iss` on the callback (RFC 9207). No `scope` anywhere: the grant is for the app.
 /// The browser and the loopback listener are the caller's; this is only the HTTP.
 public struct OAuthClient: Sendable {
-  public static let clientName = "OpenZen"
+  public static let clientName = "Talk"
   /// Registered once; the Gateway matches it on any loopback port (RFC 8252 §7.3).
   public static let registeredRedirectURI = "http://127.0.0.1/callback"
 

@@ -7,7 +7,7 @@ export const Route = createFileRoute("/")({
     const [home, meetings] = await Promise.all([getHome(), listMeetings()]);
     return { home, meetings };
   },
-  head: () => ({ meta: [{ title: "OpenZen" }] }),
+  head: () => ({ meta: [{ title: "Talk" }] }),
   component: Home,
 });
 
@@ -34,7 +34,7 @@ function Home() {
           >
             ‹ EveryApp
           </a>
-          <h1 className="text-2xl font-semibold">OpenZen</h1>
+          <h1 className="text-2xl font-semibold">Talk</h1>
         </div>
         <span className="text-sm text-neutral-500">{home.user.email}</span>
       </header>
@@ -42,7 +42,7 @@ function Home() {
       <section className={card}>
         <h2 className="mb-2 font-medium">Mac app</h2>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          In OpenZen for Mac, enter this app's URL{" "}
+          In Talk for Mac, enter this app's URL{" "}
           <code className="rounded bg-neutral-100 px-1 dark:bg-neutral-900">
             {home.appUrl}
           </code>{" "}

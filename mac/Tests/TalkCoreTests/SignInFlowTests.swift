@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import OpenZenCore
+@testable import TalkCore
 
 final class MemoryCache: ClientIDCache, @unchecked Sendable {
   private let lock = NSLock()
@@ -23,13 +23,13 @@ final class FakeGateway: @unchecked Sendable {
   var known: Set<String> = []
   var lastAuthorizeURL: URL?
   /// What the token endpoint says the token is for.
-  var resource = "https://open-zen.example.com"
+  var resource = "https://talk.example.com"
 
   lazy var transport = StubTransport { [unowned self] request in
     let url = request.url!
     switch (url.host!, url.path) {
-    case ("open-zen.example.com", "/.well-known/oauth-protected-resource"):
-      return (200, #"{"resource":"https://open-zen.example.com","authorization_servers":["https://gw.example.com"]}"#, [:])
+    case ("talk.example.com", "/.well-known/oauth-protected-resource"):
+      return (200, #"{"resource":"https://talk.example.com","authorization_servers":["https://gw.example.com"]}"#, [:])
     case ("gw.example.com", "/.well-known/oauth-authorization-server"):
       return (200, OAuthClientTests.metadataJSON, [:])
     case ("gw.example.com", "/oauth/register"):
@@ -57,7 +57,7 @@ final class FakeGateway: @unchecked Sendable {
 }
 
 @Suite struct SignInFlowTests {
-  let app = URL(string: "https://open-zen.example.com/meetings")!
+  let app = URL(string: "https://talk.example.com/meetings")!
   let redirect = "http://127.0.0.1:5000/callback"
 
   func flow(_ gateway: FakeGateway, _ cache: MemoryCache) -> SignInFlow {
@@ -68,7 +68,7 @@ final class FakeGateway: @unchecked Sendable {
     let gateway = FakeGateway(), cache = MemoryCache()
     let grant = try await flow(gateway, cache).run(appURL: app, redirectURI: redirect) { url, expectation in
       let items = Dictionary(uniqueKeysWithValues: URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!.map { ($0.name, $0.value!) })
-      #expect(items["resource"] == "https://open-zen.example.com")
+      #expect(items["resource"] == "https://talk.example.com")
       #expect(items["client_id"] == "client-1")
       #expect(items["scope"] == nil)
       #expect(items["state"] == expectation.state)
@@ -76,13 +76,13 @@ final class FakeGateway: @unchecked Sendable {
       return "code"
     }
     #expect(grant.accessToken == "at")
-    #expect(grant.resource == "https://open-zen.example.com")
-    #expect(grant.appURL.absoluteString == "https://open-zen.example.com")
+    #expect(grant.resource == "https://talk.example.com")
+    #expect(grant.appURL.absoluteString == "https://talk.example.com")
     #expect(grant.clientID == "client-1")
     #expect(cache.clientID(issuer: URL(string: "https://gw.example.com")!) == "client-1")
     // The paths it took: the app names the Gateway first.
     let paths = gateway.transport.requests.map { "\($0.url!.host!)\($0.url!.path)" }
-    #expect(paths.prefix(2) == ["open-zen.example.com/.well-known/oauth-protected-resource", "gw.example.com/.well-known/oauth-authorization-server"])
+    #expect(paths.prefix(2) == ["talk.example.com/.well-known/oauth-protected-resource", "gw.example.com/.well-known/oauth-authorization-server"])
   }
 
   @Test func reusesTheCachedClient() async throws {
@@ -161,9 +161,9 @@ final class FakeGateway: @unchecked Sendable {
   @Test func providerForgetsTheClientOnInvalidClient() async {
     let stub = StubTransport { _ in (401, #"{"error":"invalid_client"}"#, [:]) }
     let grant = OAuthGrant(
-      appURL: URL(string: "https://open-zen.example.com")!, issuer: URL(string: "https://gw.example.com")!,
+      appURL: URL(string: "https://talk.example.com")!, issuer: URL(string: "https://gw.example.com")!,
       tokenEndpoint: URL(string: "https://gw.example.com/oauth/token")!, revocationEndpoint: nil, clientID: "c",
-      resource: "https://open-zen.example.com", accessToken: "old", refreshToken: "r", expiresAt: Date().addingTimeInterval(3600), scope: nil)
+      resource: "https://talk.example.com", accessToken: "old", refreshToken: "r", expiresAt: Date().addingTimeInterval(3600), scope: nil)
     let cache = MemoryCache()
     cache.save("c", issuer: grant.issuer)
     let provider = OAuthAuthProvider(grant: grant, client: OAuthClient(transport: stub), persist: { _ in }, forgetClient: { cache.forget(issuer: $0) })
@@ -174,9 +174,9 @@ final class FakeGateway: @unchecked Sendable {
   @Test func signOutRevokesTheRefreshToken() async {
     let stub = StubTransport { _ in (200, "", [:]) }
     let grant = OAuthGrant(
-      appURL: URL(string: "https://open-zen.example.com")!, issuer: URL(string: "https://gw.example.com")!,
+      appURL: URL(string: "https://talk.example.com")!, issuer: URL(string: "https://gw.example.com")!,
       tokenEndpoint: URL(string: "https://gw.example.com/oauth/token")!, revocationEndpoint: URL(string: "https://gw.example.com/oauth/revoke")!,
-      clientID: "c", resource: "https://open-zen.example.com", accessToken: "at", refreshToken: "rt", expiresAt: nil, scope: nil)
+      clientID: "c", resource: "https://talk.example.com", accessToken: "at", refreshToken: "rt", expiresAt: nil, scope: nil)
     await OAuthClient(transport: stub).revoke(grant)
     #expect(stub.requests.count == 1)
     let form = stub.form(stub.requests[0])

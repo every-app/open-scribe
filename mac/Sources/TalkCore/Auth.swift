@@ -1,6 +1,6 @@
 import Foundation
 
-/// What the Keychain holds: how this Mac signs in to one OpenZen app.
+/// What the Keychain holds: how this Mac signs in to one Talk app.
 public enum Credentials: Codable, Equatable, Sendable {
   /// Interim: a personal access token the person made in Manage workspace → Tokens.
   case accessToken(appURL: URL, token: String)

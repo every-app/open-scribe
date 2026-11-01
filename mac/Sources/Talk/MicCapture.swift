@@ -1,5 +1,5 @@
 @preconcurrency import AVFoundation
-import OpenZenCore
+import TalkCore
 
 /// The microphone through AVAudioEngine, delivered as PCM16 24 kHz mono chunks. Never asks for
 /// permission itself: the caller checks first (a prompt from inside capture code is the kind

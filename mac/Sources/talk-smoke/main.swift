@@ -1,12 +1,12 @@
 import Foundation
-import OpenZenCLI
+import TalkCLI
 
-// `swift run openzen-smoke …`: see OpenZenCLI/CLI.swift for the commands.
+// `swift run talk-smoke …`: see TalkCLI/CLI.swift for the commands.
 //
 // The Keychain commands (signin, status, refresh, signout, --keychain) are handed to the installed,
-// signed app binary (`OpenZen --cli …`): Keychain items belong to the code identity that wrote
+// signed app binary (`Talk --cli …`): Keychain items belong to the code identity that wrote
 // them, and this `swift run` binary's ad-hoc identity changes every build, so the app (or this
-// tool) would hit a Keychain prompt nobody can click. OPENZEN_APP_BINARY overrides the path.
+// tool) would hit a Keychain prompt nobody can click. TALK_APP_BINARY overrides the path.
 var args = Array(CommandLine.arguments.dropFirst())
 let keychainCommands: Set<String> = ["signin", "status", "refresh", "signout", "token", "app-state"]
 
@@ -21,8 +21,8 @@ guard let command = args.first, keychainCommands.contains(command) || args == ["
   exit(2)
 }
 
-let binary = ProcessInfo.processInfo.environment["OPENZEN_APP_BINARY"]
-  ?? NSHomeDirectory() + "/Applications/OpenZen.app/Contents/MacOS/OpenZen"
+let binary = ProcessInfo.processInfo.environment["TALK_APP_BINARY"]
+  ?? NSHomeDirectory() + "/Applications/Talk.app/Contents/MacOS/Talk"
 guard FileManager.default.isExecutableFile(atPath: binary) else {
   FileHandle.standardError.write(Data("FAIL no app at \(binary); run mac/scripts/build-app.sh first\n".utf8))
   exit(1)

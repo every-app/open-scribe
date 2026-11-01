@@ -8,8 +8,8 @@ import Security
 /// So a dev rebuild can't read what the last build wrote; `probe()` reports that as `unreadable`
 /// rather than "signed out", and reads never raise a Keychain password prompt.
 public struct CredentialStore: Sendable {
-  /// `OPENZEN_KEYCHAIN_SERVICE` moves everything to another service name (tests, experiments).
-  public static let service = ProcessInfo.processInfo.environment["OPENZEN_KEYCHAIN_SERVICE"] ?? "com.everyapp.openzen"
+  /// `TALK_KEYCHAIN_SERVICE` moves everything to another service name (tests, experiments).
+  public static let service = ProcessInfo.processInfo.environment["TALK_KEYCHAIN_SERVICE"] ?? "com.everyapp.talk"
   let service: String
   let account: String
 
@@ -64,7 +64,7 @@ public struct CredentialStore: Sendable {
       var add = baseQuery
       add[kSecValueData as String] = data
       add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-      add[kSecAttrLabel as String] = "OpenZen sign-in"
+      add[kSecAttrLabel as String] = "Talk sign-in"
       status = SecItemAdd(add as CFDictionary, nil)
     }
     return status == errSecSuccess
@@ -111,7 +111,7 @@ public struct ClientRegistrationStore: Sendable {
     var add = baseQuery(issuer)
     add[kSecValueData as String] = data
     add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-    add[kSecAttrLabel as String] = "OpenZen client registration"
+    add[kSecAttrLabel as String] = "Talk client registration"
     SecItemAdd(add as CFDictionary, nil)
   }
 

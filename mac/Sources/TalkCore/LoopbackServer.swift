@@ -4,7 +4,7 @@ import Network
 /// A one-shot HTTP listener on 127.0.0.1, ephemeral port, for the OAuth redirect.
 public final class LoopbackServer: @unchecked Sendable {
   private let listener: NWListener
-  private let queue = DispatchQueue(label: "openzen.loopback")
+  private let queue = DispatchQueue(label: "talk.loopback")
   private var expectation: CallbackExpectation?
   private var result: CheckedContinuation<String, Error>?
   /// Bumped per wait, so an earlier wait's timer can't end a later one.
@@ -96,7 +96,7 @@ public final class LoopbackServer: @unchecked Sendable {
     let reply: Data
     switch outcome {
     case .code(let code):
-      reply = LoopbackRedirect.response(status: 200, title: "You're signed in to OpenZen", message: "You can close this tab.")
+      reply = LoopbackRedirect.response(status: 200, title: "You're signed in to Talk", message: "You can close this tab.")
       finish(.success(code))
     case .denied(let error, let description):
       reply = LoopbackRedirect.response(status: 200, title: "Sign-in cancelled", message: "You can close this tab.")

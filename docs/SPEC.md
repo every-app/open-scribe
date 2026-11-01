@@ -1,4 +1,4 @@
-# OpenZen spec (v1)
+# Talk spec (v1)
 
 A meeting recorder for Every App: a native macOS menu-bar app records a meeting, transcribes it live, and a web app turns the transcript into notes that stay private unless you share them.
 
@@ -14,7 +14,7 @@ OpenAI (Realtime, chat) ──(key)─┤
                                │ identity JWT / brokered calls
                      ┌─────────▼──────────┐
                      │  web/  (Worker+D1)  │  meetings, transcripts, notes,
-                     │  app id: open-zen │  sharing, API for the Mac app
+                     │  app id: talk │  sharing, API for the Mac app
                      └─────────▲──────────┘
          HTTPS, bearer token   │                 ▲  WebSocket, ephemeral key
                      ┌─────────┴──────────┐      │
@@ -29,24 +29,24 @@ OpenAI (Realtime, chat) ──(key)─┤
 
 ## How the Mac app signs in: Sign in with Every App
 
-The person types the **app URL**, the one they use in the browser (`https://open-zen.<base>`). The Mac app signs in through the Gateway as an OAuth public client and gets a token bound to this one app. The platform side is `docs/design/native-sign-in.md` on private-every-app's `feature/native-sign-in` branch; this is OpenZen's side of it.
+The person types the **app URL**, the one they use in the browser (`https://talk.<base>`). The Mac app signs in through the Gateway as an OAuth public client and gets a token bound to this one app. The platform side is `docs/design/native-sign-in.md` on private-every-app's `feature/native-sign-in` branch; this is Talk's side of it.
 
 The flow (RFC 8252 native app, PKCE, no scope):
 
 1. **Discover from the app.** `GET {origin}/.well-known/oauth-protected-resource` names the Gateway (`resource` = the origin, `authorization_servers[0]`). Then `GET {gateway}/.well-known/oauth-authorization-server` gives the authorize, token, revocation and registration endpoints.
-2. **Register once per install.** `POST` the registration endpoint as a public client: `token_endpoint_auth_method: "none"`, `redirect_uris: ["http://127.0.0.1/callback"]` (loopback, any port), `client_name: "OpenZen for Mac"`. Keep the `client_id` in the Keychain. Later, a Client ID Metadata Document on our own domain puts a verified name on the consent page.
+2. **Register once per install.** `POST` the registration endpoint as a public client: `token_endpoint_auth_method: "none"`, `redirect_uris: ["http://127.0.0.1/callback"]` (loopback, any port), `client_name: "Talk for Mac"`. Keep the `client_id` in the Keychain. Later, a Client ID Metadata Document on our own domain puts a verified name on the consent page.
 3. **Authorize** in the system browser with `code_challenge` (S256), a one-use `state` and `resource={origin}`. No `scope`: the binding is by resource. Cloudflare Access and the Gateway's consent page are ordinary web pages, so Access is no obstacle here. The browser comes back to the loopback listener with the code.
 4. **Exchange** at the token endpoint with the verifier and the same `resource`: an access token good for an hour and a refresh token (30 days sliding, rotated on use).
-5. **Call** `https://open-zen.<base>/api/v1/...` with `Authorization: Bearer <access token>`. The perimeter checks the audience is this host, re-reads the connection, and mints the usual identity: `chan: "api"`, `act.sub: "oauth:<id>"`, `scopes: ["*"]`. The app sees the member who consented. Refresh before expiry or on a 401; `invalid_grant` means sign in again.
+5. **Call** `https://talk.<base>/api/v1/...` with `Authorization: Bearer <access token>`. The perimeter checks the audience is this host, re-reads the connection, and mints the usual identity: `chan: "api"`, `act.sub: "oauth:<id>"`, `scopes: ["*"]`. The app sees the member who consented. Refresh before expiry or on a 401; `invalid_grant` means sign in again.
 6. **Sign out** revokes the refresh token. The person can also revoke it under Settings → Connections; removal, deactivation and 30 idle days end it too.
 
-OpenZen's Worker changes nothing for this: its routes read the person with the SDK, so a PAT today and the native token later look the same. The API is plain route files under `/api/v1`, not server functions, because the Gateway admits only same-origin `fetch` to `/_serverFn/*`.
+Talk's Worker changes nothing for this: its routes read the person with the SDK, so a PAT today and the native token later look the same. The API is plain route files under `/api/v1`, not server functions, because the Gateway admits only same-origin `fetch` to `/_serverFn/*`.
 
-**Bearer routes.** Behind Cloudflare Access a bearer-only call gets Access's HTML login unless the app's manifest lists the paths under `bearerRoutes: { paths: ["/api/v1/**"], why }`; `everyapp access on` then bypasses them on the apps' Access application and the perimeter still demands the token. On those paths a session cookie is refused (401), so the bypass opens nothing to a browser: OpenZen's web UI uses server functions only, and the public `/s/:token` page and every page are outside `/api/v1/**`. OpenZen adds the field as soon as the SDK from `feature/native-sign-in` is published (a TODO in `web/everyapp.config.ts` marks the spot).
+**Bearer routes.** Behind Cloudflare Access a bearer-only call gets Access's HTML login unless the app's manifest lists the paths under `bearerRoutes: { paths: ["/api/v1/**"], why }`; `everyapp access on` then bypasses them on the apps' Access application and the perimeter still demands the token. On those paths a session cookie is refused (401), so the bypass opens nothing to a browser: Talk's web UI uses server functions only, and the public `/s/:token` page and every page are outside `/api/v1/**`. Talk adds the field as soon as the SDK from `feature/native-sign-in` is published (a TODO in `web/everyapp.config.ts` marks the spot).
 
 **Development.** `everyapp dev` runs in stub mode (any bearer is the dev user); mirror mode for native tokens is deferred, so the real token is tested against a deployed Gateway.
 
-**Fallback that works today:** a **personal access token** (Manage workspace → Tokens → New token, Full access, bound to OpenZen) pasted into the Mac app and sent as `Authorization: Bearer epat_…`. Behind Access it still needs the same `bearerRoutes` bypass, and only owners and admins can make one.
+**Fallback that works today:** a **personal access token** (Manage workspace → Tokens → New token, Full access, bound to Talk) pasted into the Mac app and sent as `Authorization: Bearer epat_…`. Behind Access it still needs the same `bearerRoutes` bypass, and only owners and admins can make one.
 
 ## Data model (D1)
 
@@ -102,8 +102,8 @@ Google Calendar is read-only through the Gateway's `google-workspace` client, sc
 ## Sharing and visibility
 
 - **Private** (default): the owner alone.
-- **Team**: every member of the workspace who can open OpenZen (`org_id`). The Gateway's groups decide who can open the app, but an app can't read groups (the SDK has `listMembers()` only), so a finer unit than the workspace is a platform gap.
-- **Public link**: an unguessable token, `https://open-zen.<base>/s/<token>`, read-only notes and transcript, `noindex`. Revoke deletes access at once; a meeting can have several links. Who can open an app host's public route is Access's business too: `public` routes are let through.
+- **Team**: every member of the workspace who can open Talk (`org_id`). The Gateway's groups decide who can open the app, but an app can't read groups (the SDK has `listMembers()` only), so a finer unit than the workspace is a platform gap.
+- **Public link**: an unguessable token, `https://talk.<base>/s/<token>`, read-only notes and transcript, `noindex`. Revoke deletes access at once; a meeting can have several links. Who can open an app host's public route is Access's business too: `public` routes are let through.
 - **Later**: private sharing by email with a one-time code to people outside the workspace.
 
 ## Permissions (macOS)

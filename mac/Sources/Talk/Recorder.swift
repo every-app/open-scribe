@@ -1,6 +1,6 @@
 @preconcurrency import AVFoundation
 import Foundation
-import OpenZenCore
+import TalkCore
 
 /// One meeting being recorded: creates it on the server, captures mic and system audio, streams
 /// each to its own transcription session, and posts finished segments every ten seconds.
@@ -53,7 +53,7 @@ final class Recorder: ObservableObject {
     fallbackNotice = nil
     captureProblems = [:]
     guard await Permissions.ensureMicrophone() else {
-      lastError = "OpenZen needs the microphone. Allow it in System Settings → Privacy & Security → Microphone."
+      lastError = "Talk needs the microphone. Allow it in System Settings → Privacy & Security → Microphone."
       return
     }
     state = .starting(title: title)
@@ -100,7 +100,7 @@ final class Recorder: ObservableObject {
       try await api?.finish(meetingID: meetingID)
       lastMeetingID = meetingID
     } catch {
-      lastError = "The recording stopped, but OpenZen couldn't be told to write notes: \(error.localizedDescription)"
+      lastError = "The recording stopped, but Talk couldn't be told to write notes: \(error.localizedDescription)"
     }
     await teardown()
     state = .idle

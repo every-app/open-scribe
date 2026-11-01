@@ -3,15 +3,15 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key>
-  <string>OpenZen</string>
+  <string>Talk</string>
   <key>CFBundleIdentifier</key>
-  <string>com.everyapp.openzen</string>
+  <string>com.everyapp.talk</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>OpenZen</string>
+  <string>Talk</string>
   <key>CFBundleDisplayName</key>
-  <string>OpenZen</string>
+  <string>Talk</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -27,8 +27,8 @@
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>NSMicrophoneUsageDescription</key>
-  <string>OpenZen transcribes your side of a meeting while you record it. Audio is never saved.</string>
+  <string>Talk transcribes your side of a meeting while you record it. Audio is never saved.</string>
   <key>NSAudioCaptureUsageDescription</key>
-  <string>OpenZen transcribes the other side of a meeting from your Mac's sound while you record it. Audio is never saved.</string>
+  <string>Talk transcribes the other side of a meeting from your Mac's sound while you record it. Audio is never saved.</string>
 </dict>
 </plist>

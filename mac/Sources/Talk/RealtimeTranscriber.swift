@@ -1,5 +1,5 @@
 import Foundation
-import OpenZenCore
+import TalkCore
 
 /// One OpenAI Realtime transcription WebSocket, opened with an ephemeral key the Worker minted
 /// (docs/SPEC.md "Live transcription"). Adapted from Scrawl's `openai-stream`: audio is queued

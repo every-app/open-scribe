@@ -1,12 +1,12 @@
 import AppKit
 import SwiftUI
 
-struct OpenZenApp: App {
+struct TalkApp: App {
   @StateObject private var model = AppModel()
 
   init() {
-    // OPENZEN_DIAG=1: print the app's windows (the status item's among them) after launch.
-    if ProcessInfo.processInfo.environment["OPENZEN_DIAG"] == "1" {
+    // TALK_DIAG=1: print the app's windows (the status item's among them) after launch.
+    if ProcessInfo.processInfo.environment["TALK_DIAG"] == "1" {
       DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
         for window in NSApp.windows {
           FileHandle.standardError.write(Data("window \(type(of: window)) \(window.frame) visible=\(window.isVisible)\n".utf8))
@@ -29,7 +29,7 @@ struct OpenZenApp: App {
     .defaultSize(width: 420, height: 480)
     .windowResizability(.contentMinSize)
 
-    Window("OpenZen Settings", id: "settings") {
+    Window("Talk Settings", id: "settings") {
       SettingsView(model: model)
     }
     .windowResizability(.contentSize)

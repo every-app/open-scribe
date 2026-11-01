@@ -2,7 +2,7 @@
 import AppKit
 import UserNotifications
 
-/// The three permissions OpenZen uses, asked from the Settings window or right before a recording
+/// The three permissions Talk uses, asked from the Settings window or right before a recording
 /// starts, never from inside capture code (Scrawl's lesson).
 enum Permissions {
   enum Status: Equatable {

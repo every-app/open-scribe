@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import OpenZenCore
+@testable import TalkCore
 
 @Suite struct ResamplerTests {
   func sine(_ freq: Double, rate: Double, seconds: Double, amplitude: Float = 0.5) -> [Float] {
@@ -223,7 +223,7 @@ import Testing
 @Suite struct APIClientTests {
   func client(_ handler: @escaping StubTransport.Handler) -> (APIClient, StubTransport) {
     let stub = StubTransport(handler)
-    return (APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://openzen.example.com")!, token: "epat_1"), transport: stub), stub)
+    return (APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://talk.example.com")!, token: "epat_1"), transport: stub), stub)
   }
 
   @Test func meDecodesNestedAndFlat() async throws {
@@ -235,7 +235,7 @@ import Testing
     #expect(!me.googleConnected)
     #expect(me.connectURL?.absoluteString == "https://gw/connect")
     #expect(stub.requests[0].value(forHTTPHeaderField: "Authorization") == "Bearer epat_1")
-    #expect(stub.requests[0].url?.absoluteString == "https://openzen.example.com/api/v1/me")
+    #expect(stub.requests[0].url?.absoluteString == "https://talk.example.com/api/v1/me")
 
     let flat = try JSONDecoder().decode(Me.self, from: Data(#"{"id":7,"email":"a@b","googleConnected":true}"#.utf8))
     #expect(flat.id == "7")
@@ -338,9 +338,9 @@ import Testing
     }
     let list = try await api.meetings()
     #expect(list.map(\.id) == ["m1", "m2"])
-    let app = URL(string: "https://openzen.example.com")!
-    #expect(list[0].pageURL(appURL: app).absoluteString == "https://openzen.example.com/meetings/m1")
-    #expect(list[1].pageURL(appURL: app).absoluteString == "https://openzen.example.com/m/m2")
+    let app = URL(string: "https://talk.example.com")!
+    #expect(list[0].pageURL(appURL: app).absoluteString == "https://talk.example.com/meetings/m1")
+    #expect(list[1].pageURL(appURL: app).absoluteString == "https://talk.example.com/m/m2")
     let bare = try JSONDecoder().decode(MeetingList.self, from: Data(#"[{"id":"x","title":"X"}]"#.utf8))
     #expect(bare.meetings.count == 1)
   }
@@ -372,9 +372,9 @@ import Testing
       return auth == "Bearer fresh" ? (200, #"{"user":{"id":"u"}}"#, [:]) : (401, "", [:])
     }
     let grant = OAuthGrant(
-      appURL: URL(string: "https://openzen.example.com")!, issuer: URL(string: "https://gw.example.com")!,
+      appURL: URL(string: "https://talk.example.com")!, issuer: URL(string: "https://gw.example.com")!,
       tokenEndpoint: URL(string: "https://gw.example.com/token")!, revocationEndpoint: nil, clientID: "c",
-      resource: "https://openzen.example.com", accessToken: "stale", refreshToken: "r", expiresAt: Date().addingTimeInterval(3600),
+      resource: "https://talk.example.com", accessToken: "stale", refreshToken: "r", expiresAt: Date().addingTimeInterval(3600),
       scope: nil)
     let provider = OAuthAuthProvider(grant: grant, client: OAuthClient(transport: stub)) { _ in }
     let api = APIClient(auth: provider, transport: stub)
@@ -398,7 +398,7 @@ import Testing
 
   @Test func routeNotAllowedCarriesItsCode() async {
     let stub = StubTransport { _ in (503, #"{"error":"ai_route_not_allowed","message":"Ask your operator"}"#, [:]) }
-    let api = APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://open-zen.example.com")!, token: "t"), transport: stub)
+    let api = APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://talk.example.com")!, token: "t"), transport: stub)
     do {
       _ = try await api.transcriptionToken(meetingID: "m", source: "mic", language: nil)
       Issue.record("expected a refusal")
@@ -414,7 +414,7 @@ import Testing
     let stub = StubTransport { _ in
       (201, #"{"segment":{"seq":3,"startedMs":0,"endedMs":1000,"speaker":"them","text":"hello"}}"#, [:])
     }
-    let api = APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://open-zen.example.com")!, token: "t"), transport: stub)
+    let api = APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://talk.example.com")!, token: "t"), transport: stub)
     let segment = try await api.appendAudioChunk(
       meetingID: "m1", wav: WAV.encode(pcm16: Data(count: 10)), seq: 3, startedMs: 0, endedMs: 1000, speaker: .them, language: "en")
     #expect(segment?.text == "hello")

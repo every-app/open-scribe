@@ -19,7 +19,7 @@ const { transcribeChunk, TranscriptionRefused } = await import(
   "./transcription"
 );
 
-const request = new Request("https://open-zen.test/api/v1/x");
+const request = new Request("https://talk.test/api/v1/x");
 const wav = new File([new Uint8Array(44)], "chunk.wav", { type: "audio/wav" });
 
 beforeEach(() => {

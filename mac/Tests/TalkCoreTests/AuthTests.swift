@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 
-@testable import OpenZenCore
+@testable import TalkCore
 
 @Suite struct PKCETests {
   @Test func rfc7636AppendixBVector() {
@@ -162,21 +162,21 @@ final class StubTransport: HTTPTransport, @unchecked Sendable {
   }
 
   @Test func normalizedOrigins() {
-    #expect(OAuthClient.normalized(URL(string: "HTTPS://Open-Zen.Example.com:443/")!) == "https://open-zen.example.com")
-    #expect(OAuthClient.normalized(URL(string: "http://open-zen.localhost:8787")!) == "http://open-zen.localhost:8787")
+    #expect(OAuthClient.normalized(URL(string: "HTTPS://Talk.Example.com:443/")!) == "https://talk.example.com")
+    #expect(OAuthClient.normalized(URL(string: "http://talk.localhost:8787")!) == "http://talk.localhost:8787")
   }
 
   @Test func protectedResourceDiscoveryChecksTheResource() async throws {
     let good = StubTransport { request in
-      #expect(request.url?.absoluteString == "https://open-zen.example.com/.well-known/oauth-protected-resource")
-      return (200, #"{"resource":"https://open-zen.example.com","authorization_servers":["https://gw.example.com"]}"#, [:])
+      #expect(request.url?.absoluteString == "https://talk.example.com/.well-known/oauth-protected-resource")
+      return (200, #"{"resource":"https://talk.example.com","authorization_servers":["https://gw.example.com"]}"#, [:])
     }
-    let metadata = try await OAuthClient(transport: good).discoverResource(origin: URL(string: "https://open-zen.example.com")!)
+    let metadata = try await OAuthClient(transport: good).discoverResource(origin: URL(string: "https://talk.example.com")!)
     #expect(metadata.authorizationServers == [URL(string: "https://gw.example.com")!])
 
     let wrong = StubTransport { _ in (200, #"{"resource":"https://other.example.com","authorization_servers":["https://gw.example.com"]}"#, [:]) }
     await #expect(throws: OAuthError.self) {
-      try await OAuthClient(transport: wrong).discoverResource(origin: URL(string: "https://open-zen.example.com")!)
+      try await OAuthClient(transport: wrong).discoverResource(origin: URL(string: "https://talk.example.com")!)
     }
   }
 
@@ -204,7 +204,7 @@ final class StubTransport: HTTPTransport, @unchecked Sendable {
     #expect(body["scope"] == nil)
     // Exactly the design's §12 registration body.
     #expect(Set(body.keys) == ["client_name", "redirect_uris", "grant_types", "response_types", "token_endpoint_auth_method"])
-    #expect(body["client_name"] as? String == "OpenZen")
+    #expect(body["client_name"] as? String == "Talk")
     #expect(body["response_types"] as? [String] == ["code"])
   }
 
@@ -213,13 +213,13 @@ final class StubTransport: HTTPTransport, @unchecked Sendable {
     let pkce = PKCE(verifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")
     let url = OAuthClient.authorizationURL(
       metadata: metadata, clientID: "c-1", redirectURI: "http://127.0.0.1:5000/callback", pkce: pkce, state: "st",
-      resource: "https://open-zen.example.com")
+      resource: "https://talk.example.com")
     let items = Dictionary(uniqueKeysWithValues: URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!.map { ($0.name, $0.value!) })
     #expect(items["response_type"] == "code")
     #expect(items["code_challenge"] == "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
     #expect(items["code_challenge_method"] == "S256")
     #expect(items["state"] == "st")
-    #expect(items["resource"] == "https://open-zen.example.com")
+    #expect(items["resource"] == "https://talk.example.com")
     #expect(items["redirect_uri"] == "http://127.0.0.1:5000/callback")
     #expect(items["scope"] == nil)
   }
@@ -243,13 +243,13 @@ final class StubTransport: HTTPTransport, @unchecked Sendable {
     let pkce = PKCE()
     let grant = try await client.exchange(
       code: "code1", metadata: metadata, clientID: "c-1", redirectURI: "http://127.0.0.1:5000/callback", pkce: pkce,
-      resource: "https://open-zen.example.com", appURL: URL(string: "https://open-zen.example.com")!, now: now)
+      resource: "https://talk.example.com", appURL: URL(string: "https://talk.example.com")!, now: now)
     #expect(grant.accessToken == "at1")
     #expect(grant.refreshToken == "rt1")
     #expect(grant.expiresAt == now.addingTimeInterval(3600))
     let form = stub.form(stub.requests[0])
     #expect(form["code_verifier"] == pkce.verifier)
-    #expect(form["resource"] == "https://open-zen.example.com")
+    #expect(form["resource"] == "https://talk.example.com")
     #expect(form["client_id"] == "c-1")
     #expect(form["scope"] == nil)
 
@@ -257,7 +257,7 @@ final class StubTransport: HTTPTransport, @unchecked Sendable {
     #expect(renewed.accessToken == "at2")
     #expect(renewed.refreshToken == "rt2")
     #expect(stub.form(stub.requests[1])["refresh_token"] == "rt1")
-    #expect(stub.form(stub.requests[1])["resource"] == "https://open-zen.example.com")
+    #expect(stub.form(stub.requests[1])["resource"] == "https://talk.example.com")
     #expect(stub.form(stub.requests[1])["scope"] == nil)
     let again = try await client.refresh(renewed, now: now)
     #expect(again.refreshToken == "rt2")
@@ -295,14 +295,14 @@ final class StubTransport: HTTPTransport, @unchecked Sendable {
   }
 
   @Test func credentialsRoundTrip() throws {
-    let creds = Credentials.accessToken(appURL: URL(string: "https://open-zen.example.com")!, token: "epat_x")
+    let creds = Credentials.accessToken(appURL: URL(string: "https://talk.example.com")!, token: "epat_x")
     let data = try JSONEncoder().encode(creds)
     #expect(try JSONDecoder().decode(Credentials.self, from: data) == creds)
   }
 
   @Test func typedURLs() {
-    #expect(URL.typed("open-zen.example.com")?.absoluteString == "https://open-zen.example.com")
-    #expect(URL.typed("https://open-zen.example.com/meetings")?.origin?.absoluteString == "https://open-zen.example.com")
+    #expect(URL.typed("talk.example.com")?.absoluteString == "https://talk.example.com")
+    #expect(URL.typed("https://talk.example.com/meetings")?.origin?.absoluteString == "https://talk.example.com")
     #expect(URL.typed("http://evil.example.com") == nil)
     #expect(URL.typed("http://localhost:3000")?.origin?.absoluteString == "http://localhost:3000")
     #expect(URL.typed("  ") == nil)

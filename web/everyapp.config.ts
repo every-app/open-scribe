@@ -3,8 +3,8 @@ import { defineEveryApp } from "@every-app/sdk";
 // defineEveryApp types the manifest; the Worker reads it back as
 // env.EVERYAPP_MANIFEST.
 export default defineEveryApp({
-  id: "open-zen",
-  name: "OpenZen",
+  id: "talk",
+  name: "Talk",
   description:
     "Records meetings from the menu bar, transcribes them live and writes the notes.",
   // Every member of the workspace can open it; notes are private by default.

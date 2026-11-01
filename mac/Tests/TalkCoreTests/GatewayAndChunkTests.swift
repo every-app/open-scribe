@@ -1,16 +1,16 @@
 import Foundation
 import Testing
 
-@testable import OpenZenCore
+@testable import TalkCore
 
 @Suite struct AccessLoginTests {
   func api(_ handler: @escaping StubTransport.Handler) -> APIClient {
-    APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://open-zen.example.com")!, token: "epat_1"), transport: StubTransport(handler))
+    APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://talk.example.com")!, token: "epat_1"), transport: StubTransport(handler))
   }
 
   @Test func redirectToAccessIsReported() async {
     let client = api { _ in
-      (302, "", ["Location": "https://team.cloudflareaccess.com/cdn-cgi/access/login/open-zen.example.com?redirect_url=%2F", "Content-Type": "text/html"])
+      (302, "", ["Location": "https://team.cloudflareaccess.com/cdn-cgi/access/login/talk.example.com?redirect_url=%2F", "Content-Type": "text/html"])
     }
     await #expect(throws: APIError.accessLogin) { try await client.me() }
     #expect(APIError.accessLogin.localizedDescription.hasPrefix("Gateway requires Sign in with Every App"))
@@ -32,9 +32,9 @@ import Testing
   }
 
   @Test func ordinaryResponsesAreNot() {
-    let ok = HTTPURLResponse(url: URL(string: "https://open-zen.example.com/api/v1/me")!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+    let ok = HTTPURLResponse(url: URL(string: "https://talk.example.com/api/v1/me")!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
     #expect(!APIClient.isAccessLogin(Data(#"{"note":"cloudflareaccess.com"}"#.utf8), ok))
-    let moved = HTTPURLResponse(url: URL(string: "https://open-zen.example.com/x")!, statusCode: 301, httpVersion: nil, headerFields: ["Location": "https://open-zen.example.com/y"])!
+    let moved = HTTPURLResponse(url: URL(string: "https://talk.example.com/x")!, statusCode: 301, httpVersion: nil, headerFields: ["Location": "https://talk.example.com/y"])!
     #expect(!APIClient.isAccessLogin(Data(), moved))
     #expect(!APIClient.isAccessLogin(Data(), HTTPURLResponse(url: URL(string: "https://evilcloudflareaccess.com/")!, statusCode: 200, httpVersion: nil, headerFields: nil)!))
   }
@@ -53,14 +53,14 @@ import Testing
 @Suite struct ChunkResponseTests {
   @Test func unreadableSegmentIsNotAnError() async throws {
     let stub = StubTransport { _ in (201, #"{"segment":{"seq":1,"startedMs":0,"endedMs":5,"speaker":null,"text":"hi"}}"#, [:]) }
-    let api = APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://open-zen.example.com")!, token: "t"), transport: stub)
+    let api = APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://talk.example.com")!, token: "t"), transport: stub)
     let segment = try await api.appendAudioChunk(meetingID: "m", wav: Data(), seq: 1, startedMs: 0, endedMs: 5, speaker: .me, language: nil)
     #expect(segment == nil)
   }
 
   @Test func providerNotConfiguredIsNotAFallback() async {
     let stub = StubTransport { _ in (503, #"{"error":"ai_provider_not_configured","message":"Set up OpenAI"}"#, [:]) }
-    let api = APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://open-zen.example.com")!, token: "t"), transport: stub)
+    let api = APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://talk.example.com")!, token: "t"), transport: stub)
     do {
       _ = try await api.transcriptionToken(meetingID: "m", source: "mic", language: nil)
       Issue.record("expected 503")
@@ -76,7 +76,7 @@ import Testing
 @Suite struct FinishTests {
   @Test func finishingTwiceIsDone() async throws {
     let stub = StubTransport { _ in (404, #"{"error":"not_found"}"#, [:]) }
-    let api = APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://open-zen.example.com")!, token: "t"), transport: stub)
+    let api = APIClient(auth: AccessTokenAuthProvider(appURL: URL(string: "https://talk.example.com")!, token: "t"), transport: stub)
     try await api.finish(meetingID: "m1")
   }
 }

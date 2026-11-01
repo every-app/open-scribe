@@ -1,11 +1,11 @@
 import AppKit
 import Foundation
-import OpenZenCLI
-import OpenZenCore
+import TalkCLI
+import TalkCore
 import os
 
-/// `log show --predicate 'subsystem == "com.everyapp.openzen"'`. Hosts and counts only, never tokens.
-let log = Logger(subsystem: "com.everyapp.openzen", category: "app")
+/// `log show --predicate 'subsystem == "com.everyapp.talk"'`. Hosts and counts only, never tokens.
+let log = Logger(subsystem: "com.everyapp.talk", category: "app")
 
 /// The app's state: who's signed in, the calendar, the recorder.
 @MainActor
@@ -46,13 +46,13 @@ final class AppModel: ObservableObject {
         await self?.refresh()
       }
     }
-    // `openzen-smoke signin|refresh|signout` changed the stored sign-in: pick it up.
+    // `talk-smoke signin|refresh|signout` changed the stored sign-in: pick it up.
     credentialsObserver = DistributedNotificationCenter.default().addObserver(
       forName: CLI.credentialsChanged, object: nil, queue: .main
     ) { [weak self] _ in
       Task { @MainActor in self?.reloadCredentials() }
     }
-    // `openzen-smoke app-state`: answer with what the menu shows.
+    // `talk-smoke app-state`: answer with what the menu shows.
     stateObserver = DistributedNotificationCenter.default().addObserver(
       forName: CLI.stateRequest, object: nil, queue: .main
     ) { note in
@@ -67,7 +67,7 @@ final class AppModel: ObservableObject {
     case .readable(let saved): use(saved)
     case .unreadable:
       keychainUnreadable = true
-      signInError = "This build of OpenZen can't read your saved sign-in. Sign in again."
+      signInError = "This build of Talk can't read your saved sign-in. Sign in again."
       log.error("saved sign-in unreadable (another build's Keychain partition)")
     case .missing: break
     }
@@ -129,12 +129,12 @@ final class AppModel: ObservableObject {
         lines.append("Upcoming")
         lines.append("(\(min(events.count, 8)) meeting\(events.count == 1 ? "" : "s"))")
       }
-      lines += ["Meetings…", "Open OpenZen in Browser"]
+      lines += ["Meetings…", "Open Talk in Browser"]
       if let host = appURL?.host { lines.append("Signed in to \(host)") }
     } else {
       lines += ["Not signed in", "Sign In…"]
     }
-    lines += ["Settings…", "Quit OpenZen"]
+    lines += ["Settings…", "Quit Talk"]
     return lines
   }
 
@@ -166,7 +166,7 @@ final class AppModel: ObservableObject {
 
   func signIn(appURLText: String, token: String) {
     guard let url = URL.typed(appURLText), let origin = url.origin else {
-      signInError = "Enter the app's address, like https://open-zen.example.com."
+      signInError = "Enter the app's address, like https://talk.example.com."
       return
     }
     let token = token.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -178,10 +178,10 @@ final class AppModel: ObservableObject {
     verifyAndSave(credentials)
   }
 
-  /// The person types only the OpenZen app's URL; the app names its Gateway (RFC 9728).
+  /// The person types only the Talk app's URL; the app names its Gateway (RFC 9728).
   func signInWithEveryApp(appURLText: String) {
     guard let appURL = URL.typed(appURLText)?.origin else {
-      signInError = "Enter the OpenZen app's address, like https://open-zen.example.com."
+      signInError = "Enter the Talk app's address, like https://talk.example.com."
       return
     }
     signingIn = true
@@ -233,7 +233,7 @@ final class AppModel: ObservableObject {
         Task { _ = await Permissions.requestNotifications() }
       } catch APIError.signedOut {
         signingIn = false
-        signInError = "OpenZen didn't accept that token."
+        signInError = "Talk didn't accept that token."
       } catch {
         signingIn = false
         signInError = error.localizedDescription
