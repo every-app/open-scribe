@@ -77,7 +77,14 @@ export async function updateFolder(
   change: z.infer<typeof updateFolderInput>,
 ): Promise<Folder | null> {
   if (change.defaultTemplateId) {
-    if (!(await getTemplate(viewer, change.defaultTemplateId))) return null;
+    const template = await getTemplate(viewer, change.defaultTemplateId);
+    if (!template) return null;
+    // A team folder's template is for everyone's notes in it, so it must be
+    // one the whole team may use, not someone's private one.
+    if (template.visibility !== "team") {
+      const folder = await getFolder(viewer, id);
+      if (!folder || folder.space === "team") return null;
+    }
   }
   const [row] = await db
     .update(folders)

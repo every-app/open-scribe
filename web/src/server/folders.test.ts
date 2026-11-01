@@ -148,6 +148,48 @@ describe("templates", () => {
     expect((await t.resolveTemplate(meeting.id)).id).toBe("general");
   });
 
+  it("give a team folder only a template the whole team may use", async () => {
+    const own = await t.createTemplate(alice, {
+      name: "Alice's",
+      instructions: "Short.",
+      visibility: "private",
+    });
+    const team = await f.createFolder(alice, { name: "Ours", space: "team" });
+    const mine = await f.createFolder(alice, {
+      name: "Mine",
+      space: "private",
+    });
+    expect(
+      await f.updateFolder(alice, team.id, { defaultTemplateId: own.id }),
+    ).toBeNull();
+    expect(
+      await f.updateFolder(alice, mine.id, { defaultTemplateId: own.id }),
+    ).toMatchObject({ defaultTemplateId: own.id });
+    expect(
+      await f.updateFolder(bob, team.id, { defaultTemplateId: "interview" }),
+    ).toMatchObject({ defaultTemplateId: "interview" });
+  });
+
+  it("show teammates that a private template was used, not its name", async () => {
+    const own = await t.createTemplate(alice, {
+      name: "Alice's secret format",
+      instructions: "Short.",
+      visibility: "private",
+    });
+    const meeting = await m.createMeeting(alice, { title: "Board prep" });
+    await m.chooseTemplate(alice, meeting.id, own.id);
+    await m.updateMeeting(alice, meeting.id, { visibility: "team" });
+    expect((await m.getMeeting(alice, meeting.id))?.template).toMatchObject({
+      name: "Alice's secret format",
+      chosen: true,
+    });
+    expect((await m.getMeeting(bob, meeting.id))?.template).toEqual({
+      id: "",
+      name: "Private template",
+      chosen: false,
+    });
+  });
+
   it("rewrite only the owner's finished notes", async () => {
     const meeting = await m.createMeeting(alice, {
       title: "Demo",

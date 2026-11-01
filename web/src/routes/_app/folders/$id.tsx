@@ -80,6 +80,10 @@ function FolderPage() {
   }
 
   const team = folder.space === "team";
+  // A team folder's template applies to everyone's notes: only shared ones.
+  const choices = team
+    ? templates.templates.filter((template) => template.visibility === "team")
+    : templates.templates;
   return (
     <Page>
       <PageTitle
@@ -127,8 +131,12 @@ function FolderPage() {
       <div className="-mt-6 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
         <span>Notes template</span>
         <TemplateSelect
-          templates={templates.templates}
-          value={folder.defaultTemplateId}
+          templates={choices}
+          value={
+            choices.some((template) => template.id === folder.defaultTemplateId)
+              ? folder.defaultTemplateId
+              : null
+          }
           autoLabel="Each person's default"
           onChange={(templateId) =>
             run(

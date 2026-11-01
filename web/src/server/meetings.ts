@@ -207,11 +207,15 @@ export async function getMeeting(
     ...withMine(viewer, row),
     attendees: row.attendees ?? [],
     folders: filedIn,
-    template: {
-      id: template.id,
-      name: template.name,
-      chosen: chosenId === template.id,
-    },
+    // The owner's private template stays theirs: others see that there is one.
+    template:
+      template.visibility === "private" && row.ownerUserId !== viewer.id
+        ? { id: "", name: "Private template", chosen: false }
+        : {
+            id: template.id,
+            name: template.name,
+            chosen: chosenId === template.id,
+          },
     ...detail,
     shareLinks:
       row.ownerUserId === viewer.id
