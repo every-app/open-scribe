@@ -58,8 +58,10 @@ function Templates() {
     try {
       await work();
       await router.invalidate();
+      return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : failed);
+      return false;
     }
   }
 
@@ -187,7 +189,7 @@ function Templates() {
         onClose={() => setEditing(null)}
         onSave={async (values) => {
           if (!editing) return;
-          await run(
+          const saved = await run(
             () =>
               editing.mode === "edit"
                 ? updateTemplate({
@@ -196,7 +198,8 @@ function Templates() {
                 : createTemplate({ data: values }),
             "Couldn't save the template.",
           );
-          setEditing(null);
+          // On failure the editor stays open, so nothing typed is lost.
+          if (saved) setEditing(null);
         }}
       />
     </Page>
