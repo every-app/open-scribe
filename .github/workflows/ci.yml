@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.f.outputs.web }}
+      desktop: ${{ steps.f.outputs.desktop }}
+      mac: ${{ steps.f.outputs.mac }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: f
+        with:
+          filters: |
+            web: ['web/**', '.github/workflows/ci.yml']
+            desktop: ['desktop/**', 'packages/**', 'pnpm-workspace.yaml', 'package.json', 'pnpm-lock.yaml', '.github/workflows/ci.yml']
+            mac: ['mac/**', '.github/workflows/ci.yml']
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm types:check
+      - run: pnpm test
+      - run: pnpm knip
+      - run: pnpm format:check
+
+  desktop:
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: ws
+        run: test -f pnpm-workspace.yaml && echo "present=true" >> "$GITHUB_OUTPUT" || echo "No root workspace yet; skipping."
+      - if: steps.ws.outputs.present == 'true'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+      - if: steps.ws.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - if: steps.ws.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.ws.outputs.present == 'true'
+        run: pnpm -r --if-present typecheck
+      - if: steps.ws.outputs.present == 'true'
+        run: pnpm -r --if-present test
+
+  mac:
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: mac
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift build
+      - run: ./scripts/test.sh

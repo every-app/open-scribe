@@ -10,4 +10,4 @@ if [[ "${DEV}" == *CommandLineTools* ]]; then
   L="${DEV}/Library/Developer/usr/lib"
   ARGS=(-Xswiftc -F -Xswiftc "${F}" -Xlinker -F -Xlinker "${F}" -Xlinker -rpath -Xlinker "${F}" -Xlinker -rpath -Xlinker "${L}")
 fi
-swift test "${ARGS[@]}" "$@"
+swift test ${ARGS[@]+"${ARGS[@]}"} "$@"
