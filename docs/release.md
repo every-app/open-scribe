@@ -75,7 +75,7 @@ electron-updater reads `latest-mac.yml` from the feed and installs from the zip.
 
 | Option | How | Trade-offs |
 | --- | --- | --- |
-| **A. Private R2 bucket behind the Gateway** (recommended) | An R2 bucket bound to the Talk Worker (`UPDATES`). A private route `GET /api/v1/updates/mac/:file` streams it. The app sends its bearer token. `TALK_UPDATE_URL=https://talk.<base>/api/v1/updates/mac/` | Only signed-in org members can download. Same auth as the rest of the app. No new credentials. **Needs the Worker route first** (API lane, requested). The desktop side, which sends the bearer only to the app's own origin, is in PR #23. |
+| **A. Private R2 bucket behind the Gateway** (recommended) | An R2 bucket bound to the Talk Worker (`UPDATES`). A private route `GET /api/v1/updates/mac/:file` streams it. The app sends its bearer token. `TALK_UPDATE_URL=https://talk.<base>/api/v1/updates/mac/` | Only signed-in org members can download. Same auth as the rest of the app. No new credentials. The Worker route shipped in #24. The desktop side, which sends the bearer only to the app's own origin, is in PR #23. |
 | A′. Public R2 bucket, unguessable path (interim) | `r2.dev` or a custom domain, path `/talk/<random>/mac/` | Works today with no code changes. Anyone with the URL can download. |
 | B. GitHub Releases | `gh release create …` (the script prints it). The `github` provider in electron-builder. | `every-app/private-talk` is private, so the app would need a GitHub token to read releases. That token would be shipped in every copy or handed out per user, and it can read the repo. **Not recommended** unless the releases move to a public repo. |
 
