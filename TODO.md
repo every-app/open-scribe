@@ -17,6 +17,16 @@
 2. A Developer ID for the Mac app (needed so updates keep the sign-in).
 3. Set OPENAI_API_KEY + AI_PROXY_EXTRA_ROUTES on the Gateway; set up Google (setup/google.md).
 
+## Desktop app (2026-11-02)
+
+Plan: docs/desktop-plan.md. Decided with Ben: Electron + Swift helper, private alpha on macOS, Every App backend, cloud transcription, built-in UI, notepad + AI notes, calendar + call detection, Granola-calm look, Ben's personal Developer ID, direct download, web overhaul PR first, orchestrator merges.
+
+**Ben still decides**
+- **Signing credentials:** Ben adds his Developer ID Application certificate to this Mac's keychain and creates a notarization App Store Connect API key (or an app-specific password). Agents ask through the secret prompt. This blocks the alpha build, not development.
+- **Update feed hosting:** where electron-updater reads from. Recommended: a private R2 bucket behind the Gateway, or GitHub Releases on private-talk (but each client would need a token). Nothing is uploaded until Ben OKs it.
+- **Native sign-in on the platform:** Sign in with Every App needs private-every-app's `feature/native-sign-in` (#855, never merged). Until then the desktop app uses the token-paste fallback. Recommended: merge #855 before the alpha.
+- **Bundle id:** keep `com.everyapp.talk` for the Electron app. That means the SwiftUI app's TCC grants and Keychain items don't carry over, which is fine for an alpha.
+
 ## Decided for Ben
 
 - **Lanes run in parallel in one local checkout.** web/ and mac/ have separate owners. main is pushed to github.com/every-app/private-talk (private).
