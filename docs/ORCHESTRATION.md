@@ -110,3 +110,4 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - #17 merged (Keychain-free dev sign-in, persisted reminder prompts, plist cleanup).
 - #19 merged (echoCancellation setting, delete on failed start, memory-only dev sign-ins, app/Dock menus with ⌘, Settings). #20 (helper fast shutdown) merging on green.
 - H: release runbook + scripts/release-mac.sh (dry-run, no uploads). M3: robustness (offline state, sign-in expiry, logs + diagnostics, helper crash UX).
+- #18 merged (recording warning, cancelled-start UX, fresh screenshots). #20 merged (helper fast shutdown). #21 (Codex V1 UI fixes) rebasing.
