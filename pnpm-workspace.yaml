@@ -1,0 +1,9 @@
+# web/ is not in this workspace yet: it keeps its own lockfile until it
+# switches to packages/ui.
+packages:
+  - packages/*
+  - desktop
+
+onlyBuiltDependencies:
+  - electron
+  - esbuild

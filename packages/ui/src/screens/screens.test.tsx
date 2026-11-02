@@ -1,0 +1,113 @@
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { MeetingDetail } from "../types";
+import { MeetingScreen } from "./MeetingScreen";
+import { Transcript } from "./Transcript";
+
+afterEach(cleanup);
+
+const meeting: MeetingDetail = {
+  id: "m-1",
+  title: "Pricing call",
+  startsAt: "2026-11-02T15:00:00.000Z",
+  endsAt: null,
+  status: "done",
+  visibility: "private",
+  ownerUserId: "u-1",
+  ownerEmail: "ben@every.to",
+  attendeeCount: 0,
+  mine: true,
+  attendees: [],
+  folders: [],
+  template: { id: "general", name: "General", chosen: false },
+  segments: [
+    {
+      seq: 1,
+      startedMs: 0,
+      endedMs: 1000,
+      speaker: "me",
+      text: "Hello there.",
+    },
+    { seq: 2, startedMs: 1000, endedMs: 2000, speaker: "them", text: "Hi!" },
+  ],
+  notes: {
+    markdown: "## Summary\nWe agreed on pricing.",
+    model: "m",
+    generatedAt: "",
+    editedAt: null,
+  },
+  jottings: { markdown: "- pricing", updatedAt: "" },
+  shareLinks: [],
+};
+
+describe("Transcript", () => {
+  it("merges a speaker's consecutive segments and streams partial text last", () => {
+    render(
+      <Transcript
+        segments={[
+          { seq: 1, startedMs: 0, endedMs: 1, speaker: "them", text: "One." },
+          { seq: 2, startedMs: 1, endedMs: 2, speaker: "them", text: "Two." },
+        ]}
+        partial={{ me: "still talk", them: "" }}
+      />,
+    );
+    expect(screen.getByText("One. Two.")).toBeTruthy();
+    const partial = screen.getByText("still talk");
+    expect(partial.className).toContain("opacity-60");
+  });
+});
+
+describe("MeetingScreen", () => {
+  const base = {
+    meeting,
+    jottings: "- pricing",
+    onJottingsChange: () => {},
+    folders: [],
+    templates: [],
+    orgName: "Every",
+  };
+
+  it("after: switches between notes, jottings and transcript", () => {
+    render(<MeetingScreen {...base} phase="after" />);
+    expect(screen.getByText("We agreed on pricing.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Your jottings" }));
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: "Your jottings",
+        }) as HTMLTextAreaElement
+      ).value,
+    ).toBe("- pricing");
+    fireEvent.click(screen.getByRole("tab", { name: "Transcript" }));
+    expect(screen.getByText("Hello there.")).toBeTruthy();
+  });
+
+  it("during: Stop calls back and the transcript drawer opens", () => {
+    const onStop = vi.fn();
+    render(
+      <MeetingScreen
+        {...base}
+        phase="during"
+        onStop={onStop}
+        live={{
+          recording: {
+            meetingId: "m-1",
+            title: "Pricing call",
+            startedAt: "",
+            mode: "realtime",
+            mic: "ok",
+            system: "ok",
+          },
+          levels: { mic: 0.5, system: 0.5 },
+          partial: { me: "", them: "Thinking out loud" },
+          elapsedMs: 61_000,
+        }}
+      />,
+    );
+    expect(screen.getByText("1:01")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Transcript/ }));
+    expect(screen.getByText("Thinking out loud")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Stop/ }));
+    expect(onStop).toHaveBeenCalledOnce();
+  });
+});

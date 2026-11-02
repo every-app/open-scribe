@@ -1,0 +1,9 @@
+{
+  "name": "talk",
+  "private": true,
+  "packageManager": "pnpm@10.34.5",
+  "scripts": {
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test"
+  }
+}
