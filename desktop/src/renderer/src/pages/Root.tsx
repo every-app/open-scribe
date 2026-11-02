@@ -23,6 +23,8 @@ const ONBOARDED_KEY = "talk.onboarded";
 
 // Only needed when someone adds a folder: keep Base UI's dialog out of the first chunk.
 const NameDialog = lazy(() => import("../dialogs").then((m) => ({ default: m.NameDialog })));
+// ⌘K: loaded the first time it opens.
+const Palette = lazy(() => import("../Palette").then((m) => ({ default: m.Palette })));
 
 export function Root() {
   const state = useAppState();
@@ -152,6 +154,7 @@ function Layout({ state }: { state: AppSnapshot }) {
   const start = useStartRecording();
   const stop = useStopRecording();
   const [adding, setAdding] = useState<Space | null>(null);
+  const [searching, setSearching] = useState(false);
   const account = accountFrom(me.data, state.auth);
   const orgName = account?.orgName ?? "Team";
 
@@ -182,12 +185,10 @@ function Layout({ state }: { state: AppSnapshot }) {
         event.preventDefault();
         if (!recordingId) void start({});
       }
-      // ⌘K: search (from anywhere; on the search page it just focuses the box).
+      // ⌘K: the search palette, from anywhere (again closes it).
       if (event.metaKey && event.key.toLowerCase() === "k" && !event.shiftKey) {
         event.preventDefault();
-        const box = document.querySelector<HTMLInputElement>("[data-slot='search-input']");
-        if (box) box.select();
-        else void navigate({ to: "/search", search: {} });
+        setSearching((open) => !open);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -208,6 +209,7 @@ function Layout({ state }: { state: AppSnapshot }) {
           account,
           onNewFolder: setAdding,
           onNewNote: () => void start({}),
+          onSearch: () => setSearching(true),
           recording: recordingId
             ? {
                 live: {
@@ -235,6 +237,11 @@ function Layout({ state }: { state: AppSnapshot }) {
       >
         <Outlet />
       </AppFrame>
+      {searching && (
+        <Suspense fallback={null}>
+          <Palette open={searching} onOpenChange={setSearching} />
+        </Suspense>
+      )}
       {adding !== null && (
         <Suspense fallback={null}>
           <NameDialog

@@ -5,6 +5,7 @@ export * from "./HomeScreen";
 export * from "./MeetingScreen";
 export * from "./Notepad";
 export * from "./OnboardingScreen";
+export * from "./SearchPalette";
 export * from "./SearchScreen";
 export * from "./SettingsScreen";
 export * from "./TemplatesScreen";

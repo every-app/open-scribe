@@ -10,6 +10,7 @@ import {
   HomeScreen,
   MeetingScreen,
   OnboardingScreen,
+  SearchPalette,
   SearchScreen,
   SettingsScreen,
   SharedScreen,
@@ -135,6 +136,7 @@ function Frame({
     account: mock.account,
     onNewFolder: noop,
     onNewNote: noop,
+    onSearch: noop,
     recording,
     onOpenRecording: noop,
     onStopRecording: noop,
@@ -300,14 +302,47 @@ function Onboarding(props: OnboardingScreenProps) {
 
 /* Search ------------------------------------------------------------------ */
 
+function PaletteScene({
+  query: initial,
+  offline,
+}: {
+  query: string;
+  offline?: boolean;
+}) {
+  const [query, setQuery] = useState(initial);
+  return (
+    <Frame current={{ to: "home" }}>
+      {home()}
+      <SearchPalette
+        open
+        onOpenChange={noop}
+        query={query}
+        onQueryChange={setQuery}
+        now={mock.NOW}
+        results={
+          !query.trim()
+            ? { status: "idle" }
+            : offline
+              ? { status: "offline" }
+              : ready({ results: mock.searchResults, hasMore: true })
+        }
+        onOpen={noop}
+        onShowAll={noop}
+      />
+    </Frame>
+  );
+}
+
 function SearchScene({
   query: initial,
   none,
   loading: busy,
+  offline,
 }: {
   query: string;
   none?: boolean;
   loading?: boolean;
+  offline?: boolean;
 }) {
   const [query, setQuery] = useState(initial);
   return (
@@ -319,12 +354,14 @@ function SearchScene({
         results={
           !query.trim()
             ? { status: "idle" }
-            : busy
-              ? loading
-              : ready({
-                  results: none ? [] : mock.searchResults,
-                  hasMore: !none,
-                })
+            : offline
+              ? { status: "offline" }
+              : busy
+                ? loading
+                : ready({
+                    results: none ? [] : mock.searchResults,
+                    hasMore: !none,
+                  })
         }
         onOpen={noop}
         onLoadMore={noop}
@@ -628,6 +665,30 @@ export const scenes: Scene[] = [
     group: "Search",
     label: "Results",
     render: () => <SearchScene query="pricing seat" />,
+  },
+  {
+    id: "palette",
+    group: "Search",
+    label: "⌘K palette",
+    render: () => <PaletteScene query="pricing seat" />,
+  },
+  {
+    id: "palette-idle",
+    group: "Search",
+    label: "⌘K palette, empty",
+    render: () => <PaletteScene query="" />,
+  },
+  {
+    id: "palette-offline",
+    group: "Search",
+    label: "⌘K palette, offline",
+    render: () => <PaletteScene query="pricing" offline />,
+  },
+  {
+    id: "search-offline",
+    group: "Search",
+    label: "Page, offline",
+    render: () => <SearchScene query="pricing" offline />,
   },
   {
     id: "search-idle",

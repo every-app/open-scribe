@@ -21,3 +21,17 @@ describe("search", () => {
     expect(parseTab(undefined)).toBeUndefined();
   });
 });
+
+describe("what search shows", () => {
+  it("is idle, offline, signed out, loading, failed or results", async () => {
+    const { searchState, OFFLINE_TEXT, SIGNIN_TEXT } = await import("../src/renderer/src/search");
+    const base = { settled: "pricing", connection: "online" as const, pending: false, error: null, results: [], hasMore: false };
+    expect(searchState({ ...base, settled: "" })).toEqual({ status: "idle" });
+    expect(searchState({ ...base, connection: "offline" })).toEqual({ status: "offline", message: OFFLINE_TEXT });
+    expect(searchState({ ...base, connection: "signin-needed" })).toEqual({ status: "offline", message: SIGNIN_TEXT });
+    expect(searchState({ ...base, settled: "?!" })).toEqual({ status: "ready", data: { results: [], hasMore: false } });
+    expect(searchState({ ...base, pending: true })).toEqual({ status: "loading" });
+    expect(searchState({ ...base, error: "Talk answered HTTP 500." })).toEqual({ status: "error", message: "Talk answered HTTP 500." });
+    expect(searchState({ ...base, hasMore: true })).toEqual({ status: "ready", data: { results: [], hasMore: true } });
+  });
+});

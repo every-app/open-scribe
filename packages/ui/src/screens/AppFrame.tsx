@@ -42,6 +42,8 @@ export interface SidebarProps {
   onNewFolder?: (space: Space) => void;
   /** Start a note now, not tied to a calendar event. */
   onNewNote: () => void;
+  /** The search field at the top: opens search (⌘K). */
+  onSearch?: () => void;
   recording?: RecordingSummary | null;
   onOpenRecording?: () => void;
   onStopRecording?: () => void;
@@ -219,6 +221,22 @@ export function Sidebar(props: SidebarProps) {
         className="drag-region flex shrink-0 items-center justify-end pr-2"
         style={{ height: TITLE_BAR_HEIGHT, paddingLeft: TRAFFIC_LIGHTS }}
       />
+      {props.onSearch && (
+        <div className="px-2.5 pb-2">
+          <button
+            type="button"
+            data-slot="sidebar-search"
+            onClick={props.onSearch}
+            className="no-drag flex h-7 w-full items-center gap-2 rounded-md bg-sidebar-accent/70 px-2 text-left text-[13px] text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          >
+            <Search className="size-3.5 shrink-0" />
+            <span className="flex-1 truncate">Search</span>
+            <kbd className="font-sans text-[11px] text-sidebar-foreground/40">
+              ⌘K
+            </kbd>
+          </button>
+        </div>
+      )}
       <div className="px-2.5 pb-2">
         {props.recording ? (
           <RecordingPill
@@ -249,14 +267,6 @@ export function Sidebar(props: SidebarProps) {
             icon={House}
             label="Home"
             target={{ to: "home" }}
-            current={current}
-            onNavigate={onNavigate}
-          />
-          <NavItem
-            icon={Search}
-            label="Search"
-            shortcut="⌘K"
-            target={{ to: "search" }}
             current={current}
             onNavigate={onNavigate}
           />

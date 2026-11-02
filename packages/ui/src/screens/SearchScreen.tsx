@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { Search, X } from "lucide-react";
+import { Search, WifiOff, X } from "lucide-react";
 import { useRef, type KeyboardEvent } from "react";
 import { Button } from "../components/ui/button";
 import { dayLabel, timeOfDay } from "../lib/dates";
@@ -15,7 +15,12 @@ import {
 
 export type SearchResults =
   | { status: "idle" }
+  /** Search runs on the server: offline, or signed out, there's nothing to search with. */
+  | { status: "offline"; message?: string }
   | Loadable<{ results: SearchResult[]; hasMore: boolean }>;
+
+export const OFFLINE_SEARCH =
+  "Search needs a connection. Your meetings come back when you're online.";
 
 export interface SearchScreenProps {
   query: string;
@@ -28,10 +33,10 @@ export interface SearchScreenProps {
   now?: Date;
 }
 
-const fieldLabel: Record<SearchField, string> = {
-  title: "Title",
+/** The badge for where a result matched; a title match is shown by highlighting the title. */
+export const fieldLabel: Record<Exclude<SearchField, "title">, string> = {
   notes: "Notes",
-  jottings: "Your jottings",
+  jottings: "Jottings",
   transcript: "Transcript",
 };
 
@@ -127,6 +132,10 @@ export function SearchScreen(props: SearchScreenProps) {
           Every word has to match, from the start of a word. Titles, notes,
           transcripts and your own jottings are searched.
         </EmptyState>
+      ) : results.status === "offline" ? (
+        <EmptyState icon={WifiOff} title="You're offline">
+          {results.message ?? OFFLINE_SEARCH}
+        </EmptyState>
       ) : results.status === "loading" ? (
         <LoadingRows rows={5} />
       ) : results.status === "error" ? (
@@ -182,8 +191,6 @@ function ResultRow({
   onOpen: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
 }) {
-  const { meeting, field, snippet } = result;
-  const when = new Date(meeting.startsAt);
   return (
     <button
       type="button"
@@ -192,6 +199,25 @@ function ResultRow({
       onKeyDown={onKeyDown}
       className="group flex w-full flex-col gap-1 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-foreground/[0.04] focus-visible:bg-foreground/[0.05] focus-visible:outline-none"
     >
+      <ResultContent result={result} now={now} />
+    </button>
+  );
+}
+
+/** A result's title, date, matched-field badge and highlighted snippet (shared with the palette). */
+export function ResultContent({
+  result,
+  now,
+  compact = false,
+}: {
+  result: SearchResult;
+  now?: Date;
+  compact?: boolean;
+}) {
+  const { meeting, field, snippet } = result;
+  const when = new Date(meeting.startsAt);
+  return (
+    <>
       <span className="flex items-baseline gap-3">
         <span className="min-w-0 flex-1 truncate text-[14px] font-medium">
           {field === "title" ? (
@@ -200,28 +226,36 @@ function ResultRow({
             meeting.title
           )}
         </span>
+        {field !== "title" && (
+          <span
+            className={cn(
+              "shrink-0 rounded-full border border-border px-1.5 py-px text-[11px] text-muted-foreground",
+              field === "jottings" && "border-me/60",
+            )}
+          >
+            {fieldLabel[field]}
+          </span>
+        )}
         <span className="shrink-0 text-[12px] tabular-nums text-muted-foreground">
-          {dayLabel(when, now)}, {timeOfDay(meeting.startsAt)}
+          {dayLabel(when, now)}
+          {!compact && <>, {timeOfDay(meeting.startsAt)}</>}
         </span>
       </span>
       {field !== "title" && (
         <Highlighted
           text={snippet.text}
           ranges={snippet.ranges}
-          className="line-clamp-2 text-[13px] leading-relaxed text-foreground/70"
+          className={cn(
+            "text-[13px] leading-relaxed text-foreground/70",
+            compact ? "line-clamp-1" : "line-clamp-2",
+          )}
         />
       )}
-      <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
-        <span
-          className={cn(
-            "rounded-full border border-border px-1.5 py-px",
-            field === "jottings" && "border-me/60",
-          )}
-        >
-          {fieldLabel[field]}
+      {!meeting.mine && (
+        <span className="text-[11px] text-muted-foreground">
+          {ownerLabel(meeting)}
         </span>
-        {!meeting.mine && <span>{ownerLabel(meeting)}</span>}
-      </span>
-    </button>
+      )}
+    </>
   );
 }

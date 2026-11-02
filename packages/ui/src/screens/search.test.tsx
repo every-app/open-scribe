@@ -47,8 +47,9 @@ describe("SearchScreen", () => {
       (m) => m.textContent,
     );
     expect(marks).toEqual(["seat", "Pricing"]);
+    // Badges name where it matched; a title match highlights the title instead.
     expect(screen.getByText("Transcript")).toBeTruthy();
-    expect(screen.getByText("Title")).toBeTruthy();
+    expect(screen.queryByText("Title")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Northwind pricing/ }));
     expect(onOpen).toHaveBeenCalledWith(results[0]);
   });
@@ -109,5 +110,18 @@ describe("SearchScreen", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "More results" }));
     expect(onLoadMore).toHaveBeenCalledOnce();
+  });
+
+  it("says search needs a connection when offline", () => {
+    render(
+      <SearchScreen
+        query="pricing"
+        onQueryChange={() => {}}
+        results={{ status: "offline" }}
+        onOpen={() => {}}
+      />,
+    );
+    expect(screen.getByText("You're offline")).toBeTruthy();
+    expect(screen.getByText(/Search needs a connection/)).toBeTruthy();
   });
 });
