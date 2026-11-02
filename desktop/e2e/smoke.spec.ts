@@ -46,6 +46,14 @@ class Mock {
 }
 
 let mock: Mock;
+
+/** Main's view of the recording (the window's own state:get), e.g. "recording", "stopping", "idle". */
+async function recordingState(): Promise<string> {
+  return page.evaluate(async () => {
+    const talk = (window as unknown as { talk: { "state:get"(): Promise<{ recording: { state: string } }> } }).talk;
+    return (await talk["state:get"]()).recording.state;
+  });
+}
 let app: ElectronApplication;
 let page: Page;
 let userData: string;
@@ -127,11 +135,15 @@ test("⌘N records with the fake helper: jottings, live transcript, Stop", async
   await expect(drawer.getByText("Thanks everyone for joining.")).toBeVisible({ timeout: 15_000 });
   await page.waitForTimeout(1200); // the notepad autosaves after an 800 ms pause
   await page.getByRole("button", { name: /^Stop$/ }).click();
-  await expect(page.getByRole("button", { name: /^Stop$/ })).toBeHidden({ timeout: 15_000 });
-  // The fake helper posted segments to the mock and finished the meeting.
-  const requests = await mock.requests();
-  expect(requests.some((r) => /^POST \/api\/v1\/meetings\/[^/]+\/segments$/.test(r))).toBe(true);
-  expect(requests.some((r) => /^POST \/api\/v1\/meetings\/[^/]+\/finish$/.test(r))).toBe(true);
+  // Stop turns into "Finishing…" as soon as the stop begins (#40), so that alone doesn't mean the
+  // helper is done: wait for main to say the recording is over, then for the requests it made.
+  await expect.poll(recordingState, { timeout: 20_000 }).toBe("idle");
+  await expect
+    .poll(async () => (await mock.requests()).some((r) => /^POST \/api\/v1\/meetings\/[^/]+\/segments$/.test(r)), { timeout: 10_000 })
+    .toBe(true);
+  await expect
+    .poll(async () => (await mock.requests()).some((r) => /^POST \/api\/v1\/meetings\/[^/]+\/finish$/.test(r)), { timeout: 10_000 })
+    .toBe(true);
 });
 
 test("the jottings are still there after reopening the meeting", async () => {
