@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
-/** The page column every signed-in page uses. */
+/** The page column every signed-in page uses (inside the sidebar layout's <main>). */
 export function Page({ children }: { children: ReactNode }) {
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-10 px-6 pb-16 pt-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 px-6 pb-16 pt-6">
       {children}
-    </main>
+    </div>
   );
 }
 
