@@ -162,3 +162,24 @@ describe("following a recording started outside the window (Codex V2)", () => {
     expect(liveMeetingToOpen(recording, { state: "stopping", meetingId: "m9" }, { pathname: "/", ownStart: false })).toBeNull();
   });
 });
+
+describe("time-based segment seqs (lane H #37)", () => {
+  it("slots replayed segments into place, in time order, whatever order they arrive in", () => {
+    const seq = (startedMs: number, them: boolean, replayed: boolean) => startedMs * 4 + (them ? 2 : 0) + (replayed ? 1 : 0);
+    const seg = (startedMs: number, speaker: "me" | "them", replayed = false) => ({
+      event: "transcript.segment" as const,
+      seq: seq(startedMs, speaker === "them", replayed),
+      speaker,
+      text: `${speaker}@${startedMs}`,
+      startedMs,
+      endedMs: startedMs + 900,
+    });
+    // Live before and after an outage, then the outage's audio replayed late.
+    const s = [seg(1_000, "me"), seg(60_000, "them"), seg(20_000, "them", true), seg(30_000, "me", true), seg(20_000, "them", true)].reduce(
+      reduceTranscript,
+      emptyTranscript,
+    );
+    expect(s.segments.map((x) => x.text)).toEqual(["me@1000", "them@20000", "me@30000", "them@60000"]);
+    expect(mergeSegments([], s.segments).map((x) => x.startedMs)).toEqual([1_000, 20_000, 30_000, 60_000]);
+  });
+});

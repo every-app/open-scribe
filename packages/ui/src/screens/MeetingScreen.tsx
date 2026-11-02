@@ -50,6 +50,14 @@ import { ErrorState, ownerLabel } from "./parts";
 import { ChannelMeters, Elapsed, RecordDot } from "./recording";
 import { Transcript } from "./Transcript";
 
+export type TranscriptionNote = "reconnecting" | "catching_up";
+
+/** What the live view says about transcription. */
+export const transcriptionText: Record<TranscriptionNote, string> = {
+  reconnecting: "Reconnecting to transcription…",
+  catching_up: "Catching up on the transcript…",
+};
+
 export type MeetingPhase = "before" | "during" | "after";
 export type MeetingTab = "notes" | "jottings" | "transcript";
 
@@ -72,8 +80,13 @@ export interface MeetingScreenProps {
   warning?: string | null;
   /** The helper's own words for the warning, shown on hover. */
   warningDetail?: string | null;
-  /** Live transcription can't be reached: what's said meanwhile won't be transcribed. */
-  transcriptionPaused?: boolean;
+  /**
+   * Live transcription's state: "reconnecting" (it can't be reached; the audio is kept) or
+   * "catching_up" (that audio is being transcribed and lands in place). Null when live.
+   */
+  transcription?: TranscriptionNote | null;
+  /** Stop was pressed and the recording is finishing (a long outage's replay can take a while). */
+  stopping?: boolean;
   folders: Folder[];
   templates: Template[];
   orgName: string;
@@ -139,7 +152,7 @@ export function MeetingScreen(props: MeetingScreenProps) {
         <TranscriptDrawer
           live={props.live}
           meeting={meeting}
-          paused={!!props.transcriptionPaused}
+          note={props.transcription ?? null}
           onClose={() => setTranscriptOpen(false)}
         />
       )}
@@ -626,7 +639,8 @@ function ControlBar({
   drawerOpen,
   warning,
   warningDetail,
-  transcriptionPaused,
+  transcription,
+  stopping,
 }: MeetingScreenProps & {
   transcriptOpen: boolean;
   onToggleTranscript: () => void;
@@ -639,13 +653,17 @@ function ControlBar({
         drawerOpen && "right-[340px]",
       )}
     >
-      {phase === "during" && transcriptionPaused && !drawerOpen && (
+      {phase === "during" && (stopping || (transcription && !drawerOpen)) && (
         <p
           role="status"
           className="animate-in fade-in-0 pointer-events-auto flex items-center gap-1.5 rounded-full bg-background/85 px-3 py-1 text-[12px] text-muted-foreground backdrop-blur"
         >
           <span className="record-pulse size-1.5 rounded-full bg-foreground/40" />
-          {PAUSED_TEXT}
+          {stopping
+            ? transcription === "catching_up"
+              ? transcriptionText.catching_up
+              : "Saving…"
+            : transcriptionText[transcription!]}
         </p>
       )}
       {phase === "during" && warning && (
@@ -702,15 +720,26 @@ function ControlBar({
               <MessageSquareText />
               Transcript
             </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="h-8 rounded-full bg-foreground/[0.06] px-3"
-              onClick={onStop}
-            >
-              <Square className="size-3 fill-current" />
-              Stop
-            </Button>
+            {stopping ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 rounded-full bg-foreground/[0.06] px-3"
+                pending
+              >
+                Finishing…
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-8 rounded-full bg-foreground/[0.06] px-3"
+                onClick={onStop}
+              >
+                <Square className="size-3 fill-current" />
+                Stop
+              </Button>
+            )}
           </Bar>
         )}
       </div>
@@ -722,18 +751,15 @@ function Bar({ children }: { children: ReactNode }) {
   return <div className="flex items-center gap-1">{children}</div>;
 }
 
-const PAUSED_TEXT =
-  "Reconnecting to transcription. This stretch won't be in the transcript.";
-
 function TranscriptDrawer({
   live,
   meeting,
-  paused,
+  note,
   onClose,
 }: {
   live: LiveState;
   meeting: MeetingDetail;
-  paused: boolean;
+  note: TranscriptionNote | null;
   onClose: () => void;
 }) {
   return (
@@ -769,13 +795,13 @@ function TranscriptDrawer({
           follow
           emptyText="Listening… what's said shows up here."
         />
-        {paused && (
+        {note && (
           <p
             role="status"
             className="mt-4 flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-[12px] text-muted-foreground"
           >
             <span className="record-pulse size-1.5 shrink-0 rounded-full bg-foreground/40" />
-            {PAUSED_TEXT}
+            {transcriptionText[note]}
           </p>
         )}
       </div>

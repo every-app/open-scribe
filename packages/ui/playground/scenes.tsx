@@ -530,7 +530,31 @@ export const scenes: Scene[] = [
       <MeetingScene
         phase="during"
         {...ctx}
-        extra={{ transcriptionPaused: true, defaultTranscriptOpen: true }}
+        extra={{ transcription: "reconnecting", defaultTranscriptOpen: true }}
+      />
+    ),
+  },
+  {
+    id: "meeting-during-catching-up",
+    group: "Meeting",
+    label: "During, catching up",
+    render: (ctx) => (
+      <MeetingScene
+        phase="during"
+        {...ctx}
+        extra={{ transcription: "catching_up" }}
+      />
+    ),
+  },
+  {
+    id: "meeting-stopping",
+    group: "Meeting",
+    label: "Stopping after an outage",
+    render: (ctx) => (
+      <MeetingScene
+        phase="during"
+        {...ctx}
+        extra={{ transcription: "catching_up", stopping: true }}
       />
     ),
   },

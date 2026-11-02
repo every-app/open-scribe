@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { connectionOf, gateOf, signInAgainOf, transcriptionPaused, type Snapshot } from "../src/renderer/src/connection";
+import { connectionOf, gateOf, signInAgainOf, transcriptionNoteOf, type Snapshot } from "../src/renderer/src/connection";
 
 const base = {
   version: "0.1.0",
@@ -55,9 +55,10 @@ describe("connection", () => {
     expect(signInAgainOf(with_({ auth: { status: "signingIn" } }))).toMatchObject({ kind: "oauth", signingIn: true });
   });
 
-  it("knows when live transcription is reconnecting", () => {
-    expect(transcriptionPaused(base)).toBe(false);
-    expect(transcriptionPaused(with_({ recording: { transcription: "reconnecting" } }))).toBe(true);
-    expect(transcriptionPaused(with_({ recording: { transcription: "live" } }))).toBe(false);
+  it("says when transcription is reconnecting or catching up", () => {
+    expect(transcriptionNoteOf(base)).toBeNull();
+    expect(transcriptionNoteOf(with_({ recording: { transcription: "reconnecting" } }))).toBe("reconnecting");
+    expect(transcriptionNoteOf(with_({ recording: { transcription: "catching_up" } }))).toBe("catching_up");
+    expect(transcriptionNoteOf(with_({ recording: { transcription: "live" } }))).toBeNull();
   });
 });

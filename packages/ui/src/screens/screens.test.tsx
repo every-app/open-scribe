@@ -112,30 +112,82 @@ describe("MeetingScreen", () => {
     expect(onStop).toHaveBeenCalledOnce();
   });
 
-  it("during: says when live transcription is reconnecting", () => {
-    render(
+  const live = {
+    recording: {
+      meetingId: "m-1",
+      title: "Pricing call",
+      startedAt: "",
+      mode: "realtime" as const,
+      mic: "ok" as const,
+      system: "ok" as const,
+    },
+    levels: { mic: 0, system: 0 },
+    partial: { me: "", them: "" },
+    elapsedMs: 0,
+  };
+
+  it("during: says when transcription is reconnecting, then catching up", () => {
+    const { rerender } = render(
       <MeetingScreen
         {...base}
         phase="during"
-        transcriptionPaused
-        live={{
-          recording: {
-            meetingId: "m-1",
-            title: "Pricing call",
-            startedAt: "",
-            mode: "realtime",
-            mic: "ok",
-            system: "ok",
-          },
-          levels: { mic: 0, system: 0 },
-          partial: { me: "", them: "" },
-          elapsedMs: 0,
-        }}
+        transcription="reconnecting"
+        live={live}
       />,
     );
-    expect(screen.getByRole("status").textContent).toMatch(
-      /Reconnecting to transcription/,
+    expect(screen.getByRole("status").textContent).toBe(
+      "Reconnecting to transcription…",
     );
+    rerender(
+      <MeetingScreen
+        {...base}
+        phase="during"
+        transcription="catching_up"
+        live={live}
+      />,
+    );
+    expect(screen.getByRole("status").textContent).toBe(
+      "Catching up on the transcript…",
+    );
+    rerender(
+      <MeetingScreen
+        {...base}
+        phase="during"
+        transcription={null}
+        live={live}
+      />,
+    );
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("during: a long Stop shows Finishing, and says it's catching up when it is", () => {
+    const onStop = vi.fn();
+    const { rerender } = render(
+      <MeetingScreen
+        {...base}
+        phase="during"
+        stopping
+        transcription="catching_up"
+        live={live}
+        onStop={onStop}
+      />,
+    );
+    expect(screen.getByText("Catching up on the transcript…")).toBeTruthy();
+    const finishing = screen.getByRole("button", {
+      name: /Finishing/,
+    }) as HTMLButtonElement;
+    expect(finishing.disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: /^Stop$/ })).toBeNull();
+    rerender(
+      <MeetingScreen
+        {...base}
+        phase="during"
+        stopping
+        live={live}
+        onStop={onStop}
+      />,
+    );
+    expect(screen.getByText("Saving…")).toBeTruthy();
   });
 
   it("during: shows a quiet warning above the controls", () => {

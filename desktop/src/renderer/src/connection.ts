@@ -45,5 +45,11 @@ export function signInAgainOf(state: Snapshot | undefined): SignInAgain | null {
   return { kind: "oauth", appUrl, signingIn, error: auth.error };
 }
 
-export const transcriptionPaused = (state: Snapshot | undefined): boolean =>
-  state?.recording.transcription === "reconnecting";
+/**
+ * What the live view says about transcription: "reconnecting" (can't reach it; the helper keeps
+ * the audio), then "catching_up" (that audio is transcribed and lands in place), then nothing.
+ */
+export function transcriptionNoteOf(state: Snapshot | undefined): "reconnecting" | "catching_up" | null {
+  const t = state?.recording.transcription;
+  return t === "reconnecting" || t === "catching_up" ? t : null;
+}
