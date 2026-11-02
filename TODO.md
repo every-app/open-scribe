@@ -2,10 +2,11 @@
 
 ## Status for Ben (2026-10-27)
 
-**Works**
-- Talk web (`web/`, app id `talk`): D1, the full `/api/v1`, notes polish, private/team visibility, public links with revoke, a web UI. 7 tests. Runs with `everyapp dev`.
-- Talk Mac (`mac/`, SwiftPM): menu bar, reminders, mic + system-audio capture, two-stream Realtime transcription, a chunked fallback, launch at login. 88 tests. `mac/scripts/build-app.sh`.
-- Sign in with Every App, end to end on a real Gateway (loop-1, now torn down): sign-in, refresh, revoke, refused on other apps and on /mcp, and bearer calls working behind Access. Branch `feature/native-sign-in`, draft PR every-app/private-every-app#855 (all green, never merged). Design: docs/design/native-sign-in.md; review: docs/design/native-sign-in-review.md (0 high/medium).
+**Works** (updated 2026-11-02, desktop build)
+- Talk desktop (`desktop/`, Electron): built-in UI, sign-in (Every App + token paste), recording through the Swift helper, live notepad + transcript, folders, templates, sharing, search, settings, offline/re-sign-in, logs. Local "Talk Dev" builds verified twice by Codex computer use (docs/ORCHESTRATION.md).
+- Talk helper (`mac/`, Swift): mic + system-audio capture, two-stream Realtime transcription with fallback, echo dedupe, call detection. `mac/scripts/build-helper.sh`. The SwiftUI menu-bar app is retired.
+- Talk web (`web/`, app id `talk`): D1, the full `/api/v1` (folders, templates, jottings, search, update feed), web UI, public links.
+- Sign in with Every App: #855 is merged on private-every-app and published in 0.3.0-rc.10.
 
 **Not verified**
 - Real audio capture, permission prompts, notifications and live OpenAI transcription: no hardware interaction or OpenAI key here.
