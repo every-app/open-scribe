@@ -65,13 +65,22 @@ export interface AuthSnapshot {
   error?: string;
   /** Cloudflare Access stopped a token-only request: the person must use Sign in with Every App. */
   needsEveryAppSignIn?: boolean;
+  /** Signed out because the session ended (refresh refused, 401 after refresh), not by choice.
+   * `appUrl` and `method` are kept so the window can offer "Sign in again" in place. */
+  expired?: boolean;
 }
+
+/** Whether Talk can reach its app. "signin-needed": the sign-in expired or Cloudflare Access wants
+ * a login (see `auth.expired`, `auth.needsEveryAppSignIn`). */
+export type Connection = "online" | "offline" | "signin-needed";
 
 export interface HelperSnapshot {
   status: "stopped" | "starting" | "ready" | "restarting" | "unavailable";
   version?: string;
   macos?: string;
   restarts: number;
+  /** Unexpected exits since launch (a crash, whether or not it was recording). */
+  crashes: number;
   lastError?: string;
   permissions?: { mic: PermissionStatus; systemAudio: PermissionStatus };
 }
@@ -85,6 +94,8 @@ export interface RecordingSnapshot {
   mode?: "realtime" | "fallback";
   mic?: ChannelHealth;
   system?: ChannelHealth;
+  /** "reconnecting": the live transcript is paused (transcription can't be reached). */
+  transcription?: "live" | "reconnecting";
   /** Something the person should know that doesn't stop the recording (e.g. the fallback upload
    * fell behind and dropped some audio: helper error `fallback_backlog`). */
   warning?: string;
@@ -110,6 +121,7 @@ export interface AppSnapshot {
   tray: TrayState;
   updater: { enabled: boolean; status?: string };
   settings: Settings;
+  connection: Connection;
   permissions: PermissionsSnapshot;
   loginItem: LoginItemSnapshot;
 }

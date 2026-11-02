@@ -1,7 +1,8 @@
 // The app menu and the Dock menu. Everything in the tray menu is here too (Open Talk, Start and
 // Stop Recording), so it's reachable from the keyboard, by accessibility tools and by computer-use
-// testers, which can't reach the menu bar's status items. Plus Settings… (⌘,) and the standard Edit
-// menu, which is what makes copy, paste and undo work in text fields.
+// testers, which can't reach the menu bar's status items. Plus Settings… (⌘,), the standard Edit
+// menu (what makes copy, paste and undo work in text fields) and Help → Show Logs / Copy
+// Diagnostics.
 
 import { app, Menu, type MenuItemConstructorOptions } from "electron";
 import type { AppSnapshot } from "@shared/ipc";
@@ -11,6 +12,8 @@ export interface MenuActions {
   settings(): void;
   start(): void;
   stop(): void;
+  showLogs(): void;
+  copyDiagnostics(): void;
 }
 
 /** The recording items, shared by the app menu and the Dock menu. No accelerators: the window
@@ -64,6 +67,13 @@ export class AppMenu {
           { role: "close" },
           { type: "separator" },
           { role: "front" },
+        ],
+      },
+      {
+        role: "help",
+        submenu: [
+          { label: "Show Logs", click: () => this.actions.showLogs() },
+          { label: "Copy Diagnostics", click: () => this.actions.copyDiagnostics() },
         ],
       },
     ];

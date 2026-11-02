@@ -67,7 +67,7 @@ export class HelperSupervisor extends EventEmitter<SupervisorEvents> {
   private stopping = false;
   private recording = false;
   private detectEnabled: boolean | undefined;
-  private snapshot: HelperSnapshot = { status: "stopped", restarts: 0 };
+  private snapshot: HelperSnapshot = { status: "stopped", restarts: 0, crashes: 0 };
 
   constructor(private readonly options: SupervisorOptions) {
     super();
@@ -260,6 +260,7 @@ export class HelperSupervisor extends EventEmitter<SupervisorEvents> {
     this.setStatus({
       status: "restarting",
       restarts: this.snapshot.restarts + 1,
+      crashes: this.snapshot.crashes + 1,
       lastError: `The recorder stopped (${signal ?? `exit ${code}`}).`,
     });
     this.restartTimer = setTimeout(() => {

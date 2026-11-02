@@ -1,7 +1,7 @@
 // Talk's main process: sign-in and tokens, the tray, the window, calendar prompts, the updater,
 // and the helper supervisor. The renderer reaches it only through the typed preload bridge.
 
-import { app, BrowserWindow, dialog, session, shell, safeStorage } from "electron";
+import { app, BrowserWindow, clipboard, dialog, net, powerMonitor, session, shell, safeStorage } from "electron";
 import { join } from "node:path";
 import type { AppSnapshot, LoginItemSnapshot, PermissionKind, StartRecordingRequest } from "@shared/ipc";
 import type { CalendarEvent } from "@shared/api";
@@ -14,7 +14,10 @@ import { PromptLedger } from "./calendar/ledger";
 import { devSignIn, helperPath, isDevFlavor, keychainDisabled } from "./config";
 import { HelperSupervisor } from "./helper/supervisor";
 import { registerIpc } from "./ipc";
-import { log } from "./log";
+import { log, logPath, logTail } from "./log";
+import { Connectivity } from "./connectivity";
+import { PendingUploads } from "./pending";
+import { buildDiagnostics } from "./diagnostics";
 import { RecordingController } from "./recording";
 import { TrayController, trayStateFor } from "./tray";
 import { startUpdater, type UpdaterState } from "./updater";
@@ -89,11 +92,30 @@ async function main(): Promise<void> {
     },
     noKeychain,
   );
+  let connectivity: Connectivity | undefined;
   const auth = new AuthService({
     store,
     openBrowser: (url) => shell.openExternal(url),
     log,
+    onApiOutcome: (error) => connectivity?.report(error),
   });
+  connectivity = new Connectivity({
+    probe: async () => {
+      const api = auth.api;
+      if (!api) return undefined;
+      try {
+        await api.me();
+        return undefined;
+      } catch (error) {
+        auth.handleError(error);
+        return error;
+      }
+    },
+    signedIn: () => auth.state.status === "signedIn",
+    log,
+  });
+  const online = connectivity;
+  const pending = new PendingUploads(join(app.getPath("userData"), "pending"), log);
 
   const helper = new HelperSupervisor({
     path: helperPath(),
@@ -101,6 +123,17 @@ async function main(): Promise<void> {
     log,
   });
   const recording = new RecordingController(auth, helper, log, () => settings.value.echoCancellation);
+  recording.saveFailuresExpected = () => online.state !== "online";
+  /** Sends what earlier recordings couldn't save, when the app is reachable and signed in. */
+  const replayPending = async () => {
+    const api = auth.api;
+    if (!api || online.state !== "online") return;
+    try {
+      await pending.replay(api);
+    } catch (error) {
+      log(`pending replay failed: ${errorMessage(error)}`);
+    }
+  };
   const window = new MainWindow(join(__dirname, "../preload/index.js"));
 
   let updater: UpdaterState = { enabled: false };
@@ -144,6 +177,29 @@ async function main(): Promise<void> {
     settings: () => window.showAndSend("navigate", { to: "settings" }),
     start: () => void startRecording({}).catch((e) => notifyError("Talk couldn't start", e)),
     stop: () => void recording.stop().catch((e) => notifyError("Talk couldn't stop", e)),
+    showLogs: () => {
+      const path = logPath();
+      if (path) shell.showItemInFolder(path);
+    },
+    copyDiagnostics: () => {
+      clipboard.writeText(
+        buildDiagnostics({
+          snapshot: snapshot(),
+          versions: {
+            app: app.getVersion(),
+            electron: process.versions.electron,
+            chrome: process.versions.chrome,
+            node: process.versions.node,
+            os: `${process.platform} ${process.getSystemVersion()}`,
+            arch: process.arch,
+          },
+          recordingCrashes: recording.crashCount,
+          pendingUploads: pending.count,
+          logTail: logTail(50),
+        }),
+      );
+      log("diagnostics copied to the clipboard");
+    },
   });
 
   const snapshot = (): AppSnapshot => {
@@ -155,6 +211,7 @@ async function main(): Promise<void> {
       calendar: calendar.state,
       updater,
       settings: settings.value,
+      connection: online.state,
       permissions: probe.snapshot(helper.state.permissions),
       loginItem,
     };
@@ -179,8 +236,19 @@ async function main(): Promise<void> {
   const syncDetection = () => void helper.setDetection(wasSignedIn && settings.value.callDetection).catch(() => {});
   auth.on("change", (a) => {
     const signedIn = a.status === "signedIn";
+    online.setSignInNeeded(!!a.expired || !!a.needsEveryAppSignIn);
     if (signedIn && !wasSignedIn) {
       void auth.loadMe();
+      // Signed in again during a recording (after an expiry): unblock the helper's posts now.
+      if (recording.isActive) {
+        void auth
+          .accessToken()
+          .then(async (accessToken) => {
+            if (accessToken) await helper.request("token.update", { accessToken });
+          })
+          .catch((e) => log(`token.update after sign-in failed: ${errorMessage(e)}`));
+      }
+      void replayPending();
       calendar.start();
       if (!restoredPrompts) {
         restoredPrompts = true;
@@ -192,7 +260,14 @@ async function main(): Promise<void> {
       calendar.stop();
       wasSignedIn = false;
       syncDetection();
-      if (recording.isActive) void recording.stop().catch(() => {});
+      if (a.expired) {
+        // Not the person's choice: keep recording. The helper queues segments until a new sign-in
+        // sends token.update; the window asks to sign in again in place.
+        log("sign-in expired; waiting for a new sign-in" + (recording.isActive ? " (the recording continues)" : ""));
+      } else {
+        online.reset();
+        if (recording.isActive) void recording.stop().catch(() => {});
+      }
     }
     wasSignedIn = signedIn;
     broadcast();
@@ -217,6 +292,24 @@ async function main(): Promise<void> {
     broadcast();
   });
   recording.on("change", broadcast);
+  recording.on("crashed", () => {
+    calendar.notify("Recording stopped unexpectedly", "Notes are being written from what was captured. Talk is restarting its recorder.");
+  });
+  recording.on("unsaved", ({ meetingId, appUrl, segments, needsFinish }) => {
+    try {
+      pending.add(meetingId, appUrl, segments, needsFinish);
+    } catch (error) {
+      log(`couldn't keep unsaved segments for ${meetingId}: ${errorMessage(error)}`);
+    }
+    void replayPending();
+  });
+  online.on("change", (c) => {
+    log(`connection: ${c}`);
+    if (c === "online") void replayPending();
+    broadcast();
+  });
+  powerMonitor.on("resume", () => online.resumed());
+  setInterval(() => online.setOsOnline(net.isOnline()), 15_000).unref();
   calendar.on("change", broadcast);
   helper.on("event", (event) => {
     probe.observe(event);
@@ -371,10 +464,18 @@ async function main(): Promise<void> {
   helper.start();
   window.show();
   broadcast();
-  updater = await startUpdater(log, (u) => {
-    updater = u;
-    broadcast();
-  });
+  updater = await startUpdater(
+    log,
+    (u) => {
+      updater = u;
+      broadcast();
+    },
+    {
+      appUrl: () => auth.api?.appUrl,
+      accessToken: () => auth.accessToken(),
+      freshAccessToken: () => auth.freshAccessToken(),
+    },
+  );
   broadcast();
   for (const url of pendingUrls.splice(0)) handleUrl(url);
 }

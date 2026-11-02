@@ -181,6 +181,46 @@ describe("recording against the fake helper and fake server", () => {
     ]);
   });
 
+  it("hands what a stop couldn't save to main, to replay later", async () => {
+    const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
+    await auth.signInWithToken(fake.origin, "epat_good");
+    const { s } = make({ FAKE_HELPER_STOP_UNSAVED: "1", FAKE_HELPER_LINE_MS: "40" });
+    const recording = new RecordingController(auth, s);
+    const handed: { meetingId: string; segments: unknown[]; needsFinish: boolean; appUrl: string }[] = [];
+    recording.on("unsaved", (u) => handed.push(u));
+    s.start();
+    await ready(s);
+    await recording.start({ title: "Offline stop" });
+    await until(() => recording.state.lastLine);
+    const meetingId = recording.state.meetingId!;
+    await recording.stop();
+    expect(handed).toHaveLength(1);
+    expect(handed[0]).toMatchObject({ meetingId, appUrl: fake.origin, needsFinish: true });
+    expect(handed[0]!.segments.length).toBeGreaterThan(0);
+    expect(recording.state).toEqual({ state: "idle" });
+  });
+
+  it("doesn't show save failures as an error while they're expected (offline, expired)", async () => {
+    const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
+    await auth.signInWithToken(fake.origin, "epat_good");
+    const { s } = make();
+    const recording = new RecordingController(auth, s);
+    let expected = true;
+    recording.saveFailuresExpected = () => expected;
+    s.start();
+    await ready(s);
+    await recording.start({ title: "Flaky" });
+    const emit = (message: string) => s.request("debug.emit" as never, { event: "error", code: "save_failed", message, fatal: false } as never);
+    await emit("offline");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(recording.state.error).toBeUndefined();
+    expected = false;
+    await emit("server said no");
+    await until(() => recording.state.error);
+    expect(recording.state.error).toBe("server said no");
+    await recording.stop();
+  });
+
   it("deletes the meeting when the start fails", async () => {
     const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
     await auth.signInWithToken(fake.origin, "epat_good");
@@ -239,9 +279,19 @@ describe("recording against the fake helper and fake server", () => {
     const recording = new RecordingController(auth, s);
     s.start();
     await ready(s);
+    const crashes: unknown[] = [];
+    recording.on("crashed", (c) => crashes.push(c));
     await recording.start({ title: "Crashy" });
+    const meetingId = recording.state.meetingId;
     await until(() => (recording.state.state === "idle" ? recording.state : undefined));
     expect(recording.state.error).toMatch(/stopped unexpectedly/);
+    expect(crashes).toEqual([{ meetingId }]);
+    expect(recording.crashCount).toBe(1);
     await until(() => (fake.finished.length ? true : undefined));
+    expect(fake.finished).toEqual([meetingId]);
+    // The helper comes back on its own, idle, with the crash counted.
+    await until(() => (s.state.status === "ready" && s.state.crashes >= 1 ? true : undefined));
+    expect(s.state.restarts).toBeGreaterThanOrEqual(1);
+    expect(s.isRecording).toBe(false);
   });
 });

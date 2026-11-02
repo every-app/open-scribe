@@ -18,6 +18,7 @@ import {
   type UpcomingResponse,
 } from "@shared/api";
 import { AuthError } from "../auth/errors";
+import type { TranscriptSegment } from "@shared/protocol";
 import type { AuthProvider } from "../auth/providers";
 import type { Fetch } from "../auth/oauth";
 
@@ -51,6 +52,7 @@ export class ApiClient {
   constructor(
     readonly auth: AuthProvider,
     private readonly fetchImpl: Fetch = fetch,
+    private readonly onOutcome?: (error?: unknown) => void,
   ) {}
 
   get appUrl(): string {
@@ -104,6 +106,11 @@ export class ApiClient {
     }
   }
 
+  /** Posts transcript segments (replaying what a recording couldn't save). Idempotent on seq. */
+  async appendSegments(id: string, segments: TranscriptSegment[]): Promise<void> {
+    await this.request("POST", `api/v1/meetings/${encodeURIComponent(id)}/segments`, { json: { segments }, empty: true });
+  }
+
   /** Deletes a meeting (owner only). Idempotent: 404 means it's already gone. */
   async deleteMeeting(id: string): Promise<void> {
     try {
@@ -125,6 +132,21 @@ export class ApiClient {
     method: string,
     path: string,
     opts: { query?: Record<string, string>; json?: unknown; empty?: boolean } = {},
+  ): Promise<unknown> {
+    try {
+      const result = await this.requestOnce(method, path, opts);
+      this.onOutcome?.();
+      return result;
+    } catch (error) {
+      this.onOutcome?.(error);
+      throw error;
+    }
+  }
+
+  private async requestOnce(
+    method: string,
+    path: string,
+    opts: { query?: Record<string, string>; json?: unknown; empty?: boolean },
   ): Promise<unknown> {
     let token: string;
     try {

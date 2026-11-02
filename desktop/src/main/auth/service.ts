@@ -21,6 +21,8 @@ export interface AuthServiceOptions {
   openBrowser: (url: string) => Promise<void> | void;
   fetchImpl?: Fetch;
   signInTimeoutMs?: number;
+  /** Every /api/v1 call's outcome (undefined on success), for reachability. */
+  onApiOutcome?: (error?: unknown) => void;
   log?: (...parts: unknown[]) => void;
 }
 
@@ -177,7 +179,10 @@ export class AuthService extends EventEmitter<{ change: [AuthSnapshot] }> {
   /** Maps API errors onto the sign-in state; returns whether it was a sign-in problem. */
   handleError(error: unknown): boolean {
     if ((error instanceof ApiError && error.kind === "signedOut") || (error instanceof AuthError && error.kind === "signedOut")) {
-      this.clear("You're signed out. Sign in again.");
+      // The session ended under us (refresh refused, or a 401 after a refresh): "expired", so the
+      // window keeps its page and asks to sign in again instead of starting over.
+      const wasSignedIn = this.snapshot.status === "signedIn";
+      this.clear("Your sign-in expired. Sign in again.", wasSignedIn);
       return true;
     }
     if (error instanceof ApiError && error.kind === "accessLogin") {
@@ -213,14 +218,15 @@ export class AuthService extends EventEmitter<{ change: [AuthSnapshot] }> {
         touchClient: (issuer) => touchClient(store, issuer),
       });
     }
-    this.client = new ApiClient(this.provider, this.options.fetchImpl);
+    this.client = new ApiClient(this.provider, this.options.fetchImpl, this.options.onApiOutcome);
     this.me = undefined;
     this.snapshot = { status: "signedIn", method: credentials.kind, appUrl: this.provider.appUrl };
     this.emit("change", this.snapshot);
   }
 
-  private clear(error?: string): void {
-    const appUrl = this.snapshot.appUrl;
+  /** `expired`: not the person's choice; keeps the app URL and method (for "Sign in again"). */
+  private clear(error?: string, expired = false): void {
+    const { appUrl, method } = this.snapshot;
     if (!this.ephemeral) {
       try {
         this.options.store.setCredentials(undefined);
@@ -232,7 +238,7 @@ export class AuthService extends EventEmitter<{ change: [AuthSnapshot] }> {
     this.provider = undefined;
     this.client = undefined;
     this.me = undefined;
-    this.snapshot = { status: "signedOut", appUrl, error };
+    this.snapshot = expired ? { status: "signedOut", appUrl, method, error, expired: true } : { status: "signedOut", appUrl, error };
     this.emit("change", this.snapshot);
   }
 

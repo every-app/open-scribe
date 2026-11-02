@@ -14,6 +14,8 @@
 //   FAKE_HELPER_LINE_MS=n         a transcript line every n ms (default 4000)
 //   FAKE_HELPER_NO_POST=1         don't call the API
 //   FAKE_HELPER_MIC=granted|denied|undetermined (default granted)
+//   FAKE_HELPER_STOP_UNSAVED=1    record.stop hands back the unposted segments as `unsaved`, with
+//                                 `finished: false` (as if the app was unreachable at stop)
 //   FAKE_HELPER_START_ERROR=code  record.start fails with that error code
 //   FAKE_HELPER_START_DELAY_MS=n  record.start takes n ms; a record.stop meanwhile cancels it (stop
 //                                 answers { segments: 0, cancelled: true }, start errors `cancelled`)
@@ -101,6 +103,13 @@ function startRecording(params) {
 async function stopRecording() {
   if (!rec) throw { code: "not_recording", message: "Not recording." };
   rec.timers.forEach(clearInterval);
+  if (env.FAKE_HELPER_STOP_UNSAVED === "1") {
+    const unsaved = rec.pending.splice(0);
+    const total = rec.seq;
+    rec = undefined;
+    event("state", { recording: false, mode: "realtime", mic: "ok", system: "ok" });
+    return { segments: total - unsaved.length, finished: false, unsaved };
+  }
   await flush();
   const total = rec.seq;
   try {

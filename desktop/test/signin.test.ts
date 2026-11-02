@@ -190,6 +190,21 @@ describe("refresh and rotation", () => {
     expect(cleared).toBe(true);
   });
 
+  it("an ended session reads as expired, keeping the app and method for Sign in again", async () => {
+    const { auth } = await signedIn();
+    fake.tokenErrors.push({ status: 400, error: "invalid_grant" });
+    expect(await auth.freshAccessToken()).toBeUndefined();
+    expect(auth.state).toMatchObject({ status: "signedOut", expired: true, method: "oauth", appUrl: fake.origin });
+    expect(auth.state.error).toMatch(/expired/);
+  });
+
+  it("signing out on purpose isn't expired", async () => {
+    const { auth } = await signedIn();
+    await auth.signOut();
+    expect(auth.state.expired).toBeUndefined();
+    expect(auth.state.method).toBeUndefined();
+  });
+
   it("invalid_client on refresh forgets the client", async () => {
     const { grant } = await signedIn();
     const forgot: string[] = [];

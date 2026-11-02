@@ -5,6 +5,15 @@ export const HELPER_PROTOCOL = 1;
 
 export type PermissionStatus = "granted" | "denied" | "undetermined" | "unknown";
 export type Speaker = "me" | "them";
+
+/** A finished transcript line, as posted to /api/v1/meetings/:id/segments. */
+export interface TranscriptSegment {
+  seq: number;
+  speaker: Speaker;
+  text: string;
+  startedMs: number;
+  endedMs: number;
+}
 export type ChannelHealth = "ok" | "silent" | "error";
 
 /** Each request `cmd`, its params and its result. */
@@ -26,7 +35,9 @@ export interface HelperCommands {
   };
   /** `cancelled`: the stop came while record.start was still starting; nothing was captured and
    * the start answers error `cancelled`. */
-  "record.stop": { params: undefined; result: { segments: number; cancelled?: boolean } };
+  /** `finished: false`: /finish failed. `unsaved`: segments that never posted (deduped, final
+   * seqs), handed back for main to replay (segments first, then /finish). Both optional. */
+  "record.stop": { params: undefined; result: { segments: number; cancelled?: boolean; finished?: boolean; unsaved?: TranscriptSegment[] } };
   "token.update": { params: { accessToken: string }; result: Record<string, never> };
   "detect.set": { params: { enabled: boolean }; result: Record<string, never> };
 }
@@ -56,6 +67,8 @@ export interface HelperEvents {
     mode: "realtime" | "fallback";
     mic: ChannelHealth;
     system: ChannelHealth;
+    /** "reconnecting": a speaker's transcription channel is down (that stretch isn't transcribed). */
+    transcription?: "live" | "reconnecting";
   };
   levels: { mic: number; system: number };
   "transcript.delta": { speaker: Speaker; text: string; itemId: string };

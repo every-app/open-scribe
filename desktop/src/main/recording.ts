@@ -4,7 +4,7 @@
 import { EventEmitter } from "node:events";
 import type { Attendee, CalendarEvent } from "@shared/api";
 import type { RecordingSnapshot } from "@shared/ipc";
-import type { HelperEvent } from "@shared/protocol";
+import type { HelperEvent, TranscriptSegment } from "@shared/protocol";
 import type { AuthService } from "./auth/service";
 import { errorMessage } from "./auth/oauth";
 import { HelperRequestError, type HelperSupervisor } from "./helper/supervisor";
@@ -16,8 +16,21 @@ export interface StartOptions {
   attendees?: Attendee[];
 }
 
-export class RecordingController extends EventEmitter<{ change: [RecordingSnapshot] }> {
+export interface RecordingEvents {
+  change: [RecordingSnapshot];
+  /** The helper died mid-recording; main notifies the person. `meetingId` is being finished. */
+  crashed: [{ meetingId?: string }];
+  /** A stop couldn't save everything: keep it and replay it later (pending.ts). */
+  unsaved: [{ meetingId: string; appUrl: string; segments: TranscriptSegment[]; needsFinish: boolean }];
+}
+
+export class RecordingController extends EventEmitter<RecordingEvents> {
   private snapshot: RecordingSnapshot = { state: "idle" };
+  /** Recordings cut short by a helper crash since launch (for diagnostics). */
+  crashCount = 0;
+  /** While offline or waiting for a new sign-in, failed posts are expected (the helper keeps them
+   * and retries); main's banner says so, so they aren't shown as a recording error. */
+  saveFailuresExpected: () => boolean = () => false;
 
   constructor(
     private readonly auth: AuthService,
@@ -31,7 +44,13 @@ export class RecordingController extends EventEmitter<{ change: [RecordingSnapsh
     helper.on("exit", ({ wasRecording }) => {
       if (this.snapshot.state === "idle") return;
       const meetingId = this.snapshot.meetingId;
-      this.set({ state: "idle", error: wasRecording || meetingId ? "The recorder stopped unexpectedly. What it saved is kept." : undefined }, true);
+      const cutShort = wasRecording || !!meetingId;
+      this.set({ state: "idle", error: cutShort ? "The recorder stopped unexpectedly. What it saved is kept." : undefined }, true);
+      if (cutShort) {
+        this.crashCount++;
+        this.log(`recording ${meetingId ?? ""} cut short by a helper crash (${this.crashCount} since launch)`);
+        this.emit("crashed", { meetingId });
+      }
       // The helper didn't get to /finish: do it, so notes are written from what was posted.
       if (meetingId) void this.auth.api?.finish(meetingId).catch((e) => this.log(`finish after crash failed: ${errorMessage(e)}`));
     });
@@ -95,8 +114,14 @@ export class RecordingController extends EventEmitter<{ change: [RecordingSnapsh
     if (this.snapshot.state !== "recording" && this.snapshot.state !== "starting") return;
     this.set({ state: "stopping" });
     try {
-      const { segments, cancelled } = await this.helper.request("record.stop");
-      this.log(cancelled ? "stopped before the recording started (cancelled)" : `stopped; ${segments} segments`);
+      const meetingId = this.snapshot.meetingId;
+      const { segments, cancelled, finished, unsaved } = await this.helper.request("record.stop");
+      this.log(cancelled ? "stopped before the recording started (cancelled)" : `stopped; ${segments} segments${unsaved?.length ? `, ${unsaved.length} unsaved` : ""}${finished === false ? ", not finished" : ""}`);
+      const leftovers = Array.isArray(unsaved) ? unsaved : [];
+      const appUrl = this.auth.api?.appUrl ?? this.auth.state.appUrl;
+      if (!cancelled && meetingId && appUrl && (leftovers.length || finished === false)) {
+        this.emit("unsaved", { meetingId, appUrl, segments: leftovers, needsFinish: finished === false });
+      }
       this.set({ state: "idle", error: undefined }, true);
     } catch (error) {
       // Already stopped on its own: nothing to do.
@@ -128,7 +153,7 @@ export class RecordingController extends EventEmitter<{ change: [RecordingSnapsh
     switch (event.event) {
       case "state":
         if (event.recording) {
-          this.set({ state: this.snapshot.state === "stopping" ? "stopping" : "recording", mode: event.mode, mic: event.mic, system: event.system });
+          this.set({ state: this.snapshot.state === "stopping" ? "stopping" : "recording", mode: event.mode, mic: event.mic, system: event.system, transcription: event.transcription });
         } else if (this.snapshot.state === "recording") {
           this.set({ state: "idle" }, true);
         }
@@ -138,7 +163,7 @@ export class RecordingController extends EventEmitter<{ change: [RecordingSnapsh
         break;
       case "error":
         // save_failed: segments didn't reach the Worker (the helper retries); say so.
-        if (event.fatal || event.code === "save_failed") this.set({ error: event.message });
+        if (event.fatal || (event.code === "save_failed" && !this.saveFailuresExpected())) this.set({ error: event.message });
         // fallback_backlog: the chunked fallback fell behind and dropped some audio; keep going.
         else if (event.code === "fallback_backlog") this.set({ warning: event.message });
         break;

@@ -1,22 +1,16 @@
-// A main-process log file (userData/logs/main.log) plus the console. Never log tokens.
+// The main-process log: userData's logs dir (~/Library/Logs/<app>/main.log on macOS), rotating
+// 5 MB × 3, redacted (logfile.ts), plus the console. Never log tokens or transcript text.
 
 import { app } from "electron";
-import { appendFileSync, mkdirSync, renameSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { redact, RotatingLog } from "./logfile";
 
-let file: string | undefined;
+let file: RotatingLog | undefined;
 
-function target(): string | undefined {
+function target(): RotatingLog | undefined {
   if (file) return file;
   try {
-    const dir = app.getPath("logs");
-    mkdirSync(dir, { recursive: true });
-    file = join(dir, "main.log");
-    try {
-      if (statSync(file).size > 5 * 1024 * 1024) renameSync(file, `${file}.1`);
-    } catch {
-      // No file yet.
-    }
+    file = new RotatingLog(join(app.getPath("logs"), "main.log"));
   } catch {
     file = undefined;
   }
@@ -25,13 +19,16 @@ function target(): string | undefined {
 
 export function log(...parts: unknown[]): void {
   const line = `${new Date().toISOString()} ${parts.map((p) => (typeof p === "string" ? p : p instanceof Error ? p.message : JSON.stringify(p))).join(" ")}`;
-  console.log(line);
-  const path = target();
-  if (path) {
-    try {
-      appendFileSync(path, `${line}\n`);
-    } catch {
-      // The console has it.
-    }
-  }
+  console.log(redact(line));
+  target()?.write(line);
+}
+
+/** Where the log is (for Help → Show Logs). */
+export function logPath(): string | undefined {
+  return target()?.path;
+}
+
+/** The last lines of the log (already redacted when written). */
+export function logTail(n: number): string[] {
+  return target()?.tail(n) ?? [];
 }
