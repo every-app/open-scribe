@@ -7,13 +7,11 @@ import { join } from "node:path";
 
 export const isDevFlavor = (): boolean => !app.isPackaged || app.getName() === "Talk Dev";
 
-/** The helper: bundled at Contents/MacOS/talk-helper when packaged. In dev, TALK_HELPER_PATH, else
- * the fake helper script. A dev-flavor package honors TALK_HELPER_PATH too. */
+/** The helper: always the bundled Contents/MacOS/talk-helper when packaged (what TCC and the
+ * signature cover). Unpackaged: TALK_HELPER_PATH, else the fake helper script. */
 export function helperPath(): string {
-  const override = process.env.TALK_HELPER_PATH;
-  if (override && isDevFlavor()) return override;
   if (app.isPackaged) return join(process.resourcesPath, "..", "MacOS", "talk-helper");
-  return join(app.getAppPath(), "scripts", "fake-helper.mjs");
+  return process.env.TALK_HELPER_PATH || join(app.getAppPath(), "scripts", "fake-helper.mjs");
 }
 
 /** electron-builder writes app-update.yml only when a feed URL was given at build time

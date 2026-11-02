@@ -30,7 +30,7 @@ main (Node) ──────────────────────�
 
 - The **renderer** gets data only through `window.talk` (`src/shared/ipc.ts`): one typed function per channel, plus `on("state" | "helper")`. Main checks that every call comes from our own page and validates its arguments. Context isolation, the sandbox and `default-src 'none'` CSP are on; navigation, new windows, webviews and device permissions are refused. `src/renderer/src/App.tsx` is a placeholder that proves the bridge; Lane UI builds the real screens (TanStack Router goes in `main.tsx` beside the QueryClient already there).
 - **The helper** speaks [helper protocol v1](../docs/desktop-plan.md#helper-protocol-v1), typed in `src/shared/protocol.ts`. The supervisor says `hello` and refuses another protocol number. It restarts a crashed helper with backoff (1 s, doubling, up to 30 s, reset after 60 s up), answers `token.needed` with `token.update` and a freshly refreshed token, re-sends `detect.set` after a restart, and forwards every event to the renderer. On quit it stops a recording first, then closes the helper's stdin and gives it 10 s (SIGTERM), then SIGKILL after 60 s.
-  - Where it is: `Contents/MacOS/talk-helper` when packaged. In dev it's `TALK_HELPER_PATH`, else `scripts/fake-helper.mjs`. A `.js`/`.mjs` path runs with Electron as Node.
+  - Where it is: always the bundled `Contents/MacOS/talk-helper` when packaged (the signature and TCC cover that copy). Unpackaged (`pnpm dev`) it's `TALK_HELPER_PATH`, else `scripts/fake-helper.mjs`. A `.js`/`.mjs` path runs with Electron as Node.
   - `scripts/fake-helper.mjs` implements the protocol without audio. It fakes a transcript, and like the real helper it posts segments to `{apiBase}/api/v1/meetings/:id/segments` and calls `/finish` on stop, so a fake recording against `everyapp dev` leaves a real meeting behind. Its `FAKE_HELPER_*` knobs (crash, call detection, token.needed, mic denied, protocol number) are listed at the top of the file.
 - **Sign-in** is a port of `mac/Sources/TalkCore`: RFC 9728 discovery on the app, then RFC 8414 on the Gateway (`issuer` must match), dynamic registration once per install (re-registered on `invalid_client` or after 50 days unused), PKCE S256, the system browser, a loopback listener on `127.0.0.1:<ephemeral>/callback` that checks `state` and `iss`, and `resource` on authorize/token/refresh with no `scope`. A rotated refresh token is stored before the new access token is used, and concurrent refreshes share one request. `invalid_grant` means signed out. Sign-out revokes the refresh token. The fallback is the app URL plus a personal access token, checked with `/me` before it's kept. If Cloudflare Access answers instead of the app, the app says "Gateway requires Sign in with Every App" and doesn't sign you out.
 - **Reminders**: the app polls `/api/v1/calendar/upcoming` every 5 minutes and on wake. One minute before each event that has other attendees or a call link, it shows a notification with "Join & take notes" (when there's a link) and "Take notes". A meeting that started without notes gets one nudge in its first 5 minutes. The helper's `call.started` brings up "Record this call?". Nothing ever records without a click.
@@ -54,7 +54,7 @@ The cost: a build signed without a Team ID (ad hoc, or a self-signed cert like "
 `pnpm package:local` makes **Talk Dev**, a real packaged app (not `electron .`) for clicking through by hand or with a computer-use agent:
 
 - Bundle id `com.everyapp.talk.dev`, product name "Talk Dev", URL scheme `talk-dev://`, its own userData, logs and Keychain item. It never collides with the SwiftUI `~/Applications/Talk.app` (`com.everyapp.talk`) in TCC, Launch Services or the Keychain. Release builds keep `com.everyapp.talk` and `talk://`.
-- Helper: `TALK_HELPER_PATH=../mac/.build/helper/talk-helper` (from `mac/scripts/build-helper.sh`) bundles the real one. Unset, a small wrapper runs the fake helper with Electron as Node.
+- Helper: **`TALK_HELPER=real`** builds the real one with `mac/scripts/build-helper.sh` (this Mac's arch only, unless `TALK_HELPER_ARCHS` says otherwise) and bundles it. `TALK_HELPER_PATH=<binary>` bundles one you already built (e.g. `../mac/.build/helper/talk-helper`). Neither set: a small wrapper runs the fake helper with Electron as Node. The bundled helper is re-signed with the app's identity, keeping its own entitlements and identifier (`com.everyapp.talk.helper`).
 - Signing: `TALK_SIGN_ID`, else the self-signed **"Scrawl Dev"** cert if this Mac has it (`security find-identity -v -p codesigning`), else ad hoc. Hardened runtime and `entitlements.dev.plist`. The helper keeps identifier `com.everyapp.talk.helper`. No notarization.
 - It installs to `~/Applications/Talk Dev.app` (quitting a running copy first) and launches it. `TALK_NO_LAUNCH=1` skips the launch.
 
@@ -67,6 +67,8 @@ The cost: a build signed without a Team ID (ad hoc, or a self-signed cert like "
 ```sh
 # in web/: everyapp dev  (seed it as you like), then here:
 TALK_DEV_APP_URL=http://talk.localhost:8787 TALK_DEV_TOKEN=dev pnpm package:local
+# the same with the real Swift helper:
+TALK_HELPER=real TALK_DEV_APP_URL=http://talk.localhost:8787 TALK_DEV_TOKEN=dev pnpm package:local
 # or, unpackaged:
 TALK_DEV_APP_URL=http://talk.localhost:8787 TALK_DEV_TOKEN=dev pnpm dev
 ```

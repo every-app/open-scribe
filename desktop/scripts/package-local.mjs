@@ -4,8 +4,9 @@
 //
 // 1. Builds the app as "Talk Dev" (com.everyapp.talk.dev, talk-dev://), so it never collides with
 //    the SwiftUI ~/Applications/Talk.app (com.everyapp.talk) in TCC, Launch Services or the Keychain.
-// 2. Bundles Contents/MacOS/talk-helper: TALK_HELPER_PATH if set (e.g. mac/.build/helper/talk-helper
-//    from mac/scripts/build-helper.sh), else a wrapper that runs scripts/fake-helper.mjs.
+// 2. Bundles Contents/MacOS/talk-helper: TALK_HELPER_PATH if set (a built talk-helper binary);
+//    else with TALK_HELPER=real, builds it first with mac/scripts/build-helper.sh (this Mac's arch
+//    only unless TALK_HELPER_ARCHS says otherwise); else a wrapper that runs scripts/fake-helper.mjs.
 // 3. Signs helper and app with a stable identity: TALK_SIGN_ID, else the self-signed "Scrawl Dev"
 //    if this Mac has it, else ad hoc. A stable identity keeps mic/system-audio grants across
 //    rebuilds. No notarization.
@@ -30,7 +31,16 @@ const HELPER_ID = "com.everyapp.talk.helper";
 
 // 1–2. Build, with the helper.
 const builderEnv = { TALK_FLAVOR: "dev" };
+let realHelper = false;
+if (!env.TALK_HELPER_PATH && env.TALK_HELPER === "real") {
+  step("building talk-helper (mac/scripts/build-helper.sh)");
+  const script = resolve(root, "..", "mac", "scripts", "build-helper.sh");
+  const archs = env.TALK_HELPER_ARCHS ?? (process.arch === "arm64" ? "arm64" : "x86_64");
+  const out = execFileSync(script, [], { cwd: root, env: { ...env, TALK_HELPER_ARCHS: archs }, stdio: ["ignore", "pipe", "inherit"], encoding: "utf8" });
+  env.TALK_HELPER_PATH = out.trim().split("\n").pop();
+}
 if (env.TALK_HELPER_PATH) {
+  realHelper = true;
   const helper = resolve(env.TALK_HELPER_PATH);
   if (!existsSync(helper)) throw new Error(`TALK_HELPER_PATH not found: ${helper}`);
   if (/\.(c|m)?js$/.test(helper)) throw new Error("TALK_HELPER_PATH must be a binary for a package; leave it unset for the fake helper.");
@@ -82,7 +92,17 @@ const sign = (path, extra = []) =>
 const frameworks = join(built, "Contents", "Frameworks");
 for (const item of readdirSync(frameworks)) sign(join(frameworks, item), ["--deep"]);
 const helperPath = join(built, "Contents", "MacOS", "talk-helper");
-if (existsSync(helperPath)) sign(helperPath, ["--identifier", HELPER_ID]);
+// The real helper keeps its own entitlements (audio-input) and embedded Info.plist; only the
+// signature is redone, so it matches the app's.
+if (existsSync(helperPath)) {
+  if (realHelper) {
+    run("codesign", ["--force", "--options", "runtime", "--timestamp=none", "--preserve-metadata=entitlements,identifier,flags", "--sign", id, helperPath], {
+      stdio: ["ignore", "ignore", "inherit"],
+    });
+  } else {
+    sign(helperPath, ["--identifier", HELPER_ID]);
+  }
+}
 sign(built);
 run("codesign", ["--verify", "--deep", "--strict", built]);
 
@@ -109,6 +129,9 @@ if (env.TALK_DEV_APP_URL && env.TALK_DEV_TOKEN) {
 if (env.TALK_NO_LAUNCH === "1") {
   console.log(`\nInstalled ${target} (not launched).`);
 } else {
-  run("open", [target]);
+  // `open` hands its environment to the app; keep build-time variables out of it.
+  const launchEnv = { ...env };
+  for (const k of ["TALK_HELPER_PATH", "TALK_HELPER", "TALK_HELPER_ARCHS", "TALK_DEV_TOKEN", "TALK_DEV_APP_URL"]) delete launchEnv[k];
+  run("open", [target], { env: launchEnv });
   console.log(`\nLaunched ${target}.`);
 }

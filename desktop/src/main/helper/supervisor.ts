@@ -192,6 +192,7 @@ export class HelperSupervisor extends EventEmitter<SupervisorEvents> {
         return;
       }
       this.setStatus({ status: "ready", version: hello.version, macos: hello.macos, lastError: undefined });
+      this.options.log?.(`helper ready: ${this.options.path} ${hello.version} (macOS ${hello.macos})`);
       this.stableTimer = setTimeout(() => {
         this.backoff = this.options.initialBackoffMs ?? 1000;
       }, this.options.stableAfterMs ?? 60_000);
