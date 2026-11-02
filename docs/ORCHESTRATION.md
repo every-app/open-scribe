@@ -95,3 +95,5 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - Review fixes: #11 (helper: stop-during-start, flush join, bounded fallback backlog; 133 tests) in CI; #10 (API races) rebasing onto #7.
 - #10 merged (API races). #12 merged (package:local bundles the real helper; packaged builds always run the bundled helper). Lane A finished; its notes forwarded to M3.
 - #11 (helper review fixes) red on a timing-dependent test; H making it deterministic.
+- #11 merged (helper review fixes, deterministic tests). All 5 Codex findings fixed.
+- H relaunched: feature/helper-echo (text-level echo dedupe on by default; voice processing behind a flag).
