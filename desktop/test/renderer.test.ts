@@ -90,3 +90,19 @@ describe("api:call allowlist", () => {
     expect(isValidApiCallOptions({ headers: {} })).toBe(false);
   });
 });
+
+describe("cancelled start", () => {
+  it("is a stop that lands in idle before the recording ever started", async () => {
+    const { wasCancelledStart } = await import("../src/renderer/src/recording");
+    const starting = { state: "starting", meetingId: "m1", calendarEventId: "e1" } as const;
+    const stoppingEarly = { ...starting, state: "stopping" } as const;
+    expect(wasCancelledStart(starting, { state: "idle" })).toBe(true);
+    expect(wasCancelledStart(stoppingEarly, { state: "idle" })).toBe(true);
+    // A normal stop: it had started.
+    expect(wasCancelledStart({ state: "stopping", meetingId: "m1", startedAt: "2026-11-02T10:00:00Z" }, { state: "idle" })).toBe(false);
+    // A start that failed is an error, not a cancel.
+    expect(wasCancelledStart(starting, { state: "idle", error: "Microphone access is off" })).toBe(false);
+    expect(wasCancelledStart(undefined, { state: "idle" })).toBe(false);
+    expect(wasCancelledStart(starting, { state: "recording", startedAt: "x" })).toBe(false);
+  });
+});

@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import {
+  AlertTriangle,
   CalendarDays,
   Check,
   Copy,
@@ -67,6 +68,10 @@ export interface MeetingScreenProps {
   jottings: string;
   onJottingsChange: (markdown: string) => void;
   live?: LiveState | null;
+  /** A quiet note above the controls while recording (e.g. the connection fell behind). */
+  warning?: string | null;
+  /** The helper's own words for the warning, shown on hover. */
+  warningDetail?: string | null;
   folders: Folder[];
   templates: Template[];
   orgName: string;
@@ -599,6 +604,8 @@ function ControlBar({
   transcriptOpen,
   onToggleTranscript,
   drawerOpen,
+  warning,
+  warningDetail,
 }: MeetingScreenProps & {
   transcriptOpen: boolean;
   onToggleTranscript: () => void;
@@ -607,10 +614,20 @@ function ControlBar({
   return (
     <div
       className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-5 flex justify-center",
+        "pointer-events-none absolute inset-x-0 bottom-5 flex flex-col items-center gap-2",
         drawerOpen && "right-[340px]",
       )}
     >
+      {phase === "during" && warning && (
+        <p
+          role="status"
+          title={warningDetail ?? undefined}
+          className="animate-in fade-in-0 pointer-events-auto flex items-center gap-1.5 rounded-full bg-background/85 px-3 py-1 text-[12px] text-muted-foreground backdrop-blur"
+        >
+          <AlertTriangle className="size-3.5 text-warning" />
+          {warning}
+        </p>
+      )}
       <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-border bg-popover/90 p-1 shadow-[0_6px_24px_-8px_rgb(0_0_0/0.18),0_1px_2px_rgb(0_0_0/0.06)] backdrop-blur-xl">
         {phase === "before" ? (
           <Bar>

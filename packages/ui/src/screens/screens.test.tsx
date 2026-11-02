@@ -110,4 +110,33 @@ describe("MeetingScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: /Stop/ }));
     expect(onStop).toHaveBeenCalledOnce();
   });
+
+  it("during: shows a quiet warning above the controls", () => {
+    render(
+      <MeetingScreen
+        {...base}
+        phase="during"
+        warning="Connection is slow, some audio may be skipped."
+        warningDetail="Their side: 3 chunks waiting"
+        live={{
+          recording: {
+            meetingId: "m-1",
+            title: "Pricing call",
+            startedAt: "",
+            mode: "fallback",
+            mic: "ok",
+            system: "ok",
+          },
+          levels: { mic: 0, system: 0 },
+          partial: { me: "", them: "" },
+          elapsedMs: 0,
+        }}
+      />,
+    );
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe(
+      "Connection is slow, some audio may be skipped.",
+    );
+    expect(status.getAttribute("title")).toBe("Their side: 3 chunks waiting");
+  });
 });

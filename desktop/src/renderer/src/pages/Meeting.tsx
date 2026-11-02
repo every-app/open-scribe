@@ -3,9 +3,10 @@ import { useState } from "react";
 import type { MeetingDetail } from "@shared/contract";
 import { EmptyState, ErrorState, MeetingScreen, ScreenBody, useElapsed, type LiveState } from "@talk/ui";
 import { Skeleton } from "@talk/ui/components/skeleton";
-import { useRun, useStartRecording, useStopRecording } from "../actions";
+import { draftKey, useRun, useStartRecording, useStopRecording } from "../actions";
 import { api, cleanError, keys } from "../api";
 import { useJottings } from "../jottings";
+import { SLOW_CONNECTION } from "../recording";
 import { mergeSegments, partialOf, useLevels, useLiveTranscript } from "../live";
 import { accountFrom } from "../map";
 import { notify } from "../notice";
@@ -77,6 +78,8 @@ export function MeetingPage({ id }: { id: string }) {
       jottings={jottings}
       onJottingsChange={setJottings}
       live={live}
+      warning={recordingHere && rec.warning ? SLOW_CONNECTION : null}
+      warningDetail={recordingHere ? rec.warning : null}
       folders={folders.data ?? []}
       templates={templates.data?.templates ?? []}
       orgName={accountFrom(me.data, state?.auth)?.orgName ?? "Team"}
@@ -135,8 +138,6 @@ function Loading() {
     </ScreenBody>
   );
 }
-
-const draftKey = (eventId: string) => `talk.prejottings.${eventId}`;
 
 /** A calendar event before its call: a notepad for the agenda, and Start recording. */
 export function UpcomingPage({ eventId }: { eventId: string }) {

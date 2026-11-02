@@ -9,7 +9,7 @@ import type { AppSnapshot } from "@shared/ipc";
 import type { NavTarget, Space } from "@talk/ui";
 import { AppFrame, OnboardingScreen, TitleBar, useElapsed } from "@talk/ui";
 import { Button } from "@talk/ui/components/button";
-import { useStartRecording, useStopRecording } from "../actions";
+import { useCancelledStart, useStartRecording, useStopRecording } from "../actions";
 import { api, cleanError, keys } from "../api";
 import { asUiStatus, permissionsFrom, requestPermission } from "../desktop-settings";
 import { useLevels } from "../live";
@@ -108,6 +108,8 @@ function Layout({ state }: { state: AppSnapshot }) {
   const orgName = account?.orgName ?? "Team";
 
   const rec = state.recording;
+  const onRecording = useCancelledStart();
+  useEffect(() => onRecording(rec), [rec, onRecording]);
   const recordingId = rec.state !== "idle" ? rec.meetingId : undefined;
   const elapsedMs = useElapsed(rec.state === "recording" ? (rec.startedAt ?? null) : null);
 

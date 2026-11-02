@@ -421,6 +421,21 @@ export const scenes: Scene[] = [
     ),
   },
   {
+    id: "meeting-during-warning",
+    group: "Meeting",
+    label: "During, slow connection",
+    render: (ctx) => (
+      <MeetingScene
+        phase="during"
+        {...ctx}
+        extra={{
+          warning: "Connection is slow, some audio may be skipped.",
+          warningDetail: "Their side: 3 chunks waiting to upload",
+        }}
+      />
+    ),
+  },
+  {
     id: "meeting-processing",
     group: "Meeting",
     label: "Writing notes",
