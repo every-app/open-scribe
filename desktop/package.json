@@ -1,0 +1,42 @@
+{
+  "name": "talk-desktop",
+  "productName": "Talk",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Talk: a meeting recorder on Every App",
+  "author": "Every App",
+  "main": "./out/main/index.js",
+  "packageManager": "pnpm@10.34.5",
+  "scripts": {
+    "dev": "env -u ELECTRON_RUN_AS_NODE electron-vite dev",
+    "start": "env -u ELECTRON_RUN_AS_NODE electron-vite preview",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "package": "electron-vite build && electron-builder --config electron-builder.config.cjs --mac --dir",
+    "package:local": "node scripts/package-local.mjs",
+    "dist": "electron-vite build && electron-builder --config electron-builder.config.cjs --mac",
+    "icons:tray": "node scripts/make-tray-icons.mjs"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/react-query": "^5.105.1",
+    "@tanstack/react-router": "^1.170.46",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0",
+    "electron-vite": "^6.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
