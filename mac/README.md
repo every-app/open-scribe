@@ -84,7 +84,7 @@ TCC ties microphone, system audio and notification grants to the bundle's path a
 
 ## talk-helper
 
-A headless executable (no UI, no Keychain, no sign-in) that the Electron app's main process spawns and drives over stdin/stdout with newline-delimited JSON: **protocol v1, as specified in docs/desktop-plan.md "Helper protocol (v1)"**. stdout carries protocol lines only; logs go to stderr and os_log (subsystem `com.everyapp.talk`, category `helper`; never tokens). It exits cleanly (stopping a recording properly: last segments posted, `/finish` called) when stdin closes or on SIGTERM/SIGINT, within 45 s at most.
+A headless executable (no UI, no Keychain, no sign-in) that the Electron app's main process spawns and drives over stdin/stdout with newline-delimited JSON: **protocol v1, as specified in docs/desktop-plan.md "Helper protocol (v1)"**. stdout carries protocol lines only; logs go to stderr and os_log (subsystem `com.everyapp.talk`, category `helper`; never tokens). It exits cleanly when stdin closes or on SIGTERM/SIGINT: a recording is stopped properly first (last segments posted, `/finish` called; a `record.stop` already in progress is waited for, and a start still on the mic prompt or fetching keys is cancelled). Other requests get 250 ms to answer; one stuck on a permission prompt doesn't hold the exit. Idle, it exits in about 30 ms; a 45 s watchdog bounds the recording case.
 
 ```sh
 ./scripts/build-helper.sh        # release, universal (arm64 + x86_64), signed → .build/helper/talk-helper

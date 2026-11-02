@@ -39,7 +39,7 @@ func run() async {
   let devices = DeviceWatcher { input, output in
     Task { @MainActor in server.deviceChanged(input: input, output: output) }
   }
-  var pending = 0
+  let requests = RequestTracker()
 
   // SIGTERM/SIGINT: the same clean exit as stdin closing.
   var exiting = false
@@ -52,9 +52,14 @@ func run() async {
       log("shutdown took too long")
       exit(1)
     }
+    let started = ContinuousClock.now
+    // A recording (or a record.stop in progress) is finished properly first: flush + /finish.
     await server.shutdown()
-    // Let requests already read get their answers.
-    while pending > 0 { try? await Task.sleep(for: .milliseconds(20)) }
+    // Then give requests already read a moment to answer, but don't wait on one that's only
+    // waiting (a permission prompt): that used to hold the exit until the watchdog.
+    let answered = await requests.drain()
+    if !answered { log("exiting with \(requests.pending) request(s) unanswered") }
+    log("exit after \(ContinuousClock.now - started)")
     withExtendedLifetime(devices) {}
     exit(0)
   }
@@ -70,10 +75,10 @@ func run() async {
   log("started (pid \(getpid()))")
   do {
     for try await line in FileHandle.standardInput.bytes.lines {
-      pending += 1
+      requests.begin()
       Task { @MainActor in
         await server.handle(line)
-        pending -= 1
+        requests.end()
       }
     }
   } catch {

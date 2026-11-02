@@ -67,6 +67,8 @@ public final class HelperServer {
   private var startingPipeline: RecordingPipeline?
   private var startWaiters: [CheckedContinuation<Void, Never>] = []
   private var stopping = false
+  /// Waiting for a `record.stop` in progress to finish (shutdown).
+  private var stopWaiters: [CheckedContinuation<Void, Never>] = []
   private var closing = false
   private var mode: RecordingMode = .realtime
   private var health: (mic: SourceHealth, system: SourceHealth) = (.ok, .ok)
@@ -105,11 +107,19 @@ public final class HelperServer {
 
   /// stdin closed (or SIGTERM): stop detecting, and stop a recording properly (post the last
   /// segments and finish) without waiting for tokens nobody will send.
+  /// Returns once nothing is recording: a recording is stopped properly (last segments posted,
+  /// `/finish` called), a `record.stop` already in progress is waited for, and a start still
+  /// asking for the mic or fetching keys is cancelled. Requests that are only waiting (a
+  /// permission prompt) aren't waited for; see `RequestTracker`.
   public func shutdown() async {
     closing = true
     setDetection(false)
     await auth?.close()
-    if pipeline != nil || starting, !stopping { _ = try? await stop() }
+    if stopping {
+      await withCheckedContinuation { stopWaiters.append($0) }
+    } else if pipeline != nil || starting {
+      _ = try? await stop()
+    }
   }
 
   /// The default input or output device changed.
@@ -233,7 +243,12 @@ public final class HelperServer {
     }
     guard let pipeline, !stopping else { throw HelperError("not_recording", "Not recording") }
     stopping = true
-    defer { stopping = false }
+    defer {
+      stopping = false
+      let waiters = stopWaiters
+      stopWaiters = []
+      for waiter in waiters { waiter.resume() }
+    }
     let result = await pipeline.stop()
     self.pipeline = nil
     await auth?.close()
