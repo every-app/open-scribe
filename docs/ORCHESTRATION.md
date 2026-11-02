@@ -116,3 +116,4 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - #25 merged (scripts/release-mac.sh + docs/release.md; dry-run verified unsigned). API: search + speaker names. H: helper offline (unsaved/transcription).
 - Codex V2 done (~/overnight/2026-11-02/talk-verify-2/report.md): all V1 findings fixed (icon unverifiable via CUA). New: medium copy-link fails; medium menu/Dock-started recording doesn't navigate; low system-audio "verified" cache leaks from fake helper. Routed to UI (fix/codex-v2) and M3 (fix/m3-v2, plus headless icon check). Cold launch ~1.1 s.
 - #26 merged (helper unsaved-on-stop, state.transcription). #27 (Codex V2 UI fixes: copy link via main clipboard, menu-started recording navigates) merging on green. H: retire SwiftUI app.
+- #28 merged (system-audio verified keyed to real helper; icon check). #30 merged (FTS5 search, speaker names). #29 (retire SwiftUI) rebasing. M3: desktop e2e in CI. UI: search UI.
