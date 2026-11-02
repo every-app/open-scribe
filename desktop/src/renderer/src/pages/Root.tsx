@@ -9,7 +9,7 @@ import type { AppSnapshot } from "@shared/ipc";
 import type { NavTarget, Space } from "@talk/ui";
 import { AppFrame, OfflineBanner, OnboardingScreen, SignInAgainBanner, TitleBar, useElapsed } from "@talk/ui";
 import { Button } from "@talk/ui/components/button";
-import { useCancelledStart, useStartRecording, useStopRecording } from "../actions";
+import { useCancelledStart, useFollowRecording, useStartRecording, useStopRecording } from "../actions";
 import { api, cleanError, keys } from "../api";
 import { grantPermission, uiPermissions } from "../settings-logic";
 import { connectionOf, gateOf, signInAgainOf, type Gate, type Snapshot } from "../connection";
@@ -157,7 +157,11 @@ function Layout({ state }: { state: AppSnapshot }) {
   useRefetchOnReconnect(state);
   const rec = state.recording;
   const onRecording = useCancelledStart();
-  useEffect(() => onRecording(rec), [rec, onRecording]);
+  const followRecording = useFollowRecording();
+  useEffect(() => {
+    onRecording(rec);
+    followRecording(rec);
+  }, [rec, onRecording, followRecording]);
   const recordingId = rec.state !== "idle" ? rec.meetingId : undefined;
   const elapsedMs = useElapsed(rec.state === "recording" ? (rec.startedAt ?? null) : null);
 

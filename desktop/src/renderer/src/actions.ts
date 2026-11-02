@@ -4,7 +4,10 @@ import { useCallback, useRef } from "react";
 import type { RecordingSnapshot, StartRecordingRequest } from "@shared/ipc";
 import { api, cleanError, keys } from "./api";
 import { notify } from "./notice";
-import { wasCancelledStart } from "./recording";
+import { liveMeetingToOpen, wasCancelledStart } from "./recording";
+
+// While this window starts a recording itself, it navigates on its own once the meeting exists.
+let ownStarts = 0;
 import { talk } from "./talk";
 
 /** Run a change, refresh what it touched, and say so if it failed. */
@@ -33,11 +36,15 @@ export function useStartRecording() {
   const client = useQueryClient();
   return useCallback(
     async (request: StartRecordingRequest, jottings?: string) => {
+      ownStarts++;
       try {
         await talk["recording:start"](request);
       } catch (error) {
         notify(cleanError(error), "error");
         return false;
+      } finally {
+        // After main's snapshot for this start has arrived, so it isn't taken for an outside one.
+        setTimeout(() => ownStarts--, 0);
       }
       const meetingId = (await talk["state:get"]()).recording.meetingId;
       void client.invalidateQueries({ queryKey: keys.allMeetings });
@@ -107,5 +114,33 @@ export function useCancelledStart() {
       void client.invalidateQueries({ queryKey: keys.allMeetings });
     },
     [client, navigate],
+  );
+}
+
+/** Copy a link through main (the sandboxed window can't write the clipboard). */
+export async function copyLink(url: string): Promise<boolean> {
+  try {
+    await talk["clipboard:writeText"](url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A recording started outside the window (menu, Dock, tray): open its live page. */
+export function useFollowRecording() {
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const pathRef = useRef(pathname);
+  pathRef.current = pathname;
+  const prevRef = useRef<RecordingSnapshot | undefined>(undefined);
+  return useCallback(
+    (next: RecordingSnapshot) => {
+      const prev = prevRef.current;
+      prevRef.current = next;
+      const id = liveMeetingToOpen(prev, next, { pathname: pathRef.current, ownStart: ownStarts > 0 });
+      if (id) void navigate({ to: "/meetings/$id", params: { id } });
+    },
+    [navigate],
   );
 }

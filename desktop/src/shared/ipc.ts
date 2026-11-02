@@ -158,6 +158,8 @@ export interface InvokeMap {
   "app:openInBrowser": [[meetingId?: string], void];
   /** One /api/v1 call from the window, allowlisted in main (src/main/api/routes.ts). */
   "api:call": [[method: ApiMethod, path: string, opts?: ApiCallOptions], unknown];
+  /** Copy a link (https, or the app's own origin; ≤ 2 KB): the sandboxed window can't. */
+  "clipboard:writeText": [[text: string], void];
 }
 
 export type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -210,6 +212,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   "api:updateMeeting",
   "app:openInBrowser",
   "api:call",
+  "clipboard:writeText",
 ] as const;
 
 export const EVENT_CHANNELS: readonly EventChannel[] = ["state", "helper", "navigate"] as const;

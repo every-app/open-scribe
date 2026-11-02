@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { MeetingDetail } from "@shared/contract";
 import { EmptyState, ErrorState, MeetingScreen, ScreenBody, useElapsed, type LiveState } from "@talk/ui";
 import { Skeleton } from "@talk/ui/components/skeleton";
-import { draftKey, useRun, useStartRecording, useStopRecording } from "../actions";
+import { copyLink, draftKey, useRun, useStartRecording, useStopRecording } from "../actions";
 import { api, cleanError, keys } from "../api";
 import { useJottings } from "../jottings";
 import { SLOW_CONNECTION } from "../recording";
@@ -118,15 +118,14 @@ export function MeetingPage({ id }: { id: string }) {
       onCreateShareLink={() =>
         void run(async () => {
           const { link } = await api.createShareLink(id);
-          await navigator.clipboard.writeText(link.url).catch(() => {});
-          notify("Link copied.");
+          const copied = await copyLink(link.url);
+          notify(copied ? "Link made and copied." : "Link made. Copy it from the box above.");
         }, "Couldn't make a link.", touched)
       }
       onRevokeShareLink={(linkId) => void run(() => api.revokeShareLink(id, linkId), "Couldn't turn off the link.", touched)}
       onCopyShareLink={(linkId) =>
-        void navigator.clipboard.writeText(shareUrl(linkId)).then(
-          () => notify("Link copied."),
-          () => notify("Couldn't copy the link.", "error"),
+        void copyLink(shareUrl(linkId)).then((copied) =>
+          copied ? notify("Link copied.") : notify("Couldn't copy the link.", "error"),
         )
       }
       shareUrl={shareUrl}

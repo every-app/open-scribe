@@ -129,3 +129,34 @@ describe("cancelled start", () => {
     expect(wasCancelledStart(starting, { state: "recording", startedAt: "x" })).toBe(false);
   });
 });
+
+describe("following a recording started outside the window (Codex V2)", () => {
+  it("opens the live page when a recording starts from the menu, Dock or tray", async () => {
+    const { liveMeetingToOpen } = await import("../src/renderer/src/recording");
+    const idle = { state: "idle" } as const;
+    const starting = { state: "starting", meetingId: "m9", calendarEventId: "e1" } as const;
+    expect(liveMeetingToOpen(idle, starting, { pathname: "/meetings/m2", ownStart: false })).toBe("m9");
+    expect(liveMeetingToOpen(idle, { ...starting, state: "recording" }, { pathname: "/", ownStart: false })).toBe("m9");
+  });
+
+  it("stays put when the window started it, when you're already there, or writing on that event's page", async () => {
+    const { liveMeetingToOpen } = await import("../src/renderer/src/recording");
+    const idle = { state: "idle" } as const;
+    const starting = { state: "starting", meetingId: "m9", calendarEventId: "e1" } as const;
+    expect(liveMeetingToOpen(idle, starting, { pathname: "/", ownStart: true })).toBeNull();
+    expect(liveMeetingToOpen(idle, starting, { pathname: "/meetings/m9", ownStart: false })).toBeNull();
+    expect(liveMeetingToOpen(idle, starting, { pathname: "/upcoming/e1", ownStart: false })).toBeNull();
+    // Another event's before-call page doesn't hold it back.
+    expect(liveMeetingToOpen(idle, starting, { pathname: "/upcoming/e2", ownStart: false })).toBe("m9");
+  });
+
+  it("fires once, on the meeting appearing, and not for one already running at launch", async () => {
+    const { liveMeetingToOpen } = await import("../src/renderer/src/recording");
+    const starting = { state: "starting", meetingId: "m9" } as const;
+    const recording = { state: "recording", meetingId: "m9", startedAt: "2026-11-02T10:00:00Z" } as const;
+    expect(liveMeetingToOpen(undefined, recording, { pathname: "/", ownStart: false })).toBeNull();
+    expect(liveMeetingToOpen(starting, recording, { pathname: "/", ownStart: false })).toBeNull();
+    expect(liveMeetingToOpen({ state: "idle" }, { state: "starting" }, { pathname: "/", ownStart: false })).toBeNull();
+    expect(liveMeetingToOpen(recording, { state: "stopping", meetingId: "m9" }, { pathname: "/", ownStart: false })).toBeNull();
+  });
+});

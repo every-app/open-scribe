@@ -13,3 +13,23 @@ export function wasCancelledStart(prev: RecordingSnapshot | undefined, next: Rec
   if (!prev || next.state !== "idle" || next.error) return false;
   return (prev.state === "starting" || prev.state === "stopping") && !prev.startedAt;
 }
+
+/**
+ * A recording someone started outside this window (app menu, Dock, tray, a calendar prompt):
+ * the meeting id to open, or null. Not when the window started it (it navigates itself), not
+ * when you're already on that meeting, not while you're writing on the same event's before-call
+ * page, and not for a recording already running when the window opened.
+ */
+export function liveMeetingToOpen(
+  prev: RecordingSnapshot | undefined,
+  next: RecordingSnapshot,
+  context: { pathname: string; ownStart: boolean },
+): string | null {
+  if (!prev || context.ownStart) return null;
+  const id = next.meetingId;
+  if (!id || id === prev.meetingId) return null;
+  if (next.state !== "starting" && next.state !== "recording") return null;
+  if (context.pathname === `/meetings/${id}`) return null;
+  if (next.calendarEventId && context.pathname === `/upcoming/${next.calendarEventId}`) return null;
+  return id;
+}

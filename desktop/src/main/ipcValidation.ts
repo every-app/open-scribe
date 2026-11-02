@@ -3,6 +3,7 @@
 
 import type { InvokeChannel, PermissionKind } from "@shared/ipc";
 import { isAllowedApiCall, isValidApiCallOptions } from "./api/routes";
+import { looksLikeLink } from "./clipboard";
 import { parseSettingsPatch } from "./settings";
 
 const isPermissionKind = (v: unknown): v is PermissionKind => v === "mic" || v === "systemAudio" || v === "notifications";
@@ -41,6 +42,7 @@ export const validators: { [C in InvokeChannel]: (args: unknown[]) => boolean } 
   },
   "app:openInBrowser": ([id]) => id === undefined || isString(id, 256),
   "api:call": ([method, path, opts, ...rest]) => rest.length === 0 && isAllowedApiCall(method, path) && isValidApiCallOptions(opts),
+  "clipboard:writeText": (a) => a.length === 1 && looksLikeLink(a[0]),
 };
 
 /** True when `args` are acceptable for `channel` (also exported for tests). */

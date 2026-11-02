@@ -14,6 +14,7 @@ import { PromptLedger } from "./calendar/ledger";
 import { devSignIn, helperPath, isDevFlavor, keychainDisabled } from "./config";
 import { HelperSupervisor } from "./helper/supervisor";
 import { registerIpc } from "./ipc";
+import { isCopyableUrl } from "./clipboard";
 import { log, logPath, logTail } from "./log";
 import { Connectivity } from "./connectivity";
 import { PendingUploads } from "./pending";
@@ -378,6 +379,10 @@ async function main(): Promise<void> {
     "api:meeting": (id) => withAuth(() => requireApi().meeting(id)),
     "api:updateMeeting": (id, patch) => withAuth(() => requireApi().updateMeeting(id, patch)),
     "api:call": (method, path, opts) => withAuth(() => requireApi().call(method, path, opts)),
+    "clipboard:writeText": (text) => {
+      if (!isCopyableUrl(text, auth.api?.appUrl)) throw new Error("Refused: only Talk links can be copied.");
+      clipboard.writeText(text);
+    },
     "app:openInBrowser": async (meetingId) => {
       const base = auth.api?.appUrl;
       if (!base) return;
