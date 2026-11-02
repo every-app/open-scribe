@@ -273,6 +273,24 @@ describe("recording against the fake helper and fake server", () => {
     await recording.stop();
   });
 
+  it("says it's stopping, since when, for a stop that takes a while, and clears it after", async () => {
+    const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
+    await auth.signInWithToken(fake.origin, "epat_good");
+    const { s } = make({ FAKE_HELPER_STOP_DELAY_MS: "400" });
+    const recording = new RecordingController(auth, s);
+    s.start();
+    await ready(s);
+    await recording.start({ title: "Long stop" });
+    const before = Date.now();
+    const stopping = recording.stop();
+    expect(recording.state).toMatchObject({ state: "stopping", stopping: true, stoppingSince: expect.any(String) });
+    expect(Date.parse(recording.state.stoppingSince!)).toBeGreaterThanOrEqual(before - 5);
+    await stopping;
+    expect(recording.state.stopping).toBeUndefined();
+    expect(recording.state.stoppingSince).toBeUndefined();
+    expect(recording.state.state).toBe("idle");
+  });
+
   it("surfaces fallback_backlog as a warning and keeps recording", async () => {
     const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
     await auth.signInWithToken(fake.origin, "epat_good");

@@ -31,6 +31,7 @@ import { typedAppUrl } from "./auth/url";
 import { guardNavigation, type AppOrigin } from "./navigation";
 import { helperIdentity, PermissionProbe } from "./permissions";
 import { SettingsStore } from "./settings";
+import { freshProfileDir, removeFreshProfile } from "./devProfile";
 import { applyLoginItem, applyTheme, loginItemStatus, requestNotificationPermission, settingsPaneUrl } from "./system";
 
 // `electron-vite dev` runs as "Talk Dev" too: its own userData and its own "Talk Dev Safe Storage"
@@ -42,6 +43,14 @@ if (!app.isPackaged) {
   if (!app.commandLine.hasSwitch("user-data-dir")) app.setPath("userData", join(app.getPath("appData"), "Talk Dev"));
   // A throwaway profile keeps its logs too, out of the installed Talk Dev's ~/Library/Logs.
   else app.setAppLogsPath(join(app.getPath("userData"), "logs"));
+}
+
+/** TALK_DEV_FRESH=1 in a dev build: a brand-new profile for this run, deleted on quit
+ * (devProfile.ts). Onboarding shows again; the normal Talk Dev profile isn't touched. */
+const freshProfile = freshProfileDir(process.env, isDevFlavor());
+if (freshProfile) {
+  app.setPath("userData", freshProfile);
+  app.on("quit", () => removeFreshProfile(freshProfile));
 }
 
 /** Talk's own page: the bundled renderer, or the electron-vite dev server in an unpackaged run.
@@ -73,6 +82,7 @@ if (!app.requestSingleInstanceLock()) {
 
 async function main(): Promise<void> {
   log(`Talk ${app.getVersion()} (${app.getName()}) starting; packaged ${app.isPackaged}`);
+  if (freshProfile) log(`dev: a fresh profile for this run (TALK_DEV_FRESH), deleted on quit: ${freshProfile}`);
   // The renderer needs no device or other permission; the helper does the capturing.
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
@@ -227,6 +237,19 @@ async function main(): Promise<void> {
       });
     },
     installUpdate: () => void installUpdate(),
+    // Dev builds: show first run again, without touching anything else in the profile.
+    resetOnboarding: isDevFlavor()
+      ? () => {
+          window.show();
+          const wc = window.webContents;
+          if (!wc || wc.isDestroyed()) return;
+          void wc
+            .executeJavaScript('localStorage.removeItem("talk.onboarded")')
+            .then(() => wc.reload())
+            .then(() => log("dev: onboarding reset"))
+            .catch((e: unknown) => log(`dev: couldn't reset onboarding: ${errorMessage(e)}`));
+        }
+      : undefined,
     showLogs: () => {
       const path = logPath();
       if (path) shell.showItemInFolder(path);

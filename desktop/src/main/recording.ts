@@ -112,7 +112,7 @@ export class RecordingController extends EventEmitter<RecordingEvents> {
 
   async stop(): Promise<void> {
     if (this.snapshot.state !== "recording" && this.snapshot.state !== "starting") return;
-    this.set({ state: "stopping" });
+    this.set({ state: "stopping", stopping: true, stoppingSince: new Date().toISOString() });
     try {
       const meetingId = this.snapshot.meetingId;
       const { segments, cancelled, finished, unsaved } = await this.helper.request("record.stop");

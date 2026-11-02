@@ -15,6 +15,8 @@
 //    unless TALK_NO_LAUNCH=1.
 // 5. With TALK_DEV_APP_URL + TALK_DEV_TOKEN set, writes the dev sign-in file so the app starts
 //    signed in (e.g. http://talk.localhost:8787 + any token against `everyapp dev` in stub mode).
+//    TALK_DEV_FRESH=1 instead launches it on a brand-new temp profile (first run, no sign-in, no
+//    settings), deleted on quit; the normal Talk Dev profile isn't touched.
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -123,8 +125,11 @@ mkdirSync(apps, { recursive: true });
 rmSync(target, { recursive: true, force: true });
 run("ditto", [built, target]);
 
-// 5. Dev sign-in.
-if (env.TALK_DEV_APP_URL && env.TALK_DEV_TOKEN) {
+// 5. Dev sign-in (not for a fresh run: TALK_DEV_FRESH=1 starts on a new, empty profile, and the
+//    normal profile is left alone).
+const fresh = env.TALK_DEV_FRESH === "1";
+if (fresh) step("TALK_DEV_FRESH=1: this launch starts on a brand-new profile (deleted on quit); no dev sign-in written");
+if (env.TALK_DEV_APP_URL && env.TALK_DEV_TOKEN && !fresh) {
   const userData = join(homedir(), "Library", "Application Support", PRODUCT);
   mkdirSync(userData, { recursive: true });
   const file = join(userData, "dev-signin.json");
@@ -135,7 +140,8 @@ if (env.TALK_DEV_APP_URL && env.TALK_DEV_TOKEN) {
 if (env.TALK_NO_LAUNCH === "1") {
   console.log(`\nInstalled ${target} (not launched).`);
 } else {
-  // `open` hands its environment to the app; keep build-time variables out of it.
+  // `open` hands its environment to the app; keep build-time variables out of it (TALK_DEV_FRESH
+  // stays: the app reads it at launch).
   const launchEnv = { ...env };
   for (const k of ["TALK_HELPER_PATH", "TALK_HELPER", "TALK_FAKE_HELPER", "TALK_HELPER_ARCHS", "TALK_DEV_TOKEN", "TALK_DEV_APP_URL"]) delete launchEnv[k];
   run("open", [target], { env: launchEnv });

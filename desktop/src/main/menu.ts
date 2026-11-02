@@ -14,6 +14,8 @@ export interface MenuActions {
   start(): void;
   stop(): void;
   showLogs(): void;
+  /** Dev builds only (absent in a release): clears the onboarding-seen flag. */
+  resetOnboarding?: () => void;
   copyDiagnostics(): void;
   checkForUpdates(): void;
   installUpdate(): void;
@@ -87,6 +89,9 @@ export class AppMenu {
         role: "help",
         submenu: [
           { label: "Show Logs", click: () => this.actions.showLogs() },
+          ...(this.actions.resetOnboarding
+            ? [{ type: "separator" } as MenuItemConstructorOptions, { label: "Reset Onboarding", click: () => this.actions.resetOnboarding?.() }]
+            : []),
           { label: "Copy Diagnostics", click: () => this.actions.copyDiagnostics() },
         ],
       },

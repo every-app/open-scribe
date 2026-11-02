@@ -214,3 +214,29 @@ test("an update that downloaded is offered, and waits for the recording to end",
   await expect.poll(async () => (await snap()).updater.deferred).toBe(false);
   expect(await menuLabels()).toContain("Restart to Update (9.9.9)");
 });
+
+test("Help → Reset Onboarding (dev builds) shows first run again", async () => {
+  const clicked = await app.evaluate(({ Menu }) => {
+    const find = (items: Electron.MenuItem[]): Electron.MenuItem | undefined => {
+      for (const i of items) {
+        if (i.label === "Reset Onboarding") return i;
+        const inner = i.submenu && find(i.submenu.items);
+        if (inner) return inner;
+      }
+      return undefined;
+    };
+    const item = find(Menu.getApplicationMenu()?.items ?? []);
+    item?.click();
+    return !!item;
+  });
+  expect(clicked).toBe(true);
+  await expect(page.getByRole("button", { name: "Continue" })).toBeVisible({ timeout: 15_000 });
+  // Only the flag went: still signed in, settings kept.
+  expect(JSON.parse(readFileSync(join(userData, "settings.json"), "utf8"))).toBeTruthy();
+  await page.evaluate(() => {
+    localStorage.setItem("talk.onboarded", "1");
+    location.hash = "#/";
+  });
+  await page.reload();
+  await expect(page.getByText("Coming up")).toBeVisible();
+});

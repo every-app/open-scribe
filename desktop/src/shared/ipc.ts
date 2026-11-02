@@ -122,6 +122,10 @@ export interface RecordingSnapshot {
   /** Something the person should know that doesn't stop the recording (e.g. the fallback upload
    * fell behind and dropped some audio: helper error `fallback_backlog`). */
   warning?: string;
+  /** True from Stop until the helper has saved everything; can take minutes after an outage
+   * (it transcribes the audio kept meanwhile). `stoppingSince` (ISO) gives the elapsed time. */
+  stopping?: boolean;
+  stoppingSince?: string;
   /** The live transcript's last finished line. */
   lastLine?: string;
   error?: string;

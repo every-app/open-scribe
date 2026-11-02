@@ -41,7 +41,7 @@ main (Node) ──────────────────────�
 - **Connection** (`src/main/connectivity.ts`): `connection` on the snapshot is `online`, `offline` or `signin-needed`. Every /api/v1 call reports its outcome: a network failure or a gateway 502/503/504 means offline, while any other answer proves the app is reachable. `net.isOnline()` is polled every 15 s. While offline, main probes `/api/v1/me` with backoff (2 s doubling to 60 s), and a network change or wake from sleep probes at once. A recording keeps running offline: the helper keeps failed segment posts and retries them every 10 s, and save failures aren't shown as a recording error while offline or `signin-needed`.
 - **Sign-in expiry**: a refresh refused with `invalid_grant`, or a 401 that survives a refresh, signs out with `auth.expired: true` and keeps `auth.appUrl` and `auth.method`. Cloudflare Access login pages set `auth.needsEveryAppSignIn`. Both make `connection` `signin-needed`, and the window asks to sign in again in place. An expiry doesn't stop a recording: the helper queues segments, asking `token.needed` about every 70 s, and the next sign-in sends `token.update`. Only a sign-out the person chose stops the recording.
 - **Unsaved transcript** (`src/main/pending.ts`): when record.stop hands back `unsaved` segments or `finished: false` (the app was unreachable at stop), main keeps them as text in `userData/pending/<meeting>.json` (0600). It replays them when the app is reachable and signed in (at once, on reconnect, or at the next launch): segments in batches of ≤ 200 first, then `/finish`. Re-posting is idempotent on seq (time-based since the helper's outage replay: `startedMs × 4 + them·2 + replayed·1`, so not consecutive). A deleted meeting or leftovers older than 14 days are dropped.
-- **Transcription outages**: `recording.transcription` follows the helper. `reconnecting` means Realtime is down and the audio is kept, up to 5 minutes per speaker. `catching_up` means that kept audio is being transcribed through the fallback while live audio goes on; then it returns to `live`. A stop waits for that replay before `/finish`, so main allows `record.stop` up to 20 minutes, and the recording reads `stopping` meanwhile.
+- **Transcription outages**: `recording.transcription` follows the helper. `reconnecting` means Realtime is down and the audio is kept, up to 5 minutes per speaker. `catching_up` means that kept audio is being transcribed through the fallback while live audio goes on; then it returns to `live`. A stop waits for that replay before `/finish`, so main allows `record.stop` up to 20 minutes; the helper's own worst case is about 14 minutes, including a 5-minute cap on the replay. Meanwhile the snapshot has `recording.stopping: true` and `recording.stoppingSince` (ISO), so the window can say "Finishing the transcript…" with the elapsed time.
 - **Helper crash**: a crash mid-recording calls `/finish` for what was posted and notifies "Recording stopped unexpectedly. Notes are being written from what was captured." The supervisor restarts the helper idle with backoff. `helper.crashes` and the count of recordings cut short appear in diagnostics.
 - **Logs** (`src/main/logfile.ts`): `~/Library/Logs/<app>/main.log`, rotating at 5 MB, keeping 3 files, 0600. Every line is redacted (bearer and OAuth tokens, codes in URLs, personal access tokens, JWTs, secret-named fields), and transcript text (`"text": …`) is dropped. The helper's stderr goes in too. Help → **Show Logs** reveals the file. **Copy Diagnostics** copies versions, macOS, connection, sign-in method and app host (no email), settings, helper health and crash counts, recording state (no title), pending uploads and the last 50 log lines.
 - **Updates** (`src/main/updates.ts`, only when the build has a feed):
@@ -71,6 +71,7 @@ The flows:
 - the offline banner while the mock drops connections, cleared once it's back
 - the "new access token" prompt, in place, while the mock answers 401, then signing in again
 - an update that "downloaded" (fake updater) is offered in the menu, is deferred during a recording and offered again after Stop
+- Help → Reset Onboarding shows first run again
 
 It always uses a temporary `--user-data-dir`, so it never takes the installed Talk Dev's lock or touches its settings or logs (an unpackaged run with that switch keeps its logs in the profile). On failure it keeps a screenshot and a trace in `test-results/e2e`.
 
@@ -99,6 +100,12 @@ The cost: a build signed without a Team ID (ad hoc, or a self-signed cert like "
 - It installs to `~/Applications/Talk Dev.app` (quitting a running copy first) and launches it. `TALK_NO_LAUNCH=1` skips the launch.
 
 **No Apple Developer ID is needed to run locally.** A stable self-signed cert keeps the microphone and system-audio grants across rebuilds, because TCC matches the bundle id plus the certificate. Ad hoc signing loses them on every rebuild. Dev builds keep sign-ins in memory only (below), so re-paste the token after a relaunch, or use the dev sign-in.
+
+### A fresh profile (first run again)
+
+`TALK_DEV_FRESH=1 pnpm package:local` (or `TALK_DEV_FRESH=1` in the environment of any dev-build launch, `pnpm dev` included) starts Talk Dev on a brand-new, throwaway profile. Onboarding shows, and there are no settings and no sign-in; paste a token in the sign-in screen. It lives in the temp dir as `talk-dev-fresh-*` and is deleted on quit; leftovers from a crashed run are swept at the next fresh start. The normal Talk Dev profile isn't read or written, and `package:local` writes no dev sign-in in this mode. Logs still go to `~/Library/Logs/Talk Dev`. Release builds ignore it.
+
+Dev builds also have Help → **Reset Onboarding**, which clears only the onboarding-seen flag and reloads the window.
 
 ### Signed in against local `everyapp dev`
 
