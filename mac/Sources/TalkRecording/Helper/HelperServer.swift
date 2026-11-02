@@ -61,6 +61,11 @@ public final class HelperServer {
   private var pipeline: RecordingPipeline?
   private var auth: HelperAuth?
   private var starting = false
+  /// `record.stop` arrived while `record.start` was still asking for the mic or fetching keys.
+  private var startCancelled = false
+  /// The pipeline a pending `record.start` is starting.
+  private var startingPipeline: RecordingPipeline?
+  private var startWaiters: [CheckedContinuation<Void, Never>] = []
   private var stopping = false
   private var closing = false
   private var mode: RecordingMode = .realtime
@@ -104,7 +109,7 @@ public final class HelperServer {
     closing = true
     setDetection(false)
     await auth?.close()
-    if pipeline != nil, !stopping { _ = try? await stop() }
+    if pipeline != nil || starting, !stopping { _ = try? await stop() }
   }
 
   /// The default input or output device changed.
@@ -167,10 +172,18 @@ public final class HelperServer {
     let language = p["language"]?.string ?? env.defaultLanguage
 
     starting = true
-    defer { starting = false }
+    startCancelled = false
+    defer {
+      starting = false
+      startingPipeline = nil
+      let waiters = startWaiters
+      startWaiters = []
+      for waiter in waiters { waiter.resume() }
+    }
     guard await env.requestMic() else {
       throw HelperError("mic_denied", "Talk needs the microphone. Allow it in System Settings → Privacy & Security → Microphone.")
     }
+    if startCancelled { throw Self.cancelledError }
     let auth = HelperAuth(appURL: apiBase, token: token, timeout: env.tokenTimeout) { [weak self] in
       Task { @MainActor in self?.emit("token.needed") }
     }
@@ -181,10 +194,12 @@ public final class HelperServer {
     mode = .realtime
     health = (.ok, .ok)
     self.auth = auth
+    startingPipeline = pipeline
     do {
       try await pipeline.start()
     } catch {
       self.auth = nil
+      if startCancelled || error is RecordingAborted { throw Self.cancelledError }
       throw Self.startError(error)
     }
     self.pipeline = pipeline
@@ -194,7 +209,23 @@ public final class HelperServer {
     return ["startedAt": .string(env.now().formatted(.iso8601))]
   }
 
+  static let cancelledError = HelperError("cancelled", "record.stop arrived before the recording started")
+
   private func stop() async throws -> JSONValue {
+    if starting, pipeline == nil, !stopping {
+      if startingPipeline?.isRunning == true {
+        // Capture already began: let start finish, then stop it like any recording.
+        await withCheckedContinuation { startWaiters.append($0) }
+      } else {
+        // Still asking for the mic or fetching keys: start won't capture. A pending 401 wait
+        // fails at once.
+        startCancelled = true
+        startingPipeline?.abort()
+        await auth?.close()
+        log("start cancelled by stop")
+        return ["segments": 0, "cancelled": true]
+      }
+    }
     guard let pipeline, !stopping else { throw HelperError("not_recording", "Not recording") }
     stopping = true
     defer { stopping = false }
@@ -243,6 +274,8 @@ public final class HelperServer {
       emit("levels", ["mic": .double(Self.round(mic)), "system": .double(Self.round(system))])
     case .saveProblem(let message):
       emitError("save_failed", message)
+    case .fallbackBacklog(let speaker, let message):
+      emitError("fallback_backlog", "\(speaker == .me ? "Your mic" : "Their side"): \(message)")
     }
   }
 

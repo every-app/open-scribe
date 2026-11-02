@@ -8,8 +8,14 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
   private let lock = NSLock()
   private var handler: Handler
   private var _requests: [URLRequest] = []
+  private var _completed: [String] = []
+  /// Runs before a request is answered (after it's recorded), to hold it in flight.
+  var hold: (@Sendable (_ path: String, _ index: Int) async -> Void)?
 
   init(_ handler: @escaping Handler) { self.handler = handler }
+
+  /// Paths in the order their answers came back.
+  var completed: [String] { lock.withLock { _completed } }
 
   var requests: [URLRequest] { lock.withLock { _requests } }
   func paths() -> [String] { requests.map { $0.url!.path } }
@@ -19,9 +25,15 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
 
   func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
     let token = (request.value(forHTTPHeaderField: "Authorization") ?? "").replacingOccurrences(of: "Bearer ", with: "")
-    let (status, body) = lock.withLock {
+    let path = request.url!.path
+    let index = lock.withLock {
       _requests.append(request)
-      return handler(request.url!.path, token)
+      return _requests.filter { $0.url!.path == path }.count - 1
+    }
+    await hold?(path, index)
+    let (status, body) = lock.withLock {
+      _completed.append(path)
+      return handler(path, token)
     }
     let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
     return (Data(body.utf8), response)
@@ -143,9 +155,10 @@ final class Output: @unchecked Sendable {
   func events(_ name: String) -> [JSONValue] { objects.filter { $0["event"]?.string == name } }
   func response(_ id: Int) -> JSONValue? { objects.first { $0["id"] == .int(id) } }
 
-  /// Polls until `condition` holds (or a second passes).
+  /// Polls until `condition` holds (or 10 s pass: generous for slow CI runners; a passing
+  /// test returns as soon as the condition holds).
   func waitFor(_ condition: () -> Bool) async -> Bool {
-    for _ in 0..<200 {
+    for _ in 0..<2000 {
       if condition() { return true }
       try? await Task.sleep(for: .milliseconds(5))
     }
@@ -187,4 +200,44 @@ func environment(worker: FakeWorker, rig: FakeRig, processes: FakeProcesses = Fa
   env.callDebounce = 0.05
   env.tokenTimeout = .seconds(5)
   return env
+}
+
+/// Holds callers until opened.
+final class Gate: @unchecked Sendable {
+  private let lock = NSLock()
+  private var open = false
+  private var waiters: [CheckedContinuation<Void, Never>] = []
+  private var _arrived = 0
+
+  var arrived: Int { lock.withLock { _arrived } }
+
+  func wait() async {
+    await withCheckedContinuation { (c: CheckedContinuation<Void, Never>) in
+      let resumeNow: Bool = lock.withLock {
+        _arrived += 1
+        if open { return true }
+        waiters.append(c)
+        return false
+      }
+      if resumeNow { c.resume() }
+    }
+  }
+
+  func release() {
+    let pending: [CheckedContinuation<Void, Never>] = lock.withLock {
+      open = true
+      defer { waiters = [] }
+      return waiters
+    }
+    for c in pending { c.resume() }
+  }
+}
+
+/// A clock that only moves when told to.
+final class ManualClock: @unchecked Sendable {
+  private let lock = NSLock()
+  private var current = ContinuousClock.now
+
+  var now: ContinuousClock.Instant { lock.withLock { current } }
+  func advance(by duration: Duration) { lock.withLock { current += duration } }
 }

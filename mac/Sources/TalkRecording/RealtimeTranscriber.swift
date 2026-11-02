@@ -272,17 +272,21 @@ public struct ChannelCallbacks: Sendable {
   public var delta: @Sendable (Speaker, String, String) -> Void
   /// A sentence when transcription is in trouble, nil when it's fine again.
   public var problem: @Sendable (Speaker, String?) -> Void
+  /// The fallback dropped queued audio because uploads couldn't keep up.
+  public var backlog: @Sendable (Speaker, String) -> Void
 
   public init(
     segment: @escaping @Sendable (Speaker, Int, Int, String) -> Void,
     stored: @escaping @Sendable (Segment) -> Void,
     delta: @escaping @Sendable (Speaker, String, String) -> Void,
-    problem: @escaping @Sendable (Speaker, String?) -> Void
+    problem: @escaping @Sendable (Speaker, String?) -> Void,
+    backlog: @escaping @Sendable (Speaker, String) -> Void = { _, _ in }
   ) {
     self.segment = segment
     self.stored = stored
     self.delta = delta
     self.problem = problem
+    self.backlog = backlog
   }
 }
 

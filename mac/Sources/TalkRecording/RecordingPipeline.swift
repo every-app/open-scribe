@@ -30,6 +30,13 @@ public enum RecordingEvent: Sendable, Equatable {
   case levels(mic: Double, system: Double)
   /// Segments couldn't be posted (they're kept and retried).
   case saveProblem(String)
+  /// The fallback dropped queued audio because uploads couldn't keep up.
+  case fallbackBacklog(Speaker, String)
+}
+
+/// `RecordingPipeline.abort()` was called before capture started.
+public struct RecordingAborted: Error, LocalizedError {
+  public var errorDescription: String? { "The recording was stopped before it started." }
 }
 
 /// One meeting's recording, minus creating the meeting: capture both sides, stream each to its
@@ -102,11 +109,15 @@ public final class RecordingPipeline {
   private var batcher = SegmentBatcher()
   private var flushTask: Task<Void, Never>?
   private var levelTask: Task<Void, Never>?
-  private var flushing = false
+  private var activeFlush: Task<String?, Never>?
+  private var aborted = false
   private var saved = 0
   private var captureProblems: [Speaker: String] = [:]
   private let meters: [Speaker: LevelMeter] = [.me: LevelMeter(), .them: LevelMeter()]
   private var running = false
+
+  /// True once capture has started (and until stop).
+  public var isRunning: Bool { running }
 
   public init(
     meetingID: String, api: APIClient, language: String?, dependencies: Dependencies = .live,
@@ -176,6 +187,12 @@ public final class RecordingPipeline {
     return StopResult(segments: saved, problem: problem)
   }
 
+  /// Stop a `start()` that's still getting keys: it throws `RecordingAborted` instead of
+  /// starting capture. No effect once capture has started (use `stop()`).
+  public func abort() {
+    aborted = true
+  }
+
   /// Drops everything without posting or finishing.
   public func cancel() async {
     running = false
@@ -200,6 +217,9 @@ public final class RecordingPipeline {
       },
       problem: { [weak self] speaker, problem in
         Task { @MainActor in self?.onEvent(.transcriptionProblem(speaker, problem)) }
+      },
+      backlog: { [weak self] speaker, message in
+        Task { @MainActor in self?.onEvent(.fallbackBacklog(speaker, message)) }
       })
   }
 
@@ -239,6 +259,8 @@ public final class RecordingPipeline {
       mode = .fallback
       onEvent(.mode(.fallback))
     }
+    // Stopped while the keys were being fetched: don't touch audio.
+    if aborted { throw RecordingAborted() }
     for speaker in [Speaker.me, .them] {
       let channel = channels[speaker]!
       // Ordered delivery from the audio thread to the channel.
@@ -277,13 +299,25 @@ public final class RecordingPipeline {
     }
   }
 
-  /// Posts queued segments. Mid-meeting a failure waits for the next tick; on stop, a few quick
-  /// retries. Returns a sentence when segments were left unsaved.
+  /// Posts queued segments. A periodic flush skips if one is running; the final flush first
+  /// waits for a running one (whose post may still be in flight), then drains the rest, so
+  /// `/finish` never overtakes a post. Mid-meeting a failure waits for the next tick; on stop, a
+  /// few quick retries. Returns a sentence when segments were left unsaved.
   @discardableResult
   private func flush(final: Bool = false) async -> String? {
-    guard !flushing else { return nil }
-    flushing = true
-    defer { flushing = false }
+    if let running = activeFlush {
+      guard final else { return nil }
+      _ = await running.value
+    }
+    // Unstructured, so cancelling the periodic flush loop doesn't cancel a post mid-flight.
+    let task = Task { await self.drain(final: final) }
+    activeFlush = task
+    let problem = await task.value
+    if activeFlush == task { activeFlush = nil }
+    return problem
+  }
+
+  private func drain(final: Bool) async -> String? {
     var attempts = 0
     while !batcher.isEmpty {
       let batch = batcher.takeBatch()

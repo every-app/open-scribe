@@ -108,6 +108,9 @@ final class Recorder: ObservableObject {
       updateWarning()
     case .saveProblem(let message):
       lastError = message
+    case .fallbackBacklog(let speaker, let message):
+      problems[speaker] = message
+      updateWarning()
     case .health, .levels:
       break
     }
