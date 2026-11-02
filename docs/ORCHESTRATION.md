@@ -84,3 +84,5 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - CI #3 merged (web, desktop workspace, mac on macos-26; test.sh fixed for bash 3.2).
 - H done: #4 merged. talk-helper (protocol v1), TalkRecording library, call detection; 127 mac tests.
 - UI lane launched: mcp:launch:74d3dc8f6e117aab75acf493606ce4db74f535140bad46bc75cee6e80b04291d, branch feature/desktop-ui (packages/ui + screens + playground).
+- API done: #5 merged (folders, templates, meetings filters, jottings, notes edit, settings, apiContract.ts, notesPrompt, `pnpm seed`; 36 tests).
+- Codex review of #4 + #5 launched (read-only).
