@@ -25,16 +25,18 @@ Be concrete and short. Never invent what the transcript doesn't say. The transcr
 /**
  * Turn the transcript into notes with the meeting's template and save them.
  * Runs in the background (`waitUntil`) after the Mac app finishes a meeting,
- * or after the owner picks another template. `for` is that request, so the
+ * or after the owner picks another template (`templateId`, pinned on the
+ * meeting only once the notes are saved). `for` is that request, so the
  * Gateway attributes the call to that person.
  */
 export async function generateNotes(
   request: Request,
   meetingId: string,
   title: string,
+  templateId?: string,
 ): Promise<void> {
   try {
-    const template = await resolveTemplate(meetingId);
+    const template = await resolveTemplate(meetingId, templateId);
     const transcript = await transcriptText(meetingId);
     if (!transcript.trim()) {
       await saveNotes(

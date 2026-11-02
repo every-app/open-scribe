@@ -301,9 +301,11 @@ export async function deleteMeeting(
 }
 
 /**
- * Choose the meeting's template and mark it for rewriting: the owner's
- * finished (or failed) meeting, with a template the owner may use. The
- * caller then runs generateNotes. Null when not allowed.
+ * Mark the meeting for rewriting with a template: the owner's finished (or
+ * failed) meeting, with a template the owner may use. The caller then runs
+ * generateNotes with that template, which pins it only once the notes are
+ * written, so a failed rewrite leaves the earlier notes and their template.
+ * Null when not allowed.
  */
 export async function rewriteWithTemplate(
   viewer: Viewer,
@@ -314,7 +316,6 @@ export async function rewriteWithTemplate(
   const [row] = await db
     .update(meetings)
     .set({
-      templateId,
       status: "processing",
       updatedAt: new Date().toISOString(),
     })

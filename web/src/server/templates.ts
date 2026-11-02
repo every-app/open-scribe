@@ -231,12 +231,16 @@ export async function setDefaultTemplateId(
 
 /**
  * The template a meeting's notes are written with, the first that applies:
- * the one chosen on the meeting; the default of a folder it is in (the
+ * `wanted` (a template being tried, see rewriteWithTemplate); the one
+ * chosen on the meeting; the default of a folder it is in (the
  * earliest it was added to, counting team folders and the owner's own);
  * the owner's default; General. A choice the owner may no longer use (a
  * deleted template, or another person's that went private) is skipped.
  */
-export async function resolveTemplate(meetingId: string): Promise<Template> {
+export async function resolveTemplate(
+  meetingId: string,
+  wanted?: string,
+): Promise<Template> {
   const [meeting] = await db
     .select({
       orgId: meetings.orgId,
@@ -265,6 +269,7 @@ export async function resolveTemplate(meetingId: string): Promise<Template> {
     .orderBy(asc(meetingFolders.addedAt));
 
   const candidates = [
+    wanted,
     meeting.templateId,
     ...folderDefaults.map((row) => row.templateId),
     await getDefaultTemplateId(owner),

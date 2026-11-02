@@ -51,7 +51,9 @@ export const setMeetingTemplate = createServerFn({ method: "POST" })
       data.templateId,
     );
     if (meeting) {
-      waitUntil(generateNotes(getRequest(), meeting.id, meeting.title));
+      waitUntil(
+        generateNotes(getRequest(), meeting.id, meeting.title, data.templateId),
+      );
       return { rewriting: true };
     }
     if (await meetings.chooseTemplate(user, data.id, data.templateId)) {

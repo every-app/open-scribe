@@ -158,13 +158,25 @@ function MeetingPage() {
         {view === "transcript" ? (
           <Transcript segments={meeting.segments} />
         ) : meeting.status === "processing" ? (
-          <Pending>Writing the notes with {meeting.template.name}…</Pending>
+          // The template being tried is pinned only once the notes are
+          // written, so the chip still names the earlier one: no name here.
+          <Pending>
+            {meeting.notes ? "Rewriting the notes…" : "Writing the notes…"}
+          </Pending>
         ) : meeting.status === "recording" ? (
           <Pending>
             Taking notes. They're written when the meeting ends.
           </Pending>
         ) : meeting.notes ? (
-          <Markdown text={meeting.notes.markdown} />
+          <>
+            {meeting.status === "failed" && (
+              <p className="mb-4 rounded-md border border-border px-3 py-2 text-sm text-muted-foreground">
+                The notes couldn't be rewritten. These are the earlier ones,
+                written with {meeting.template.name}.
+              </p>
+            )}
+            <Markdown text={meeting.notes.markdown} />
+          </>
         ) : (
           <p className="text-muted-foreground">
             {meeting.status === "failed"

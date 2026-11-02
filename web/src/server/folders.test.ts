@@ -204,9 +204,26 @@ describe("templates", () => {
     expect(
       await m.rewriteWithTemplate(alice, meeting.id, "interview"),
     ).toMatchObject({ status: "processing", attendeeCount: 1 });
+    // The new template is written with, but pinned only with the notes.
+    expect((await t.resolveTemplate(meeting.id, "interview")).id).toBe(
+      "interview",
+    );
     expect(await m.getMeeting(alice, meeting.id)).toMatchObject({
-      template: { id: "interview", chosen: true },
+      template: { id: "general" },
       attendees: [{ email: "x@example.com", name: "X", self: false }],
+    });
+    // A failed rewrite keeps the earlier notes under their template.
+    await m.markFailed(meeting.id);
+    expect(await m.getMeeting(alice, meeting.id)).toMatchObject({
+      status: "failed",
+      notes: { markdown: "Notes" },
+      template: { id: "general" },
+    });
+    await m.rewriteWithTemplate(alice, meeting.id, "interview");
+    await m.saveNotes(meeting.id, "Rewritten", "test-model", "interview");
+    expect(await m.getMeeting(alice, meeting.id)).toMatchObject({
+      status: "done",
+      template: { id: "interview", chosen: true },
     });
   });
 });
