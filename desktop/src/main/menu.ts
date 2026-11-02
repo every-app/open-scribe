@@ -6,6 +6,7 @@
 
 import { app, Menu, type MenuItemConstructorOptions } from "electron";
 import type { AppSnapshot } from "@shared/ipc";
+import { checkItem, restartItem } from "./updates";
 
 export interface MenuActions {
   open(): void;
@@ -14,6 +15,8 @@ export interface MenuActions {
   stop(): void;
   showLogs(): void;
   copyDiagnostics(): void;
+  checkForUpdates(): void;
+  installUpdate(): void;
 }
 
 /** The recording items, shared by the app menu and the Dock menu. No accelerators: the window
@@ -32,8 +35,17 @@ export class AppMenu {
 
   constructor(private readonly actions: MenuActions) {}
 
+  private updateItems(s: AppSnapshot): MenuItemConstructorOptions[] {
+    const check = checkItem(s.updater);
+    const restart = restartItem(s.updater, s.recording.state);
+    const items: MenuItemConstructorOptions[] = [];
+    if (check) items.push({ label: check.label, enabled: check.enabled, click: () => this.actions.checkForUpdates() });
+    if (restart) items.push({ label: restart.label, enabled: restart.enabled, click: () => this.actions.installUpdate() });
+    return items;
+  }
+
   update(s: AppSnapshot): void {
-    const key = JSON.stringify([s.auth.status, s.helper.status, s.recording.state]);
+    const key = JSON.stringify([s.auth.status, s.helper.status, s.recording.state, s.updater.enabled, s.updater.state, s.updater.version]);
     if (key === this.lastKey) return;
     this.lastKey = key;
     const recording = recordingItems(s, this.actions);
@@ -42,6 +54,8 @@ export class AppMenu {
         label: app.getName(),
         submenu: [
           { role: "about" },
+          { label: "Copy Diagnostics", click: () => this.actions.copyDiagnostics() },
+          ...this.updateItems(s),
           { type: "separator" },
           { label: "Settings…", accelerator: "CmdOrCtrl+,", click: () => this.actions.settings() },
           { type: "separator" },

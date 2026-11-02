@@ -1,7 +1,7 @@
 // Talk's main process: sign-in and tokens, the tray, the window, calendar prompts, the updater,
 // and the helper supervisor. The renderer reaches it only through the typed preload bridge.
 
-import { app, BrowserWindow, clipboard, dialog, net, powerMonitor, session, shell, safeStorage } from "electron";
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, net, Notification, powerMonitor, session, shell, safeStorage } from "electron";
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import type { AppSnapshot, LoginItemSnapshot, PermissionKind, StartRecordingRequest } from "@shared/ipc";
@@ -22,7 +22,9 @@ import { PendingUploads } from "./pending";
 import { buildDiagnostics } from "./diagnostics";
 import { RecordingController } from "./recording";
 import { TrayController, trayStateFor } from "./tray";
-import { startUpdater, type UpdaterState } from "./updater";
+import { createUpdater } from "./updater";
+import type { UpdateController } from "./updates";
+import { RecordShortcut } from "./shortcut";
 import { MainWindow } from "./window";
 import { AppMenu } from "./menu";
 import { typedAppUrl } from "./auth/url";
@@ -140,7 +142,16 @@ async function main(): Promise<void> {
   };
   const window = new MainWindow(join(__dirname, "../preload/index.js"));
 
-  let updater: UpdaterState = { enabled: false };
+  let updates: UpdateController | undefined;
+  /** Restart into a downloaded update. The window hides instead of closing, so mark the quit
+   * first, or the updater would wait for it forever; during a recording the controller defers. */
+  const installUpdate = (): { deferred: boolean } => {
+    if (!updates) return { deferred: false };
+    if (!recording.isActive && updates.state.state === "ready") window.quitting = true;
+    const result = updates.install();
+    if (result.deferred) calendar.notify("Update after this recording", "Talk will offer to restart when you stop recording.");
+    return result;
+  };
 
   const notifyError = (title: string, error: unknown) => calendar.notify(title, errorMessage(error));
 
@@ -174,13 +185,48 @@ async function main(): Promise<void> {
     start: () => void startRecording({}).catch((e) => notifyError("Talk couldn't start", e)),
     stop: () => void recording.stop().catch((e) => notifyError("Talk couldn't stop", e)),
     quit: () => app.quit(),
+    installUpdate: () => void installUpdate(),
   });
+
+  /** ⌃⌥⌘R from anywhere (the setting is off by default): start a recording, or stop the one running. */
+  const shortcut = new RecordShortcut(
+    {
+      register: (accelerator, fn) => globalShortcut.register(accelerator, fn),
+      unregister: (accelerator) => globalShortcut.unregister(accelerator),
+    },
+    () => {
+      if (recording.isActive) void recording.stop().catch((e) => notifyError("Talk couldn't stop", e));
+      else void startRecording({}).catch((e) => notifyError("Talk couldn't start", e));
+    },
+    log,
+  );
+  app.on("will-quit", () => shortcut.set(false));
+
+  /** About Talk: the app and recorder versions (from the helper's hello). */
+  const setAbout = () =>
+    app.setAboutPanelOptions({
+      applicationName: app.getName(),
+      applicationVersion: app.getVersion(),
+      version: helper.state.version ? `recorder ${helper.state.version}` : "recorder not running",
+      copyright: "Every App",
+      credits: "Help → Copy Diagnostics copies what support needs.",
+    });
+  setAbout();
 
   const menu = new AppMenu({
     open: () => window.show(),
     settings: () => window.showAndSend("navigate", { to: "settings" }),
     start: () => void startRecording({}).catch((e) => notifyError("Talk couldn't start", e)),
     stop: () => void recording.stop().catch((e) => notifyError("Talk couldn't stop", e)),
+    checkForUpdates: () => {
+      if (!updates) return;
+      void updates.check(true).then(() => {
+        const u = updates?.state;
+        if (u?.state === "upToDate") calendar.notify("Talk is up to date", `You have ${app.getVersion()}.`);
+        else if (u?.state === "error") calendar.notify("Couldn't check for updates", u.error ?? "");
+      });
+    },
+    installUpdate: () => void installUpdate(),
     showLogs: () => {
       const path = logPath();
       if (path) shell.showItemInFolder(path);
@@ -213,7 +259,8 @@ async function main(): Promise<void> {
       helper: helper.state,
       recording: recording.state,
       calendar: calendar.state,
-      updater,
+      updater: updates?.state ?? { enabled: false, state: "idle" as const },
+      recordShortcut: shortcut.status,
       settings: settings.value,
       connection: online.state,
       permissions: probe.snapshot(helper.state.permissions),
@@ -292,6 +339,7 @@ async function main(): Promise<void> {
         // Gone: no identity, so nothing counts.
       }
       probe.setHelper(helperIdentity({ path, ...stat, version: h.version, macos: h.macos }));
+      setAbout();
     }
     helperHello = hello || helperHello;
     const key = JSON.stringify(h.permissions ?? null);
@@ -309,9 +357,17 @@ async function main(): Promise<void> {
     if (changed.callDetection !== undefined) syncDetection();
     if (changed.reminderLeadMinutes !== undefined) calendar.replan();
     if (changed.launchAtLogin !== undefined) loginItem = applyLoginItem(value.launchAtLogin, log);
+    if (changed.recordShortcut !== undefined) shortcut.set(value.recordShortcut);
     broadcast();
   });
-  recording.on("change", broadcast);
+  let wasRecording = false;
+  recording.on("change", (r) => {
+    // A restart asked for during the recording waits for it to end.
+    const active = r.state !== "idle";
+    if (wasRecording && !active) updates?.recordingStopped();
+    wasRecording = active;
+    broadcast();
+  });
   recording.on("crashed", () => {
     calendar.notify("Recording stopped unexpectedly", "Notes are being written from what was captured. Talk is restarting its recorder.");
   });
@@ -398,6 +454,7 @@ async function main(): Promise<void> {
     "api:meeting": (id) => withAuth(() => requireApi().meeting(id)),
     "api:updateMeeting": (id, patch) => withAuth(() => requireApi().updateMeeting(id, patch)),
     "api:call": (method, path, opts) => withAuth(() => requireApi().call(method, path, opts)),
+    "update:install": () => installUpdate(),
     "clipboard:writeText": (text) => {
       if (!isCopyableUrl(text, auth.api?.appUrl)) throw new Error("Refused: only https links or this Talk's own links can be copied.");
       clipboard.writeText(normalizedLink(text));
@@ -488,18 +545,29 @@ async function main(): Promise<void> {
   helper.start();
   window.show();
   broadcast();
-  updater = await startUpdater(
+  shortcut.set(settings.value.recordShortcut);
+  updates = await createUpdater({
+    appUrl: () => auth.api?.appUrl,
+    accessToken: () => auth.accessToken(),
+    freshAccessToken: () => auth.freshAccessToken(),
+    canCheck: () => auth.state.status === "signedIn" && online.state === "online",
+    isRecording: () => recording.isActive,
     log,
-    (u) => {
-      updater = u;
-      broadcast();
-    },
-    {
-      appUrl: () => auth.api?.appUrl,
-      accessToken: () => auth.accessToken(),
-      freshAccessToken: () => auth.freshAccessToken(),
-    },
-  );
+  });
+  if (updates) {
+    updates.on("change", broadcast);
+    updates.on("ready", ({ version }) => window.send("update", { state: "ready", version }));
+    updates.on("offer", ({ version }) => {
+      if (!Notification.isSupported()) return;
+      const n = new Notification({ title: "Restart to update Talk", body: `Talk ${version} is ready. Click to restart now.` });
+      n.on("click", () => void installUpdate());
+      n.show();
+    });
+    updates.start();
+    // A check that was skipped (signed out or offline at launch) runs once that changes.
+    online.on("change", (c) => c === "online" && void updates?.check(false));
+    auth.on("change", (a) => a.status === "signedIn" && void updates?.check(false));
+  }
   broadcast();
   for (const url of pendingUrls.splice(0)) handleUrl(url);
 }

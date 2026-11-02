@@ -62,6 +62,8 @@ test.beforeAll(async () => {
     TALK_DEV_APP_URL: mock.url,
     TALK_DEV_TOKEN: "e2e-token",
     FAKE_HELPER_LINE_MS: "600",
+    // A fake updater that finds and "downloads" this version at launch (dev builds only).
+    TALK_E2E_FAKE_UPDATE: "9.9.9",
     // No real recorder, ever: the unpackaged app runs scripts/fake-helper.mjs unless this is set.
     TALK_HELPER_PATH: "",
   });
@@ -185,4 +187,30 @@ test("shows the sign-in-again prompt, in place, when the token is refused", asyn
   await page.getByLabel("New access token").fill("e2e-token-2");
   await page.getByRole("button", { name: /^Sign in$/ }).click();
   await expect(page.getByLabel("New access token")).toBeHidden({ timeout: 15_000 });
+});
+
+test("an update that downloaded is offered, and waits for the recording to end", async () => {
+  type Snap = { updater: { state: string; version?: string; deferred?: boolean }; recording: { state: string } };
+  const snap = () => page.evaluate(() => (window as unknown as { talk: { "state:get"(): Promise<unknown> } }).talk["state:get"]()) as Promise<Snap>;
+  await expect.poll(async () => (await snap()).updater).toMatchObject({ state: "ready", version: "9.9.9" });
+  const menuLabels = () =>
+    app.evaluate(({ Menu }) => {
+      const out: string[] = [];
+      const walk = (items: Electron.MenuItem[]) => items.forEach((i) => (out.push(i.label), i.submenu && walk(i.submenu.items)));
+      walk(Menu.getApplicationMenu()?.items ?? []);
+      return out;
+    });
+  expect(await menuLabels()).toContain("Restart to Update (9.9.9)");
+  // During a recording, asking to restart defers it; Stop offers it again.
+  await page.evaluate(() => (location.hash = "#/"));
+  await page.keyboard.press("Meta+n");
+  await page.waitForURL(/#\/meetings\//);
+  await expect.poll(async () => (await snap()).recording.state).toBe("recording");
+  expect(await menuLabels()).toContain("Restart to Update (9.9.9) after this recording");
+  const result = await page.evaluate(() => (window as unknown as { talk: { "update:install"(): Promise<{ deferred: boolean }> } }).talk["update:install"]());
+  expect(result).toEqual({ deferred: true });
+  expect((await snap()).updater.deferred).toBe(true);
+  await page.getByRole("button", { name: /^Stop$/ }).click();
+  await expect.poll(async () => (await snap()).updater.deferred).toBe(false);
+  expect(await menuLabels()).toContain("Restart to Update (9.9.9)");
 });

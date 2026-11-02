@@ -43,6 +43,7 @@ export const validators: { [C in InvokeChannel]: (args: unknown[]) => boolean } 
   "app:openInBrowser": ([id]) => id === undefined || isString(id, 256),
   "api:call": ([method, path, opts, ...rest]) => rest.length === 0 && isAllowedApiCall(method, path) && isValidApiCallOptions(opts),
   "clipboard:writeText": (a) => a.length === 1 && looksLikeLink(a[0]),
+  "update:install": (a) => a.length === 0,
 };
 
 /** True when `args` are acceptable for `channel` (also exported for tests). */

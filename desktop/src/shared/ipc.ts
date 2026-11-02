@@ -22,6 +22,8 @@ export interface Settings {
    * `record.start { echoCancellation }`), for laptop speakers without headphones. Off by default
    * until a hardware test; applies from the next recording. */
   echoCancellation: boolean;
+  /** A global shortcut, ⌃⌥⌘R, that starts or stops a recording from anywhere. Off by default. */
+  recordShortcut: boolean;
 }
 
 export type SettingsPatch = Partial<Settings>;
@@ -32,6 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reminderLeadMinutes: 1,
   theme: "system",
   echoCancellation: false,
+  recordShortcut: false,
 };
 
 export const MAX_REMINDER_LEAD_MINUTES = 30;
@@ -68,6 +71,25 @@ export interface AuthSnapshot {
   /** Signed out because the session ended (refresh refused, 401 after refresh), not by choice.
    * `appUrl` and `method` are kept so the window can offer "Sign in again" in place. */
   expired?: boolean;
+}
+
+/** Updates (only in a build with a feed). "ready": downloaded, waiting for "Restart to Update".
+ * `deferred`: a restart was asked for during a recording; it's offered again after Stop. */
+export interface UpdateSnapshot {
+  enabled: boolean;
+  state: "idle" | "checking" | "downloading" | "ready" | "upToDate" | "error";
+  version?: string;
+  /** 0–1 while downloading. */
+  progress?: number;
+  deferred?: boolean;
+  error?: string;
+  lastCheck?: string;
+}
+
+/** Pushed once when an update has downloaded. */
+export interface UpdateReadyEvent {
+  state: "ready";
+  version: string;
 }
 
 /** Whether Talk can reach its app. "signin-needed": the sign-in expired or Cloudflare Access wants
@@ -119,7 +141,9 @@ export interface AppSnapshot {
   recording: RecordingSnapshot;
   calendar: CalendarSnapshot;
   tray: TrayState;
-  updater: { enabled: boolean; status?: string };
+  updater: UpdateSnapshot;
+  /** The optional global shortcut (⌃⌥⌘R): "conflict" when another app holds it. */
+  recordShortcut: "off" | "on" | "conflict";
   settings: Settings;
   connection: Connection;
   permissions: PermissionsSnapshot;
@@ -160,6 +184,8 @@ export interface InvokeMap {
   "api:call": [[method: ApiMethod, path: string, opts?: ApiCallOptions], unknown];
   /** Copy a link (https, or the app's own origin; ≤ 2 KB): the sandboxed window can't. */
   "clipboard:writeText": [[text: string], void];
+  /** Restart into a downloaded update; during a recording it's deferred until Stop. */
+  "update:install": [[], { deferred: boolean }];
 }
 
 export type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -180,6 +206,7 @@ export interface EventMap {
   state: AppSnapshot;
   helper: HelperEvent;
   navigate: NavigateRequest;
+  update: UpdateReadyEvent;
 }
 
 export type EventChannel = keyof EventMap;
@@ -213,6 +240,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   "app:openInBrowser",
   "api:call",
   "clipboard:writeText",
+  "update:install",
 ] as const;
 
-export const EVENT_CHANNELS: readonly EventChannel[] = ["state", "helper", "navigate"] as const;
+export const EVENT_CHANNELS: readonly EventChannel[] = ["state", "helper", "navigate", "update"] as const;

@@ -15,6 +15,7 @@ const checks: { [K in keyof Settings]: (v: unknown) => v is Settings[K] } = {
   reminderLeadMinutes: (v): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= MAX_REMINDER_LEAD_MINUTES,
   theme: (v): v is ThemePreference => THEMES.includes(v as ThemePreference),
   echoCancellation: (v): v is boolean => typeof v === "boolean",
+  recordShortcut: (v): v is boolean => typeof v === "boolean",
 };
 
 /** A valid patch, or null: a plain object with only known keys, each with a valid value. */

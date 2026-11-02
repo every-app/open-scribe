@@ -5,12 +5,14 @@
 import { app, Menu, nativeImage, Tray, type NativeImage } from "electron";
 import { join } from "node:path";
 import type { AppSnapshot, TrayState } from "@shared/ipc";
+import { restartItem } from "./updates";
 
 export interface TrayActions {
   open(): void;
   start(): void;
   stop(): void;
   quit(): void;
+  installUpdate(): void;
 }
 
 function icon(name: string): NativeImage {
@@ -43,7 +45,7 @@ export class TrayController {
   update(s: AppSnapshot): void {
     const tray = this.tray;
     if (!tray || !this.icons) return;
-    const key = JSON.stringify([s.tray, s.auth.status, s.auth.email, s.recording.state, s.recording.title, s.recording.lastLine, s.recording.warning, s.recording.error, s.helper.status]);
+    const key = JSON.stringify([s.tray, s.auth.status, s.auth.email, s.recording.state, s.recording.title, s.recording.lastLine, s.recording.warning, s.recording.error, s.helper.status, s.updater.state, s.updater.version]);
     if (key === this.lastKey) return;
     this.lastKey = key;
     tray.setImage(this.icons[s.tray]);
@@ -67,6 +69,10 @@ export class TrayController {
       { label: "Open Talk", click: () => this.actions.open() },
       { label: "Start Recording", enabled: signedIn && !busy && s.helper.status === "ready", click: () => this.actions.start() },
       { label: "Stop Recording", enabled: r.state === "recording" || r.state === "starting", click: () => this.actions.stop() },
+    );
+    const restart = restartItem(s.updater, r.state);
+    if (restart) items.push({ type: "separator" }, { label: restart.label, enabled: restart.enabled, click: () => this.actions.installUpdate() });
+    items.push(
       { type: "separator" },
       { label: "Quit Talk", accelerator: "Command+Q", click: () => this.actions.quit() },
     );

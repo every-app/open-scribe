@@ -35,7 +35,7 @@ export function buildDiagnostics(d: DiagnosticsInput): string {
     `Pending uploads: ${d.pendingUploads}`,
     `Permissions: mic ${s.permissions.mic}, system audio ${s.permissions.systemAudio}, notifications ${s.permissions.notifications}`,
     `Settings: ${JSON.stringify(s.settings)}`,
-    `Login item: ${s.loginItem.status}; calendar connected ${s.calendar.connected}, ${s.calendar.events.length} upcoming; updater ${s.updater.enabled ? s.updater.status ?? "on" : "off"}`,
+    `Login item: ${s.loginItem.status}; calendar connected ${s.calendar.connected}, ${s.calendar.events.length} upcoming; updater ${s.updater.enabled ? `${s.updater.state}${s.updater.version ? ` ${s.updater.version}` : ""}${s.updater.deferred ? " (deferred)" : ""}` : "off"}; record shortcut ${s.recordShortcut}`,
     "",
     `Last ${d.logTail.length} log lines:`,
     ...d.logTail.map(redact),
