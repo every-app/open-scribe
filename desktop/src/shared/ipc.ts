@@ -1,7 +1,9 @@
 // The typed bridge between the renderer and main. The preload exposes `window.talk` with exactly
 // these calls; main registers a handler for each `invoke` channel and validates its arguments.
 
-import type { HelperEvent, PermissionStatus, ChannelHealth, TranscriptionState } from "./protocol";
+import type { HelperEvent, PermissionStatus, ChannelHealth, SelfTestReport, SelfTestRequest, TranscriptionState } from "./protocol";
+
+export type { SelfTestReport, SelfTestRequest, SelfTestSide } from "./protocol";
 import type { CalendarEvent, Me, MeetingDetail, MeetingPatch, MeetingSummary } from "./api";
 
 export type TrayState = "idle" | "recording" | "attention";
@@ -147,6 +149,8 @@ export interface AppSnapshot {
   calendar: CalendarSnapshot;
   tray: TrayState;
   updater: UpdateSnapshot;
+  /** A self-test is running: recording can't start until it ends. */
+  selfTest: { running: boolean };
   /** The optional global shortcut (⌃⌥⌘R): "conflict" when another app holds it. */
   recordShortcut: "off" | "on" | "conflict";
   settings: Settings;
@@ -189,6 +193,10 @@ export interface InvokeMap {
   "api:call": [[method: ApiMethod, path: string, opts?: ApiCallOptions], unknown];
   /** Copy a link (https, or the app's own origin; ≤ 2 KB): the sandboxed window can't. */
   "clipboard:writeText": [[text: string], void];
+  /** "Test microphone & system audio": a local capture for `seconds` (2–15, default 8; the
+   * helper's selftest.run). `{ event: "levels", mic, system }` (0–1, 10 Hz) arrive on the
+   * "helper" channel meanwhile. Refused while recording; a recording can't start meanwhile. */
+  "selftest:run": [[request?: SelfTestRequest], SelfTestReport];
   /** Restart into a downloaded update; during a recording it's deferred until Stop. */
   "update:install": [[], { deferred: boolean }];
 }
@@ -246,6 +254,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   "api:call",
   "clipboard:writeText",
   "update:install",
+  "selftest:run",
 ] as const;
 
 export const EVENT_CHANNELS: readonly EventChannel[] = ["state", "helper", "navigate", "update"] as const;

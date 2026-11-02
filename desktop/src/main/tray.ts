@@ -45,7 +45,7 @@ export class TrayController {
   update(s: AppSnapshot): void {
     const tray = this.tray;
     if (!tray || !this.icons) return;
-    const key = JSON.stringify([s.tray, s.auth.status, s.auth.email, s.recording.state, s.recording.title, s.recording.lastLine, s.recording.warning, s.recording.error, s.helper.status, s.updater.state, s.updater.version]);
+    const key = JSON.stringify([s.tray, s.auth.status, s.auth.email, s.recording.state, s.recording.title, s.recording.lastLine, s.recording.warning, s.recording.error, s.helper.status, s.selfTest.running, s.updater.state, s.updater.version]);
     if (key === this.lastKey) return;
     this.lastKey = key;
     tray.setImage(this.icons[s.tray]);
@@ -67,7 +67,7 @@ export class TrayController {
     items.push(
       { type: "separator" },
       { label: "Open Talk", click: () => this.actions.open() },
-      { label: "Start Recording", enabled: signedIn && !busy && s.helper.status === "ready", click: () => this.actions.start() },
+      { label: "Start Recording", enabled: signedIn && !busy && s.helper.status === "ready" && !s.selfTest.running, click: () => this.actions.start() },
       { label: "Stop Recording", enabled: r.state === "recording" || r.state === "starting", click: () => this.actions.stop() },
     );
     const restart = restartItem(s.updater, r.state);

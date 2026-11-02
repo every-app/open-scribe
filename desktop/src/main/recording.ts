@@ -31,6 +31,8 @@ export class RecordingController extends EventEmitter<RecordingEvents> {
   /** While offline or waiting for a new sign-in, failed posts are expected (the helper keeps them
    * and retries); main's banner says so, so they aren't shown as a recording error. */
   saveFailuresExpected: () => boolean = () => false;
+  /** Why a recording can't start right now (a microphone test is running), or undefined. */
+  startBlocked: () => string | undefined = () => undefined;
 
   constructor(
     private readonly auth: AuthService,
@@ -74,6 +76,8 @@ export class RecordingController extends EventEmitter<RecordingEvents> {
 
   async start(options: StartOptions): Promise<void> {
     if (this.isActive) throw new Error(`Talk is already taking notes for “${this.snapshot.title}”.`);
+    const blocked = this.startBlocked();
+    if (blocked) throw new Error(blocked);
     const api = this.auth.api;
     if (!api) throw new Error("Sign in to Talk first.");
     this.set({ state: "starting", title: options.title, calendarEventId: options.calendarEventId, error: undefined }, true);

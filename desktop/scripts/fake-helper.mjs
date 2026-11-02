@@ -17,6 +17,8 @@
 //   FAKE_HELPER_STOP_UNSAVED=1    record.stop hands back the unposted segments as `unsaved`, with
 //                                 `finished: false` (as if the app was unreachable at stop)
 //   FAKE_HELPER_STOP_DELAY_MS=n   record.stop takes n ms (a stop that waits on an outage replay)
+//   FAKE_HELPER_SELFTEST_SYSTEM=ok|denied  selftest.run's system side (default ok); a self-test
+//                                 lasts its `seconds` × 100 ms (fast for tests)
 //   FAKE_HELPER_START_ERROR=code  record.start fails with that error code
 //   FAKE_HELPER_START_DELAY_MS=n  record.start takes n ms; a record.stop meanwhile cancels it (stop
 //                                 answers { segments: 0, cancelled: true }, start errors `cancelled`)
@@ -38,6 +40,7 @@ const permissions = { mic: env.FAKE_HELPER_MIC ?? "granted", systemAudio: "unkno
 let rec; // { meetingId, apiBase, token, startedAt, seq, pending: [], timers: [] }
 let detectTimers = [];
 let starting; // { cancel() } while record.start waits out FAKE_HELPER_START_DELAY_MS
+let selfTesting = false;
 
 const LINES = {
   me: ["Thanks everyone for joining.", "Let's go through the launch plan.", "I'll send the notes after this.", "Any blockers on your side?"],
@@ -142,7 +145,22 @@ const handlers = {
     if (p?.kind === "mic" && permissions.mic === "undetermined") permissions.mic = "granted";
     return { ...permissions };
   },
+  "selftest.run": async (p) => {
+    if (rec || starting) throw { code: "busy", message: "Recording; stop first" };
+    if (selfTesting) throw { code: "busy", message: "A self-test is already running" };
+    const seconds = p?.seconds ?? 8;
+    if (!Number.isInteger(seconds) || seconds < 1 || seconds > 60) throw { code: "bad_params", message: "seconds must be 1–60" };
+    selfTesting = true;
+    const systemOk = env.FAKE_HELPER_SELFTEST_SYSTEM !== "denied";
+    const ticker = setInterval(() => event("levels", { mic: 0.3, system: systemOk ? 0.2 : 0 }), 10);
+    await new Promise((r) => setTimeout(r, seconds * 100));
+    clearInterval(ticker);
+    selfTesting = false;
+    const side = (status, peak) => ({ status, peak, sampleRate: 48000, device: "Fake", clipping: false, clippedSamples: 0, dropouts: 0 });
+    return { seconds, passed: systemOk, voiceProcessing: p?.echoCancellation === true, mic: side("ok", 0.3), system: systemOk ? side("ok", 0.2) : side("denied", 0) };
+  },
   "record.start": async (p) => {
+    if (selfTesting) throw { code: "busy", message: "A self-test is running" };
     if (rec || starting) throw { code: "already_recording", message: "Already recording." };
     if (!p?.meetingId || !p?.apiBase || !p?.accessToken) throw { code: "bad_params", message: "meetingId, apiBase and accessToken are required." };
     if (p.echoCancellation != null && typeof p.echoCancellation !== "boolean") throw { code: "bad_params", message: "echoCancellation must be a boolean." };

@@ -6,6 +6,33 @@ export const HELPER_PROTOCOL = 1;
 export type PermissionStatus = "granted" | "denied" | "undetermined" | "unknown";
 export type Speaker = "me" | "them";
 
+export interface SelfTestRequest {
+  /** 1–60, default 8. */
+  seconds?: number;
+  echoCancellation?: boolean;
+}
+
+/** One side of a self-test. System audio "denied" means only digital silence came through: what
+ * a tap without permission delivers, and also what nothing playing sounds like. */
+export interface SelfTestSide {
+  status: "ok" | "silent" | "denied" | "error";
+  peak: number;
+  sampleRate?: number;
+  device?: string;
+  clipping: boolean;
+  clippedSamples: number;
+  dropouts: number;
+  message?: string;
+}
+
+export interface SelfTestReport {
+  seconds: number;
+  passed: boolean;
+  voiceProcessing: boolean;
+  mic: SelfTestSide;
+  system: SelfTestSide;
+}
+
 export type TranscriptionState = "live" | "reconnecting" | "catching_up";
 
 /** A finished transcript line, as posted to /api/v1/meetings/:id/segments. */
@@ -43,6 +70,9 @@ export interface HelperCommands {
   "record.stop": { params: undefined; result: { segments: number; cancelled?: boolean; finished?: boolean; unsaved?: TranscriptSegment[] } };
   "token.update": { params: { accessToken: string }; result: Record<string, never> };
   "detect.set": { params: { enabled: boolean }; result: Record<string, never> };
+  /** Captures both sides locally (no network, nothing saved) and streams `levels` meanwhile.
+   * `busy` while recording; record.start is `busy` during it. */
+  "selftest.run": { params: SelfTestRequest; result: SelfTestReport };
 }
 
 export type HelperCommand = keyof HelperCommands;

@@ -163,7 +163,8 @@ describe("update menu items", () => {
     expect(restartItem({ enabled: false, state: "idle" }, "idle")).toBeNull();
   });
   it("shows Check for Updates only with a feed, disabled while busy", () => {
-    expect(checkItem({ enabled: false, state: "idle" })).toBeNull();
+    // Always there (Codex V3 couldn't find it in a build without a feed); it explains when clicked.
+    expect(checkItem({ enabled: false, state: "idle" })).toEqual({ label: "Check for Updates…", enabled: true });
     expect(checkItem({ enabled: true, state: "idle" })).toEqual({ label: "Check for Updates…", enabled: true });
     expect(checkItem({ enabled: true, state: "checking" })!.enabled).toBe(false);
     expect(checkItem({ enabled: true, state: "downloading" })).toEqual({ label: "Downloading Update…", enabled: false });

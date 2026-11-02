@@ -51,6 +51,8 @@ const SLOW: Partial<Record<HelperCommand, number>> = {
   // speaker in ≤ 30 s chunks, each up to 3 tries of ≤ 60 s) before /finish. Usually seconds;
   // this only stops main from calling a slow save a failure.
   "record.stop": 20 * 60_000,
+  // Up to 60 s of capture, plus a first-time mic or system-audio prompt waiting on the person.
+  "selftest.run": 6 * 60_000,
 };
 
 export interface SupervisorEvents {

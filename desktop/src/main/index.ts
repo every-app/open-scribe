@@ -32,6 +32,7 @@ import { guardNavigation, type AppOrigin } from "./navigation";
 import { helperIdentity, PermissionProbe } from "./permissions";
 import { SettingsStore } from "./settings";
 import { freshProfileDir, removeFreshProfile } from "./devProfile";
+import { SelfTestController } from "./selftest";
 import { applyLoginItem, applyTheme, loginItemStatus, requestNotificationPermission, settingsPaneUrl } from "./system";
 
 // `electron-vite dev` runs as "Talk Dev" too: its own userData and its own "Talk Dev Safe Storage"
@@ -151,6 +152,9 @@ async function main(): Promise<void> {
     }
   };
   const window = new MainWindow(join(__dirname, "../preload/index.js"));
+  const selfTest = new SelfTestController(helper, () => recording.isActive, log);
+  recording.startBlocked = () =>
+    selfTest.state.running ? "A microphone and system audio test is running. Start recording when it finishes (a few seconds)." : undefined;
 
   let updates: UpdateController | undefined;
   /** Restart into a downloaded update. The window hides instead of closing, so mark the quit
@@ -229,7 +233,17 @@ async function main(): Promise<void> {
     start: () => void startRecording({}).catch((e) => notifyError("Talk couldn't start", e)),
     stop: () => void recording.stop().catch((e) => notifyError("Talk couldn't stop", e)),
     checkForUpdates: () => {
-      if (!updates) return;
+      if (!updates) {
+        // No feed in this build (TALK_UPDATE_URL wasn't set when it was built).
+        void dialog.showMessageBox({
+          type: "info",
+          message: "Updates aren't set up in this build",
+          detail: `This copy of ${app.getName()} (${app.getVersion()}) was built without an update feed, so it can't check for updates. Release builds check by themselves.`,
+          buttons: ["OK"],
+        });
+        log("updates: Check for Updates… in a build without a feed");
+        return;
+      }
       void updates.check(true).then(() => {
         const u = updates?.state;
         if (u?.state === "upToDate") calendar.notify("Talk is up to date", `You have ${app.getVersion()}.`);
@@ -284,6 +298,7 @@ async function main(): Promise<void> {
       calendar: calendar.state,
       updater: updates?.state ?? { enabled: false, state: "idle" as const },
       recordShortcut: shortcut.status,
+      selfTest: selfTest.state,
       settings: settings.value,
       connection: online.state,
       permissions: probe.snapshot(helper.state.permissions),
@@ -374,6 +389,7 @@ async function main(): Promise<void> {
     broadcast();
   });
   probe.on("change", broadcast);
+  selfTest.on("change", broadcast);
   settings.on("change", (value, changed) => {
     log(`settings changed: ${Object.keys(changed).join(", ")}`);
     if (changed.theme !== undefined) applyTheme(value.theme);
@@ -478,6 +494,7 @@ async function main(): Promise<void> {
     "api:updateMeeting": (id, patch) => withAuth(() => requireApi().updateMeeting(id, patch)),
     "api:call": (method, path, opts) => withAuth(() => requireApi().call(method, path, opts)),
     "update:install": () => installUpdate(),
+    "selftest:run": (request) => selfTest.run(request ?? { echoCancellation: settings.value.echoCancellation }),
     "clipboard:writeText": (text) => {
       if (!isCopyableUrl(text, auth.api?.appUrl)) throw new Error("Refused: only https links or this Talk's own links can be copied.");
       clipboard.writeText(normalizedLink(text));

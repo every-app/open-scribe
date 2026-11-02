@@ -217,6 +217,7 @@ test("an update that downloaded is offered, and waits for the recording to end",
       return out;
     });
   expect(await menuLabels()).toContain("Restart to Update (9.9.9)");
+  expect(await menuLabels()).toContain("Check for Updates…"); // always in the menu, feed or not
   // During a recording, asking to restart defers it; Stop offers it again.
   await page.evaluate(() => (location.hash = "#/"));
   await page.keyboard.press("Meta+n");

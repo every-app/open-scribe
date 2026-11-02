@@ -169,9 +169,10 @@ export function restartItem(updater: UpdateSnapshot, recordingState: string): { 
   return { label: `Restart to Update${version}`, enabled: true };
 }
 
-/** "Check for Updates…": shown in a build with a feed, disabled while a check runs. */
-export function checkItem(updater: UpdateSnapshot): { label: string; enabled: boolean } | null {
-  if (!updater.enabled) return null;
+/** "Check for Updates…": always shown, so it can be found (and tested). Without a feed, clicking
+ * it explains that updates aren't set up in this build; disabled while a check runs. */
+export function checkItem(updater: UpdateSnapshot): { label: string; enabled: boolean } {
+  if (!updater.enabled) return { label: "Check for Updates…", enabled: true };
   const busy = updater.state === "checking" || updater.state === "downloading";
   return { label: updater.state === "downloading" ? "Downloading Update…" : "Check for Updates…", enabled: !busy && updater.state !== "ready" };
 }

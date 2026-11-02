@@ -23,11 +23,11 @@ export interface MenuActions {
 
 /** The recording items, shared by the app menu and the Dock menu. No accelerators: the window
  * owns its own shortcuts (⌘N starts notes there). */
-export function recordingItems(s: Pick<AppSnapshot, "auth" | "helper" | "recording">, actions: MenuActions): MenuItemConstructorOptions[] {
+export function recordingItems(s: Pick<AppSnapshot, "auth" | "helper" | "recording" | "selfTest">, actions: MenuActions): MenuItemConstructorOptions[] {
   const r = s.recording.state;
   const busy = r !== "idle";
   return [
-    { label: "Start Recording", enabled: s.auth.status === "signedIn" && !busy && s.helper.status === "ready", click: () => actions.start() },
+    { label: "Start Recording", enabled: s.auth.status === "signedIn" && !busy && s.helper.status === "ready" && !s.selfTest.running, click: () => actions.start() },
     { label: "Stop Recording", enabled: r === "recording" || r === "starting", click: () => actions.stop() },
   ];
 }
@@ -41,13 +41,13 @@ export class AppMenu {
     const check = checkItem(s.updater);
     const restart = restartItem(s.updater, s.recording.state);
     const items: MenuItemConstructorOptions[] = [];
-    if (check) items.push({ label: check.label, enabled: check.enabled, click: () => this.actions.checkForUpdates() });
+    items.push({ label: check.label, enabled: check.enabled, click: () => this.actions.checkForUpdates() });
     if (restart) items.push({ label: restart.label, enabled: restart.enabled, click: () => this.actions.installUpdate() });
     return items;
   }
 
   update(s: AppSnapshot): void {
-    const key = JSON.stringify([s.auth.status, s.helper.status, s.recording.state, s.updater.enabled, s.updater.state, s.updater.version]);
+    const key = JSON.stringify([s.auth.status, s.helper.status, s.recording.state, s.selfTest.running, s.updater.enabled, s.updater.state, s.updater.version]);
     if (key === this.lastKey) return;
     this.lastKey = key;
     const recording = recordingItems(s, this.actions);

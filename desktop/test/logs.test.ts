@@ -75,6 +75,7 @@ describe("diagnostics", () => {
       tray: "attention",
       updater: { enabled: false, state: "idle" },
       recordShortcut: "off",
+      selfTest: { running: false },
       settings: DEFAULT_SETTINGS,
       connection: "signin-needed",
       permissions: { mic: "granted", systemAudio: "verified", notifications: "unknown" },
