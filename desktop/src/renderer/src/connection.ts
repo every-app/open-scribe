@@ -53,3 +53,8 @@ export function transcriptionNoteOf(state: Snapshot | undefined): "reconnecting"
   const t = state?.recording.transcription;
   return t === "reconnecting" || t === "catching_up" ? t : null;
 }
+
+/** Offline or signed out, now online: time to refetch what failed (lists, calendar, unsaved notes). */
+export function cameBackOnline(previous: Connection, next: Connection): boolean {
+  return previous !== "online" && next === "online";
+}

@@ -13,7 +13,7 @@ import { Button } from "@talk/ui/components/button";
 import { useCancelledStart, useFollowRecording, useStartRecording, useStopRecording } from "../actions";
 import { api, cleanError, keys } from "../api";
 import { grantPermission, newNoteBlockedReason, uiPermissions } from "../settings-logic";
-import { connectionOf, gateOf, signInAgainOf, type Gate, type Snapshot } from "../connection";
+import { cameBackOnline, connectionOf, gateOf, signInAgainOf, type Gate, type Snapshot } from "../connection";
 import { retryUnsavedJottings } from "../jottings";
 import { installUpdate, rememberDeferred, updatePillOf } from "../update";
 import { useLevels } from "../live";
@@ -131,15 +131,18 @@ function ConnectionStrip({ state }: { state: Snapshot }) {
   return null;
 }
 
-/** Back online, or signed in again: refetch what failed meanwhile. */
+/** Back online, or signed in again: refetch what failed meanwhile, the calendar included. */
 function useRefetchOnReconnect(state: Snapshot) {
   const client = useQueryClient();
   const connection = connectionOf(state);
   const previous = useRef(connection);
   useEffect(() => {
-    if (previous.current !== "online" && connection === "online") {
+    if (cameBackOnline(previous.current, connection)) {
       void retryUnsavedJottings();
       void client.invalidateQueries();
+      // Coming up is main's calendar snapshot, not a query: ask main to refresh it now rather
+      // than at its next poll, so an error from the outage clears with everything else.
+      void talk["calendar:refresh"]().catch(() => {});
     }
     previous.current = connection;
   }, [client, connection]);
