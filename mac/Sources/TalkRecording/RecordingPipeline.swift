@@ -7,6 +7,15 @@ public protocol AudioSource: AnyObject, Sendable {
   func stop()
 }
 
+/// What a running source can say about itself (the self-test prints it).
+public protocol CaptureInfo {
+  /// The device's own rate, before conversion to 24 kHz.
+  var sampleRate: Double? { get }
+  var deviceName: String? { get }
+  /// Voice processing (echo cancellation) is actually on.
+  var voiceProcessingActive: Bool { get }
+}
+
 public enum RecordingMode: String, Sendable, Equatable {
   case realtime, fallback
 }

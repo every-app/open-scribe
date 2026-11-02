@@ -33,6 +33,46 @@ let stdoutLock = NSLock()
 
 signal(SIGPIPE, SIG_IGN)
 
+/// `talk-helper --selftest [--seconds N] [--echo-cancellation]`: mic + system audio, locally.
+@MainActor
+func runSelfTest(_ args: [String]) async -> Int32 {
+  var seconds = 8
+  if let i = args.firstIndex(of: "--seconds") {
+    guard i + 1 < args.count, let n = Int(args[i + 1]), (1...60).contains(n) else {
+      FileHandle.standardError.write(Data("usage: talk-helper --selftest [--seconds 1-60] [--echo-cancellation]\n".utf8))
+      return 2
+    }
+    seconds = n
+  }
+  let echo = args.contains("--echo-cancellation")
+  print("Talk self-test: \(seconds) s. Speak, and play something (a YouTube video) through the speakers.")
+  print("Nothing is recorded, uploaded or saved.\n")
+  var headerShown = false
+  func bar(_ level: Double) -> String {
+    let n = Int((level * 20).rounded())
+    return String(repeating: "█", count: n) + String(repeating: "·", count: 20 - n)
+  }
+  let test = SelfTest(dependencies: .live, echoCancellation: echo, requestMic: { await CapturePermission.ensureMicrophone() })
+  let report = await test.run(seconds: seconds) { second in
+    if !headerShown {
+      headerShown = true
+      print("mic:    \(AudioDevices.defaultInputName ?? "?")\(echo ? " (voice processing requested)" : "")")
+      print("system: \(AudioDevices.defaultOutputName ?? "?") (process tap)\n")
+    }
+    print(String(format: "%3ds  mic %@ %.2f   system %@ %.2f", second.second, bar(second.mic), second.mic, bar(second.system), second.system))
+  }
+  func rate(_ r: Double?) -> String { r.map { "\(Int($0)) Hz" } ?? "?" }
+  print("")
+  print("mic:    \(report.mic.device ?? "?"), \(rate(report.mic.sampleRate)), voice processing \(report.voiceProcessing ? "on" : "off")")
+  print("system: \(report.system.device ?? "?"), \(rate(report.system.sampleRate))")
+  print(report.text)
+  return report.passed ? 0 : 1
+}
+
+if CommandLine.arguments.contains("--selftest") {
+  exit(await runSelfTest(Array(CommandLine.arguments.dropFirst())))
+}
+
 @MainActor
 func run() async {
   let server = HelperServer(environment: .live, write: writeLine, log: log)

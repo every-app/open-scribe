@@ -57,6 +57,7 @@ Newline-delimited JSON on stdin/stdout, with logs on stderr. Requests carry an `
 | `record.stop` | none | `{ segments, finished?, unsaved? }`: posts the last segments and calls `/finish`. Offline, `unsaved` hands back what never posted (`[{ seq, speaker, text, startedMs, endedMs }]`) and `finished` is `false`: the app posts them, then `/finish` |
 | `token.update` | `{ accessToken }` | `{}` |
 | `detect.set` | `{ enabled }` | `{}` |
+| `selftest.run` | `{ seconds?: 1–60 (8), echoCancellation? }` | `{ seconds, passed, voiceProcessing, mic, system }`, each `{ status: "ok" \| "silent" \| "denied" \| "error", peak, sampleRate?, device?, clipping, clippedSamples, dropouts, message? }`. Captures both sides locally (no network, nothing saved) and streams `levels` at 10 Hz meanwhile; `busy` while recording, and `record.start` is `busy` during it |
 
 | Event `event` | Fields |
 | --- | --- |

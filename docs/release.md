@@ -70,6 +70,16 @@ electron-builder notarizes the app; the script then notarizes and staples the DM
 
 **No credentials yet?** `scripts/release-mac.sh --dry-run --unsigned` runs the same pipeline with ad hoc signatures and no notarization. The files are *not* shippable.
 
+## Check the hardware (1 minute, before handing out the alpha)
+
+On the Mac that will run the release, with no account and no network needed:
+
+```sh
+"/Applications/Talk.app/Contents/MacOS/talk-helper" --selftest --seconds 15
+```
+
+While it runs, play a YouTube video through the speakers (not headphones) and talk. Expect `mic: OK`, `system audio: OK`, no clipping, no dropouts, and `PASS`. `DENIED` on system audio means nothing was playing or System Settings → Privacy & Security → System Audio Recording is off for the app that ran it (the terminal here; Talk itself when it's run from Settings). Add `--echo-cancellation` to try voice processing; it should say `voice processing on`, and the video should still be at full volume.
+
 ## Update feed
 
 electron-updater reads `latest-mac.yml` from the feed and installs from the zip. The feed URL is baked into the app at build time from `TALK_UPDATE_URL`. If it's unset, the app has no updater. **Pick the feed before the first release**, because changing it later means one manual reinstall.

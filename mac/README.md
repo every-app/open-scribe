@@ -33,6 +33,17 @@ TALK_TOKEN=epat_… swift run talk-smoke https://talk.<base>          # a person
 swift run talk-smoke https://talk.<base> --token-file ~/.talk-token
 ```
 
+## Self-test (no account, no network)
+
+```sh
+.build/helper/talk-helper --selftest                       # 8 s; speak, and play a video through the speakers
+.build/helper/talk-helper --selftest --seconds 15 --echo-cancellation
+```
+
+It captures the mic and system audio locally (no Realtime, no Worker; nothing recorded, uploaded or written anywhere), prints the devices and a level line per second, then a summary per side: `OK` (a peak above −45 dBFS), `SILENT` (signal, but too quiet), `DENIED` (mic permission off; for system audio, only digital silence, which is what a tap without permission delivers, or what you get when nothing plays), or `ERROR` (it couldn't start), plus clipping (> 0.1 % of samples at full scale), dropouts (a second, after the first, that delivered under 0.7 s of audio), sample rates and whether voice processing is on. Exit code 0 when both sides are OK with no dropouts. Run from a terminal, the mic and system-audio prompts are for the terminal app; inside Talk.app (`selftest.run`) they're Talk's. Permissions go through the usual paths (the mic is asked if never asked; the tap starting is what makes macOS ask for system audio).
+
+The same check is the request `selftest.run { seconds?, echoCancellation? }` (docs/desktop-plan.md), which streams `levels` and answers the summary, for a "Test microphone & system audio" button in Settings.
+
 ## Recording
 
 Mic and system audio are converted to PCM16 24 kHz mono on the Mac and streamed to two OpenAI Realtime transcription sockets (`me`, `them`), each with its own ephemeral key from `POST /api/v1/meetings/:id/transcription-token`. Turns are detected on the Mac (600 ms of silence or 30 s, Scrawl's rule). Finished segments are posted every 10 s and on stop, and the meeting is finished on stop. If the token route reports live keys unavailable (`ai_route_not_allowed`, or a 403/501/502/503 other than `ai_provider_not_configured`), both speakers switch to the fallback: chunks of up to 30 s, cut at a turn's end once 20 s have gathered (and silence dropped), are posted to `POST …/audio-chunk` as in-memory WAVs. Audio is never written to disk.

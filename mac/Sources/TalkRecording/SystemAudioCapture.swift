@@ -14,6 +14,8 @@ public final class SystemAudioCapture: AudioSource, @unchecked Sendable {
   private var procID: AudioDeviceIOProcID?
   private var converter: AudioConverter24k?
   private var format = AudioStreamBasicDescription()
+  /// The tap's rate, once it's running.
+  var tapSampleRate: Double? { format.mSampleRate > 0 ? format.mSampleRate : nil }
   private let queue = DispatchQueue(label: "talk.systemaudio", qos: .userInitiated)
   /// Device-change handling, apart from the IO queue (stopping a device from its own IO queue can hang).
   private let control = DispatchQueue(label: "talk.systemaudio.control")
@@ -199,4 +201,10 @@ public final class SystemAudioCapture: AudioSource, @unchecked Sendable {
     }
     return uid.takeRetainedValue() as String
   }
+}
+
+extension SystemAudioCapture: CaptureInfo {
+  public var sampleRate: Double? { tapSampleRate }
+  public var deviceName: String? { AudioDevices.defaultOutputName }
+  public var voiceProcessingActive: Bool { false }
 }

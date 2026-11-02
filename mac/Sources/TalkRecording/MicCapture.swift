@@ -13,6 +13,7 @@ public final class MicCapture: AudioSource, @unchecked Sendable {
   /// Apple's voice processing (echo cancellation, noise suppression) on the input. Off by
   /// default until it's been tried on real hardware.
   public let voiceProcessing: Bool
+  public private(set) var sampleRate: Double?
 
   /// `onInterrupted` gets a sentence when the mic stops and can't be restarted, nil when it's back.
   public init(
@@ -57,6 +58,7 @@ public final class MicCapture: AudioSource, @unchecked Sendable {
     }
     let format = input.outputFormat(forBus: 0)
     guard format.sampleRate > 0, format.channelCount > 0 else { throw CaptureError("No microphone is available.") }
+    sampleRate = format.sampleRate
     converter = AudioConverter24k(inputRate: format.sampleRate)
     // ~100 ms buffers; the tap's thread does the conversion, which is cheap.
     let size = AVAudioFrameCount(format.sampleRate / 10)
@@ -117,6 +119,11 @@ public final class MicCapture: AudioSource, @unchecked Sendable {
     }
     return out
   }
+}
+
+extension MicCapture: CaptureInfo {
+  public var deviceName: String? { AudioDevices.defaultInputName }
+  public var voiceProcessingActive: Bool { voiceProcessing && engine.inputNode.isVoiceProcessingEnabled }
 }
 
 public struct CaptureError: Error, LocalizedError {

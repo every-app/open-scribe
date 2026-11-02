@@ -20,6 +20,8 @@ public struct HelperEnvironment: Sendable {
   public var tokenTimeout: Duration = .seconds(60)
   public var defaultLanguage: String? = Locale.current.language.languageCode?.identifier
   public var now: @Sendable () -> Date = { Date() }
+  /// Between the self-test's 100 ms measurements (tests feed audio here instead of waiting).
+  public var selfTestTick: @Sendable () async -> Void = { try? await Task.sleep(for: .milliseconds(100)) }
 
   public init(
     version: String, macos: String, micStatus: @escaping @Sendable () -> CapturePermission.Status,
@@ -77,6 +79,7 @@ public final class HelperServer {
   /// Audio from an outage is being transcribed through the fallback.
   private var catchingUp = false
   private var detectTask: Task<Void, Never>?
+  private var selfTest: Task<SelfTest.Report, Never>?
 
   public init(environment: HelperEnvironment, write: @escaping @Sendable (String) -> Void, log: @escaping @Sendable (String) -> Void = { _ in }) {
     self.env = environment
@@ -118,6 +121,7 @@ public final class HelperServer {
   public func shutdown() async {
     closing = true
     setDetection(false)
+    selfTest?.cancel()
     await auth?.close()
     if stopping {
       await withCheckedContinuation { stopWaiters.append($0) }
@@ -161,6 +165,8 @@ public final class HelperServer {
       guard let token = p["accessToken"]?.string, !token.isEmpty else { throw HelperError.badParams("accessToken is required") }
       await auth?.update(token)
       return [:]
+    case "selftest.run":
+      return try await runSelfTest(p)
     case "detect.set":
       guard let enabled = p["enabled"]?.bool else { throw HelperError.badParams("enabled must be true or false") }
       setDetection(enabled)
@@ -178,6 +184,7 @@ public final class HelperServer {
   private func start(_ p: JSONValue) async throws -> JSONValue {
     guard !closing else { throw HelperError("shutting_down", "The helper is exiting") }
     guard pipeline == nil, !starting else { throw HelperError("busy", "Already recording") }
+    guard selfTest == nil else { throw HelperError("busy", "A self-test is running") }
     guard let meetingID = p["meetingId"]?.string, !meetingID.isEmpty else { throw HelperError.badParams("meetingId is required") }
     guard let base = p["apiBase"]?.string, let apiBase = URL.typed(base) else {
       throw HelperError.badParams("apiBase must be an https URL (http only for localhost)")
@@ -231,6 +238,35 @@ public final class HelperServer {
   }
 
   static let cancelledError = HelperError("cancelled", "record.stop arrived before the recording started")
+
+  /// `selftest.run { seconds?, echoCancellation? }`: capture both sides locally for a few seconds,
+  /// streaming `levels`, and answer with the summary. Nothing leaves the Mac.
+  private func runSelfTest(_ p: JSONValue) async throws -> JSONValue {
+    guard !closing else { throw HelperError("shutting_down", "The helper is exiting") }
+    guard pipeline == nil, !starting else { throw HelperError("busy", "Recording; stop first") }
+    guard selfTest == nil else { throw HelperError("busy", "A self-test is already running") }
+    var seconds = 8
+    if let value = p["seconds"], value != .null {
+      guard let n = value.int, (1...60).contains(n) else { throw HelperError.badParams("seconds must be 1–60") }
+      seconds = n
+    }
+    var echo = false
+    if let value = p["echoCancellation"], value != .null {
+      guard let b = value.bool else { throw HelperError.badParams("echoCancellation must be true or false") }
+      echo = b
+    }
+    let test = SelfTest(dependencies: env.pipeline, echoCancellation: echo, requestMic: env.requestMic, tick: env.selfTestTick)
+    let task = Task { @MainActor [weak self] in
+      await test.run(seconds: seconds, onLevels: { mic, system in
+        self?.emit("levels", ["mic": .double(Self.round(mic)), "system": .double(Self.round(system))])
+      })
+    }
+    selfTest = task
+    defer { selfTest = nil }
+    let report = await task.value
+    log("self-test: mic \(report.mic.status.rawValue), system \(report.system.status.rawValue)")
+    return report.json
+  }
 
   private func stop() async throws -> JSONValue {
     if starting, pipeline == nil, !stopping {
