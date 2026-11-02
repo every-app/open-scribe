@@ -38,9 +38,8 @@ import TalkCore
     #expect(result["segments"] == 0)
     #expect(result["finished"] == false)
     guard case .array(let unsaved)? = result["unsaved"] else { Issue.record("no unsaved"); return }
-    #expect(unsaved.compactMap { $0["seq"]?.int }.sorted() == [0, 1])
-    #expect(unsaved.contains { $0 == ["seq": 0, "speaker": "me", "text": "me turn 1", "startedMs": 0, "endedMs": 100] }
-      || unsaved.contains { $0 == ["seq": 1, "speaker": "me", "text": "me turn 1", "startedMs": 0, "endedMs": 100] })
+    #expect(unsaved.compactMap { $0["seq"]?.int }.sorted() == [0, 2])
+    #expect(unsaved.contains { $0 == ["seq": 0, "speaker": "me", "text": "me turn 1", "startedMs": 0, "endedMs": 100] })
     // Notes would miss the unsaved segments: /finish is left to the app's replay.
     #expect(!worker.paths().contains("/api/v1/meetings/m1/finish"))
     #expect(out.events("error").contains { $0["code"] == "save_failed" })
@@ -91,7 +90,7 @@ import TalkCore
     let result = await p.stop()
     #expect(result.segments == 1)
     #expect(result.finished == false)
-    #expect(result.unsaved.map(\.seq) == [1, 2])
+    #expect(result.unsaved.map(\.seq) == [400, 800])  // turns 2 and 3, at 100 and 200 ms
     #expect(result.unsaved.map(\.text) == ["me turn 2", "me turn 3"])
     #expect(result.problem?.contains("couldn't be saved") == true)
   }

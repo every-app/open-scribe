@@ -105,7 +105,7 @@ import TalkCore
     upload: @escaping @Sendable (Data, Int, Int, Int) async throws -> Segment?
   ) -> ChunkChannel {
     ChunkChannel(
-      speaker: .them, language: "en", seq: SeqCounter(), upload: upload,
+      speaker: .them, language: "en", seqFor: { $0 }, upload: upload,
       callbacks: ChannelCallbacks(
         segment: { _, _, _, _ in },
         stored: { _ in events.lock.withLock { events.stored += 1 } },
@@ -137,7 +137,7 @@ import TalkCore
     #expect(events.lock.withLock { events.backlog.first }?.contains("30 s of audio was dropped") == true)
     stuck.release()
     await c.finish()
-    #expect(seqs.lines == ["0", "4", "5"])
+    #expect(seqs.lines == ["0", "120000", "150000"])  // seq = start ms here: chunks 0, 4 and 5
   }
 
   @Test func oldChunksAreDroppedByAge() async {
@@ -162,7 +162,7 @@ import TalkCore
     #expect(events.lock.withLock { events.backlog.count } == 1)
     stuck.release()
     await c.finish()
-    #expect(seqs.lines == ["0", "2"])
+    #expect(seqs.lines == ["0", "60000"])  // chunks 0 and 2
   }
 
   @Test func anUploadThatHangsTimesOutAndGivesUp() async {

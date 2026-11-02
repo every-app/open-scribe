@@ -32,6 +32,10 @@ public enum RecordingEvent: Sendable, Equatable {
   case saveProblem(String)
   /// The fallback dropped queued audio because uploads couldn't keep up.
   case fallbackBacklog(Speaker, String)
+  /// Audio from a Realtime outage is being transcribed through the fallback (true), or that's done.
+  case catchingUp(Bool)
+  /// A stretch of that audio couldn't be transcribed.
+  case catchUpProblem(Speaker, String)
 }
 
 /// `RecordingPipeline.abort()` was called before capture started.
@@ -66,10 +70,16 @@ public final class RecordingPipeline {
       _ speaker: Speaker, _ language: String?, _ fetchToken: @escaping @Sendable () async throws -> TranscriptionToken,
       _ callbacks: ChannelCallbacks
     ) -> any SpeakerChannel
+    /// The chunk fallback, live (offset 0) or replaying an outage (offset = its start).
     public var makeFallback: @Sendable (
-      _ speaker: Speaker, _ language: String?, _ seq: SeqCounter,
+      _ speaker: Speaker, _ language: String?, _ offsetMs: Int, _ seqFor: @escaping @Sendable (Int) -> Int,
       _ upload: @escaping @Sendable (Data, Int, Int, Int) async throws -> Segment?, _ callbacks: ChannelCallbacks
     ) -> any SpeakerChannel
+    /// What replays a Realtime outage's audio (the chunk fallback unless a test says otherwise).
+    public var makeReplay: (@Sendable (
+      _ speaker: Speaker, _ language: String?, _ offsetMs: Int, _ seqFor: @escaping @Sendable (Int) -> Int,
+      _ upload: @escaping @Sendable (Data, Int, Int, Int) async throws -> Segment?, _ callbacks: ChannelCallbacks
+    ) -> any SpeakerChannel)?
     public var flushInterval: TimeInterval = SegmentBatcher.interval
     /// After the channels finish, how long to let the last segments land.
     public var settle: Duration = .milliseconds(300)
@@ -86,7 +96,10 @@ public final class RecordingPipeline {
       makeMic: @escaping @Sendable (Bool, @escaping @Sendable (Data) -> Void, @escaping @Sendable (String?) -> Void) -> any AudioSource,
       makeSystem: @escaping @Sendable (_ onAudio: @escaping @Sendable (Data) -> Void, _ onInterrupted: @escaping @Sendable (String?) -> Void) -> any AudioSource,
       makeRealtime: @escaping @Sendable (Speaker, String?, @escaping @Sendable () async throws -> TranscriptionToken, ChannelCallbacks) -> any SpeakerChannel,
-      makeFallback: @escaping @Sendable (Speaker, String?, SeqCounter, @escaping @Sendable (Data, Int, Int, Int) async throws -> Segment?, ChannelCallbacks) -> any SpeakerChannel
+      makeFallback: @escaping @Sendable (
+        Speaker, String?, Int, @escaping @Sendable (Int) -> Int, @escaping @Sendable (Data, Int, Int, Int) async throws -> Segment?,
+        ChannelCallbacks
+      ) -> any SpeakerChannel
     ) {
       self.makeMic = makeMic
       self.makeSystem = makeSystem
@@ -100,7 +113,7 @@ public final class RecordingPipeline {
         makeMic: { MicCapture(voiceProcessing: $0, onAudio: $1, onInterrupted: $2) },
         makeSystem: { SystemAudioCapture(onAudio: $0, onInterrupted: $1) },
         makeRealtime: { TranscriptionChannel(speaker: $0, language: $1, fetchToken: $2, callbacks: $3) },
-        makeFallback: { ChunkChannel(speaker: $0, language: $1, seq: $2, upload: $3, callbacks: $4) }
+        makeFallback: { ChunkChannel(speaker: $0, language: $1, offsetMs: $2, seqFor: $3, upload: $4, callbacks: $5) }
       )
     }
   }
@@ -141,6 +154,14 @@ public final class RecordingPipeline {
   private var continuations: [Speaker: AsyncStream<Data>.Continuation] = [:]
   private var batcher = SegmentBatcher()
   private var echo: EchoFilter?
+  /// Speakers whose transcription is failing right now (a Realtime reconnect, fallback errors).
+  private var down: Set<Speaker> = []
+  /// Outage replays still uploading, per speaker, and every replay task (stop waits for them).
+  private var replaying: [Speaker: Int] = [:]
+  private var replayTasks: [Task<Void, Never>] = []
+  private var replayChannels: [any SpeakerChannel] = []
+  private var replayFailures = 0
+  private var isStopping = false
   private let startedAt: ContinuousClock.Instant
   private var flushTask: Task<Void, Never>?
   private var levelTask: Task<Void, Never>?
@@ -207,6 +228,8 @@ public final class RecordingPipeline {
   public func stop() async -> StopResult {
     guard running else { return StopResult(segments: saved, problem: nil) }
     running = false
+    isStopping = true
+    defer { isStopping = false }
     flushTask?.cancel()
     flushTask = nil
     levelTask?.cancel()
@@ -221,9 +244,19 @@ public final class RecordingPipeline {
     }
     // Segments reach the batcher through main-actor tasks; let the last ones land.
     try? await Task.sleep(for: deps.settle)
+    // Audio from an outage still uploading: finish it first (`/audio-chunk` needs the meeting
+    // still recording, and its `them` text informs the echo check).
+    var next = 0
+    while next < replayTasks.count {  // one may start while we wait (a channel handing over late)
+      await replayTasks[next].value
+      next += 1
+    }
     // Both sides are complete: judge every `me` segment still waiting for the echo check.
     if echo != nil { queue(echo!.releaseAll()) }
     var problem = await flush(final: true)
+    if problem == nil, replayFailures > 0 {
+      problem = "Some audio from a reconnect couldn't be transcribed (\(replayFailures) stretch\(replayFailures == 1 ? "" : "es"))."
+    }
     let unsaved = batcher.pending
     var finished = false
     if unsaved.isEmpty {
@@ -269,12 +302,78 @@ public final class RecordingPipeline {
         Task { @MainActor in self?.onEvent(.delta(speaker: speaker, text: text, itemID: itemID)) }
       },
       problem: { [weak self] speaker, problem in
-        Task { @MainActor in self?.onEvent(.transcriptionProblem(speaker, problem)) }
+        Task { @MainActor in
+          guard let self else { return }
+          if problem != nil { self.down.insert(speaker) } else { self.down.remove(speaker) }
+          self.onEvent(.transcriptionProblem(speaker, problem))
+        }
+      },
+      backlog: { [weak self] speaker, message in
+        Task { @MainActor in self?.onEvent(.fallbackBacklog(speaker, message)) }
+      },
+      catchUp: { [weak self] speaker, pcm, startMs in
+        Task { @MainActor in self?.replay(speaker: speaker, pcm: pcm, startMs: startMs) }
+      })
+  }
+
+  /// Transcribes audio kept during a Realtime outage through the chunk fallback, while live
+  /// audio goes on to Realtime. Its segments get replay seqs, so they slot in by time.
+  private func replay(speaker: Speaker, pcm: Data, startMs: Int) {
+    guard running || isStopping else { return }
+    let api = self.api, meetingID = self.meetingID, language = self.language
+    let callbacks = ChannelCallbacks(
+      segment: { _, _, _, _ in },
+      stored: { [weak self] segment in
+        Task { @MainActor in
+          guard let self else { return }
+          self.saved += 1
+          // Their words from the outage: echo of them in my held segments is still caught.
+          if segment.speaker == .them {
+            self.echo?.noteThem(
+              EchoFilter.Pending(speaker: .them, startedMs: segment.startedMs, endedMs: segment.endedMs, text: segment.text))
+          }
+          self.onEvent(.segment(segment))
+        }
+      },
+      delta: { _, _, _ in },
+      problem: { [weak self] speaker, problem in
+        guard let problem else { return }
+        Task { @MainActor in
+          self?.replayFailures += 1
+          self?.onEvent(.catchUpProblem(speaker, problem))
+        }
       },
       backlog: { [weak self] speaker, message in
         Task { @MainActor in self?.onEvent(.fallbackBacklog(speaker, message)) }
       })
+    let make = deps.makeReplay ?? { ChunkChannel(speaker: $0, language: $1, offsetMs: $2, seqFor: $3, upload: $4, callbacks: $5) }
+    let channel = make(
+      speaker, language, startMs, { TranscriptSeq.make(startedMs: $0, speaker: speaker, replay: true) },
+      { wav, number, t0, t1 in
+        try await api.appendAudioChunk(
+          meetingID: meetingID, wav: wav, seq: number, startedMs: t0, endedMs: t1, speaker: speaker, language: language)
+      }, callbacks)
+    replayChannels.append(channel)
+    let wasCatchingUp = isCatchingUp
+    replaying[speaker, default: 0] += 1
+    if !wasCatchingUp { onEvent(.catchingUp(true)) }
+    replayTasks.append(Task { [weak self] in
+      await channel.feed(pcm)
+      await channel.finish()
+      self?.replayDone(speaker)
+    })
   }
+
+  private func replayDone(_ speaker: Speaker) {
+    replaying[speaker, default: 1] -= 1
+    if !isCatchingUp { onEvent(.catchingUp(false)) }
+    releaseEcho()
+  }
+
+  private var isCatchingUp: Bool { replaying.values.contains { $0 > 0 } }
+
+  /// `me` segments wait while the other side's words for the same moments are still missing.
+  private var themIncomplete: Bool { down.contains(.them) || (replaying[.them] ?? 0) > 0 }
 
   private var nowMs: Int {
     let elapsed = deps.now() - startedAt
@@ -293,7 +392,7 @@ public final class RecordingPipeline {
 
   /// `me` segments whose echo check is due.
   private func releaseEcho() {
-    guard echo != nil, echo!.heldCount > 0 else { return }
+    guard echo != nil, echo!.heldCount > 0, !themIncomplete else { return }
     queue(echo!.release(nowMs: nowMs))
   }
 
@@ -322,10 +421,9 @@ public final class RecordingPipeline {
     } catch let error as APIError where error.isRealtimeUnavailable {
       // No live keys: send 30 s chunks to the Worker instead (SPEC "Fallback").
       for channel in channels.values { await channel.cancel() }
-      let seq = SeqCounter()
       for speaker in [Speaker.me, .them] {
         channels[speaker] = deps.makeFallback(
-          speaker, language, seq,
+          speaker, language, 0, { TranscriptSeq.make(startedMs: $0, speaker: speaker) },
           { wav, number, t0, t1 in
             try await api.appendAudioChunk(
               meetingID: meetingID, wav: wav, seq: number, startedMs: t0, endedMs: t1, speaker: speaker, language: language)
@@ -443,6 +541,9 @@ public final class RecordingPipeline {
   }
 
   private func teardown() async {
+    for channel in replayChannels { await channel.cancel() }
+    replayChannels = []
+    replayTasks = []
     flushTask?.cancel()
     flushTask = nil
     levelTask?.cancel()

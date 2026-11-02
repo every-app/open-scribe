@@ -194,6 +194,13 @@ public struct EchoFilter: Sendable {
     return out + release(nowMs: nowMs)
   }
 
+  /// A `them` segment that's already saved (transcribed from audio replayed after a reconnect):
+  /// nothing to post, but `me` segments are judged against it.
+  public mutating func noteThem(_ segment: Pending) {
+    guard segment.speaker == .them else { return }
+    them.append(Segment(seq: them.count, startedMs: segment.startedMs, endedMs: segment.endedMs, speaker: .them, text: segment.text))
+  }
+
   /// `me` segments that have waited long enough, judged now.
   public mutating func release(nowMs: Int) -> [Pending] {
     var out: [Pending] = []

@@ -120,7 +120,7 @@ import TalkCore
     let deltas = out.events("transcript.delta")
     #expect(deltas.contains { $0["speaker"] == "me" && $0["itemId"] == "item-me-1" && $0["text"] == "turn 1" })
     let segments = out.events("transcript.segment")
-    #expect(Set(segments.compactMap { $0["seq"]?.int }) == [0, 1])
+    #expect(Set(segments.compactMap { $0["seq"]?.int }) == [0, 2])  // TranscriptSeq: both at 0 ms, them + 2
     #expect(segments.contains { $0["speaker"] == "them" && $0["text"] == "them turn 1" && $0["startedMs"] == 0 && $0["endedMs"] == 100 })
 
     await s.handle(#"{"id":12,"cmd":"record.stop"}"#)
@@ -130,7 +130,7 @@ import TalkCore
     #expect(paths.filter { $0 == "/api/v1/meetings/m1/segments" }.count == 1)
     #expect(paths.last == "/api/v1/meetings/m1/finish")
     let posted = try JSONDecoder().decode([Segment].self, from: worker.requests.first { $0.url!.path.hasSuffix("/segments") }!.httpBody!)
-    #expect(posted.map(\.seq) == [0, 1])
+    #expect(posted.map(\.seq) == [0, 2])
     #expect(out.events("state").last?["recording"] == false)
     #expect(!s.isRecording)
   }

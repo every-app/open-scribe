@@ -2,15 +2,15 @@ import Foundation
 
 /// Finished transcript segments waiting to be posted. The recorder takes a batch every ~10 s and
 /// on stop; a batch that fails goes back to the front, so nothing is lost or reordered. Seq is
-/// assigned here, once per segment, in the order segments finish, across both speakers.
+/// assigned here from the turn's start (`TranscriptSeq`), so the transcript reads in time order.
 public struct SegmentBatcher: Sendable {
   public static let interval: TimeInterval = 10
   public static let maxBatch = 200
 
   public private(set) var pending: [Segment] = []
-  private var nextSeq: Int
+  private var used = Set<Int>()
 
-  public init(firstSeq: Int = 0) { nextSeq = firstSeq }
+  public init() {}
 
   /// Queues a finished segment and returns it with its seq. Blank text is dropped.
   @discardableResult
@@ -18,8 +18,12 @@ public struct SegmentBatcher: Sendable {
     let clean = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     guard !clean.isEmpty else { return nil }
     let start = max(0, startedMs)
-    let segment = Segment(seq: nextSeq, startedMs: start, endedMs: max(start, endedMs), speaker: speaker, text: clean)
-    nextSeq += 1
+    var seq = TranscriptSeq.make(startedMs: start, speaker: speaker)
+    // Two turns of one speaker in the same millisecond can't happen, but never reuse a seq: the
+    // Worker would drop the second.
+    while used.contains(seq) { seq += 4 }
+    used.insert(seq)
+    let segment = Segment(seq: seq, startedMs: start, endedMs: max(start, endedMs), speaker: speaker, text: clean)
     pending.append(segment)
     return segment
   }

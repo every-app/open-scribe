@@ -60,10 +60,10 @@ Newline-delimited JSON on stdin/stdout, with logs on stderr. Requests carry an `
 
 | Event `event` | Fields |
 | --- | --- |
-| `state` | `{ recording, meetingId?, mode: "realtime" \| "fallback", mic: "ok" \| "silent" \| "error", system: …, transcription?: "live" \| "reconnecting" }` |
+| `state` | `{ recording, meetingId?, mode: "realtime" \| "fallback", mic: "ok" \| "silent" \| "error", system: …, transcription?: "live" \| "reconnecting" \| "catching_up" }` (`catching_up`: audio kept during an outage is being transcribed) |
 | `levels` | `{ mic, system }`, 0–1, at most 10 Hz |
 | `transcript.delta` | `{ speaker, text, itemId }` |
-| `transcript.segment` | `{ seq, speaker, text, startedMs, endedMs }` |
+| `transcript.segment` | `{ seq, speaker, text, startedMs, endedMs }`. `seq` is a sort key from the turn's start (`startedMs × 4 + them·2 + replayed·1`), unique per meeting, not consecutive: sort by it |
 | `token.needed` | `{}`: the app answers with `token.update` |
 | `call.started` / `call.ended` | `{ bundleId, appName }`: a known call app started or stopped using the mic |
 | `device.changed` | `{ input?, output? }` |

@@ -272,21 +272,27 @@ public struct ChannelCallbacks: Sendable {
   public var delta: @Sendable (Speaker, String, String) -> Void
   /// A sentence when transcription is in trouble, nil when it's fine again.
   public var problem: @Sendable (Speaker, String?) -> Void
-  /// The fallback dropped queued audio because uploads couldn't keep up.
+  /// Audio was dropped because it piled up: fallback uploads couldn't keep up, or a reconnect
+  /// outlasted the outage buffer.
   public var backlog: @Sendable (Speaker, String) -> Void
+  /// The connection is back (or the channel is finishing): the audio captured while it was down,
+  /// PCM16 24 kHz mono, starting at this meeting time (ms), to transcribe another way.
+  public var catchUp: @Sendable (Speaker, Data, Int) -> Void
 
   public init(
     segment: @escaping @Sendable (Speaker, Int, Int, String) -> Void,
     stored: @escaping @Sendable (Segment) -> Void,
     delta: @escaping @Sendable (Speaker, String, String) -> Void,
     problem: @escaping @Sendable (Speaker, String?) -> Void,
-    backlog: @escaping @Sendable (Speaker, String) -> Void = { _, _ in }
+    backlog: @escaping @Sendable (Speaker, String) -> Void = { _, _ in },
+    catchUp: @escaping @Sendable (Speaker, Data, Int) -> Void = { _, _, _ in }
   ) {
     self.segment = segment
     self.stored = stored
     self.delta = delta
     self.problem = problem
     self.backlog = backlog
+    self.catchUp = catchUp
   }
 }
 
@@ -318,6 +324,9 @@ public actor TranscriptionChannel: SpeakerChannel {
   private var failures = 0
   private var renewTask: Task<Void, Never>?
   private var retiring: [Task<Void, Never>] = []
+  /// Audio captured while the session is down (after it first opened), replayed when it's back.
+  private var outage = OutageBuffer()
+  private var opened = false
 
   public init(
     speaker: Speaker, language: String?, fetchToken: @escaping @Sendable () async throws -> TranscriptionToken,
@@ -337,8 +346,15 @@ public actor TranscriptionChannel: SpeakerChannel {
   /// PCM16 24 kHz mono, in capture order.
   public func feed(_ pcm: Data) async {
     guard !stopped else { return }
+    let capturedAt = detector.elapsedMs
     let actions = detector.feed(PCM16.decode(pcm))
-    guard let session else { return }  // reconnecting: this audio is lost, the clock goes on
+    guard let session else {
+      // Reconnecting: keep the audio (the clock goes on) to transcribe once we're back.
+      if opened, outage.append(pcm, atMs: capturedAt) {
+        callbacks.backlog(speaker, "The connection was down for over 5 minutes: the oldest audio from the outage was dropped")
+      }
+      return
+    }
     await session.append(pcm)
     for action in actions {
       switch action {
@@ -360,6 +376,8 @@ public actor TranscriptionChannel: SpeakerChannel {
     session = nil
     await last?.finish()
     for task in retiring { await task.value }
+    // Stopped while still reconnecting: what was kept goes to the fallback now.
+    handOverOutage()
   }
 
   public func cancel() async {
@@ -371,7 +389,13 @@ public actor TranscriptionChannel: SpeakerChannel {
 
   // MARK: Private
 
+  private func handOverOutage() {
+    guard let kept = outage.take() else { return }
+    callbacks.catchUp(speaker, kept.pcm, kept.startMs)
+  }
+
   private func open(with token: TranscriptionToken) {
+    opened = true
     generation += 1
     let current = generation
     let speaker = self.speaker
@@ -394,6 +418,8 @@ public actor TranscriptionChannel: SpeakerChannel {
     case .ready:
       guard generation == self.generation else { return }
       failures = 0
+      // The outage's audio first, so the state goes reconnecting → catching up → live.
+      handOverOutage()
       callbacks.problem(speaker, nil)
     case .delta(let text, let itemID):
       callbacks.delta(speaker, text, itemID)

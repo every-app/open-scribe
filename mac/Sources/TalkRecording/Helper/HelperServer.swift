@@ -58,7 +58,7 @@ public final class HelperServer {
   private let write: @Sendable (String) -> Void
   private let log: @Sendable (String) -> Void
 
-  private var pipeline: RecordingPipeline?
+  private(set) var pipeline: RecordingPipeline?
   private var auth: HelperAuth?
   private var starting = false
   /// `record.stop` arrived while `record.start` was still asking for the mic or fetching keys.
@@ -74,6 +74,8 @@ public final class HelperServer {
   private var health: (mic: SourceHealth, system: SourceHealth) = (.ok, .ok)
   /// Speakers whose transcription is currently failing (reconnecting, or fallback uploads failing).
   private var transcriptionDown: Set<Speaker> = []
+  /// Audio from an outage is being transcribed through the fallback.
+  private var catchingUp = false
   private var detectTask: Task<Void, Never>?
 
   public init(environment: HelperEnvironment, write: @escaping @Sendable (String) -> Void, log: @escaping @Sendable (String) -> Void = { _ in }) {
@@ -211,6 +213,7 @@ public final class HelperServer {
     mode = .realtime
     health = (.ok, .ok)
     transcriptionDown = []
+    catchingUp = false
     self.auth = auth
     startingPipeline = pipeline
     do {
@@ -291,9 +294,9 @@ public final class HelperServer {
       emit("transcript.segment", Self.segmentFields(s))
     case .transcriptionProblem(let speaker, let problem):
       if let problem { emitError("transcription", "\(speaker == .me ? "Your mic" : "Their side"): \(problem)") }
-      let wasDown = !transcriptionDown.isEmpty
+      let before = transcriptionStatus
       if problem != nil { transcriptionDown.insert(speaker) } else { transcriptionDown.remove(speaker) }
-      if wasDown != !transcriptionDown.isEmpty, pipeline != nil { emitState() }
+      if transcriptionStatus != before, pipeline != nil { emitState() }
     case .captureProblem(_, let problem):
       if let problem { emitError("capture", problem) }
     case .health(let mic, let system):
@@ -303,6 +306,12 @@ public final class HelperServer {
       emit("levels", ["mic": .double(Self.round(mic)), "system": .double(Self.round(system))])
     case .saveProblem(let message):
       emitError("save_failed", message)
+    case .catchingUp(let active):
+      let before = transcriptionStatus
+      catchingUp = active
+      if transcriptionStatus != before, pipeline != nil { emitState() }
+    case .catchUpProblem(let speaker, let message):
+      emitError("transcription", "\(speaker == .me ? "Your mic" : "Their side") (catching up): \(message)")
     case .fallbackBacklog(let speaker, let message):
       emitError("fallback_backlog", "\(speaker == .me ? "Your mic" : "Their side"): \(message)")
     }
@@ -319,11 +328,18 @@ public final class HelperServer {
 
   private static func round(_ v: Double) -> Double { (v * 1000).rounded() / 1000 }
 
+  /// `reconnecting` while any speaker's transcription is down, then `catching_up` while the audio
+  /// kept during the outage uploads, else `live`.
+  private var transcriptionStatus: String {
+    if !transcriptionDown.isEmpty { return "reconnecting" }
+    return catchingUp ? "catching_up" : "live"
+  }
+
   private func emitState() {
     var fields: [String: JSONValue] = [
       "recording": .bool(pipeline != nil), "mode": .string(mode.rawValue),
       "mic": .string(health.mic.rawValue), "system": .string(health.system.rawValue),
-      "transcription": .string(transcriptionDown.isEmpty ? "live" : "reconnecting"),
+      "transcription": .string(transcriptionStatus),
     ]
     if let id = pipeline?.meetingID { fields["meetingId"] = .string(id) }
     emit("state", fields)

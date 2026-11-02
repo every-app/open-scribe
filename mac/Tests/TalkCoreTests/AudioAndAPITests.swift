@@ -134,7 +134,7 @@ import Testing
     b.add(speaker: .me, startedMs: 0, endedMs: 1_000, text: "  hello   there ")
     #expect(b.add(speaker: .them, startedMs: 0, endedMs: 10, text: "   ") == nil)
     b.add(speaker: .them, startedMs: 500, endedMs: 2_000, text: "hi")
-    #expect(b.pending.map(\.seq) == [0, 1])
+    #expect(b.pending.map(\.seq) == [0, 2_002])  // startedMs × 4, + 2 for them
     #expect(b.pending[0].text == "hello there")
     #expect(b.pending[1].speaker == .them)
   }
@@ -143,10 +143,10 @@ import Testing
     var b = SegmentBatcher()
     for i in 0..<5 { b.add(speaker: .me, startedMs: i, endedMs: i + 1, text: "t\(i)") }
     let first = b.takeBatch(max: 3)
-    #expect(first.map(\.seq) == [0, 1, 2])
+    #expect(first.map(\.seq) == [0, 4, 8])
     b.add(speaker: .me, startedMs: 9, endedMs: 10, text: "late")
     b.restore(first)
-    #expect(b.pending.map(\.seq) == [0, 1, 2, 3, 4, 5])
+    #expect(b.pending.map(\.seq) == [0, 4, 8, 12, 16, 36])
     #expect(b.takeBatch().count == 6)
     #expect(b.isEmpty)
     #expect(b.takeBatch().isEmpty)
@@ -169,10 +169,10 @@ import Testing
   }
 
   @Test func encodesAsSpecSays() throws {
-    var b = SegmentBatcher(firstSeq: 7)
+    var b = SegmentBatcher()
     b.add(speaker: .them, startedMs: 10, endedMs: 20, text: "yo")
     let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(b.pending)) as! [[String: Any]]
-    #expect(json[0]["seq"] as? Int == 7)
+    #expect(json[0]["seq"] as? Int == 42)
     #expect(json[0]["startedMs"] as? Int == 10)
     #expect(json[0]["endedMs"] as? Int == 20)
     #expect(json[0]["speaker"] as? String == "them")

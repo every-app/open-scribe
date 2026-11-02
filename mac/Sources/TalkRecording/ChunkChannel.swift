@@ -34,7 +34,10 @@ public actor ChunkChannel: SpeakerChannel {
   let speaker: Speaker
   let language: String?
   let upload: @Sendable (_ wav: Data, _ seq: Int, _ t0: Int, _ t1: Int) async throws -> Segment?
-  let seq: SeqCounter
+  /// A chunk's seq from its start (meeting time): `TranscriptSeq`.
+  let seqFor: @Sendable (Int) -> Int
+  /// Meeting time of the first audio fed (a replay starts mid-meeting).
+  let offsetMs: Int
   let callbacks: ChannelCallbacks
   let limits: Limits
 
@@ -45,13 +48,14 @@ public actor ChunkChannel: SpeakerChannel {
   private var cancelled = false
 
   public init(
-    speaker: Speaker, language: String?, seq: SeqCounter,
+    speaker: Speaker, language: String?, offsetMs: Int = 0, seqFor: @escaping @Sendable (Int) -> Int,
     upload: @escaping @Sendable (_ wav: Data, _ seq: Int, _ t0: Int, _ t1: Int) async throws -> Segment?,
     callbacks: ChannelCallbacks, limits: Limits = Limits()
   ) {
     self.speaker = speaker
     self.language = language
-    self.seq = seq
+    self.offsetMs = offsetMs
+    self.seqFor = seqFor
     self.upload = upload
     self.callbacks = callbacks
     self.limits = limits
@@ -89,7 +93,8 @@ public actor ChunkChannel: SpeakerChannel {
   private func enqueue(_ chunk: ChunkCutter.Chunk) {
     pending.append(
       Pending(
-        wav: WAV.encode(pcm16: chunk.pcm), seq: seq.next(), startedMs: chunk.startedMs, endedMs: chunk.endedMs,
+        wav: WAV.encode(pcm16: chunk.pcm), seq: seqFor(chunk.startedMs + offsetMs), startedMs: chunk.startedMs + offsetMs,
+        endedMs: chunk.endedMs + offsetMs,
         queuedAt: limits.now()))
     trim()
     if worker == nil {
@@ -162,21 +167,6 @@ public actor ChunkChannel: SpeakerChannel {
       }
       defer { group.cancelAll() }
       return try await group.next()!
-    }
-  }
-}
-
-/// Segment numbers shared by both speakers of one meeting.
-public final class SeqCounter: @unchecked Sendable {
-  private let lock = NSLock()
-  private var value = 0
-
-  public init() {}
-
-  public func next() -> Int {
-    lock.withLock {
-      defer { value += 1 }
-      return value
     }
   }
 }

@@ -32,7 +32,7 @@ import TalkCore
     try await p.start()
     rig.mic?.speak()  // the echo, transcribed first
     rig.system?.speak()
-    #expect(await events.waitFor { events.lines == ["0 them: \(said)"] && p.heldForEcho == 1 })
+    #expect(await events.waitFor { events.lines == ["2 them: \(said)"] && p.heldForEcho == 1 })
     clock.advance(by: .seconds(5))
     #expect(await events.waitFor { p.heldForEcho == 0 })  // judged: an echo
     rig.mic?.speak()  // real words
@@ -40,7 +40,7 @@ import TalkCore
     #expect(events.lines.count == 1)
     clock.advance(by: .seconds(5))
     #expect(await events.waitFor { events.lines.count == 2 })
-    #expect(events.lines == ["0 them: \(said)", "1 me: I can take that"])
+    #expect(events.lines == ["2 them: \(said)", "400 me: I can take that"])
     let result = await p.stop()
     #expect(result.segments == 2)
     #expect(try posted(worker).map(\.text) == [said, "I can take that"])
@@ -62,7 +62,7 @@ import TalkCore
     let result = await p.stop()
     #expect(result.segments == 2)
     #expect(try posted(worker).map(\.text) == [said, "sounds good to me"])
-    #expect(events.lines.last == "1 me: sounds good to me")
+    #expect(events.lines.last == "400 me: sounds good to me")  // started at 100 ms
   }
 
   @Test func dedupeCanBeTurnedOff() async throws {

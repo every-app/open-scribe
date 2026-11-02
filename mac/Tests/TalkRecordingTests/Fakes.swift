@@ -11,6 +11,18 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
   private var _completed: [String] = []
   /// Runs before a request is answered (after it's recorded), to hold it in flight.
   var hold: (@Sendable (_ path: String, _ index: Int) async -> Void)?
+  /// Answers `/audio-chunk` from the multipart fields (seq, speaker, startedMs, endedMs), when set.
+  var audioChunk: (@Sendable (_ fields: [String: String]) -> (Int, String))?
+
+  static func multipartFields(_ body: Data?) -> [String: String] {
+    let text = String(decoding: body ?? Data(), as: UTF8.self)
+    var out: [String: String] = [:]
+    let pattern = try! NSRegularExpression(pattern: #"name="([^"]+)"\r\n\r\n([^\r]*)\r\n"#)
+    for m in pattern.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
+      out[String(text[Range(m.range(at: 1), in: text)!])] = String(text[Range(m.range(at: 2), in: text)!])
+    }
+    return out
+  }
 
   init(_ handler: @escaping Handler) { self.handler = handler }
 
@@ -31,9 +43,10 @@ final class FakeWorker: HTTPTransport, @unchecked Sendable {
       return _requests.filter { $0.url!.path == path }.count - 1
     }
     await hold?(path, index)
+    let chunkAnswer = path.hasSuffix("/audio-chunk") ? audioChunk?(Self.multipartFields(request.httpBody)) : nil
     let (status, body) = lock.withLock {
       _completed.append(path)
-      return handler(path, token)
+      return chunkAnswer ?? handler(path, token)
     }
     let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
     return (Data(body.utf8), response)
@@ -114,6 +127,14 @@ actor FakeChannel: SpeakerChannel {
 
   /// What a real channel says when its connection drops (a sentence) or comes back (nil).
   func report(_ problem: String?) { callbacks.problem(speaker, problem) }
+
+  /// What a real channel does when it's back: the audio kept during the outage, then all clear.
+  func backlog(_ message: String) { callbacks.backlog(speaker, message) }
+
+  func reconnect(outage pcm: Data, startedAt startMs: Int) {
+    callbacks.catchUp(speaker, pcm, startMs)
+    callbacks.problem(speaker, nil)
+  }
 }
 
 /// Hands out fake sources and channels and remembers them.
@@ -162,7 +183,7 @@ final class FakeRig: @unchecked Sendable {
         lock.withLock { _channels[speaker] = channel }
         return channel
       },
-      makeFallback: { [self] speaker, _, _, _, callbacks in
+      makeFallback: { [self] speaker, _, _, _, _, callbacks in
         lock.withLock { fallbackUsed = true }
         return FakeChannel(speaker: speaker, fetchToken: nil, callbacks: callbacks)
       })
