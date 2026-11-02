@@ -12,7 +12,7 @@ import { useRecordingElapsed } from "../useRecordingElapsed";
 import { Button } from "@talk/ui/components/button";
 import { useCancelledStart, useFollowRecording, useStartRecording, useStopRecording } from "../actions";
 import { api, cleanError, keys } from "../api";
-import { grantPermission, uiPermissions } from "../settings-logic";
+import { grantPermission, newNoteBlockedReason, uiPermissions } from "../settings-logic";
 import { connectionOf, gateOf, signInAgainOf, type Gate, type Snapshot } from "../connection";
 import { retryUnsavedJottings } from "../jottings";
 import { installUpdate, rememberDeferred, updatePillOf } from "../update";
@@ -189,7 +189,7 @@ function Layout({ state }: { state: AppSnapshot }) {
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey && event.key.toLowerCase() === "n" && !event.shiftKey) {
         event.preventDefault();
-        if (!recordingId) void start({});
+        if (!recordingId && !newNoteBlockedReason(state)) void start({});
       }
       // ⌘K: the search palette, from anywhere (again closes it).
       if (event.metaKey && event.key.toLowerCase() === "k" && !event.shiftKey) {
@@ -199,7 +199,7 @@ function Layout({ state }: { state: AppSnapshot }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [recordingId, start, navigate]);
+  }, [recordingId, start, navigate, state]);
 
   const deep = pathname.startsWith("/meetings/") || pathname.startsWith("/upcoming/");
 
@@ -215,6 +215,7 @@ function Layout({ state }: { state: AppSnapshot }) {
           account,
           onNewFolder: setAdding,
           onNewNote: () => void start({}),
+          newNoteDisabledReason: newNoteBlockedReason(state),
           onSearch: () => setSearching(true),
           update: pill
             ? {

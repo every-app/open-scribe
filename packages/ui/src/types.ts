@@ -152,6 +152,26 @@ export interface LiveRecording {
   system: ChannelHealth;
 }
 
+/** One side of "Test microphone & system audio" (the helper's selftest.run). */
+export interface SelfTestSide {
+  status: "ok" | "silent" | "denied" | "error";
+  peak: number;
+  sampleRate?: number;
+  device?: string;
+  clipping: boolean;
+  clippedSamples: number;
+  dropouts: number;
+  message?: string;
+}
+
+export interface SelfTestReport {
+  seconds: number;
+  passed: boolean;
+  voiceProcessing: boolean;
+  mic: SelfTestSide;
+  system: SelfTestSide;
+}
+
 /* Screen plumbing ------------------------------------------------------- */
 
 /** A value the screen waits for. Screens never fetch; callers pass this. */

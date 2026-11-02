@@ -176,6 +176,19 @@ test("a Settings switch persists across a reload", async () => {
   expect(JSON.parse(readFileSync(join(userData, "settings.json"), "utf8")).callDetection).toBe(after === "true");
 });
 
+test("Settings → Test microphone & system audio runs and reports both sides", async () => {
+  await page.evaluate(() => (location.hash = "#/settings"));
+  const run = page.getByRole("button", { name: "Run test" });
+  await expect(run).toBeVisible();
+  await run.click();
+  // The fake helper's selftest.run takes under a second and reports device "Fake".
+  const results = page.getByRole("list", { name: "Test results" });
+  await expect(results).toBeVisible({ timeout: 15_000 });
+  await expect(results).toContainText("Your microphone works (Fake).");
+  await expect(results).toContainText("Talk hears your Mac's sound.");
+  await expect(page.getByRole("button", { name: "Test again" })).toBeEnabled();
+});
+
 test("shows the offline banner when the app can't be reached, and clears it after", async () => {
   await mock.setMode("offline");
   await page.evaluate(() => (location.hash = "#/"));

@@ -110,3 +110,18 @@ describe("navigate requests from main", () => {
     expect(navigateTarget("settings")).toBeNull();
   });
 });
+
+describe("Test microphone & system audio", () => {
+  it("can't run during a recording, or while another test runs; blocks New note meanwhile", async () => {
+    const { selfTestBlockedReason, newNoteBlockedReason } = await import("../src/renderer/src/settings-logic");
+    const snap = (recording: string, running: boolean) =>
+      ({ recording: { state: recording }, selfTest: { running } }) as unknown as Parameters<typeof selfTestBlockedReason>[0];
+    expect(selfTestBlockedReason(snap("idle", false), false)).toBeUndefined();
+    expect(selfTestBlockedReason(snap("recording", false), false)).toMatch(/Stop the recording/);
+    expect(selfTestBlockedReason(snap("idle", true), false)).toMatch(/already running/);
+    // The window's own test running isn't a reason to disable its own button state.
+    expect(selfTestBlockedReason(snap("idle", true), true)).toBeUndefined();
+    expect(newNoteBlockedReason(snap("idle", true))).toMatch(/test is running/);
+    expect(newNoteBlockedReason(snap("idle", false))).toBeUndefined();
+  });
+});

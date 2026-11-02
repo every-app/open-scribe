@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import type { PermissionKind } from "@shared/ipc";
-import { SettingsScreen, useThemePreference, type ThemePreference } from "@talk/ui";
+import { SettingsScreen, useThemePreference, type SelfTestState, type ThemePreference } from "@talk/ui";
 import { api, cleanError, keys } from "../api";
 import { useDeviceSettings } from "../device-settings";
 import { accountFrom, calendarConnectionFrom, loadable } from "../map";
 import { notify } from "../notice";
-import { grantPermission, loginItemHint, uiPermissions } from "../settings-logic";
+import { grantPermission, loginItemHint, selfTestBlockedReason, uiPermissions } from "../settings-logic";
+import { useLevels } from "../live";
 import { talk, useAppState } from "../talk";
 
 const granted: Record<PermissionKind, string> = {
@@ -21,6 +22,8 @@ export function SettingsPage() {
   const { themePreference, setThemePreference } = useThemePreference();
   const { settings, set } = useDeviceSettings();
   const [hints, setHints] = useState<Partial<Record<PermissionKind, string>>>({});
+  const [test, setTest] = useState<SelfTestState>({ kind: "idle" });
+  const levels = useLevels(); // the helper's levels, live while the test runs
   const permissions = uiPermissions(state?.permissions);
 
   const change = (patch: Parameters<typeof set>[0]) =>
@@ -60,6 +63,19 @@ export function SettingsPage() {
         )
       }
       onOpenSystemSettings={(kind) => void talk["permissions:openSettings"](kind).catch((e: unknown) => notify(cleanError(e), "error"))}
+      selfTest={{
+        state: test.kind === "running" ? { kind: "running", levels } : test,
+        disabledReason: selfTestBlockedReason(state, test.kind === "running"),
+        onRun: () => {
+          setTest({ kind: "running", levels: { mic: 0, system: 0 } });
+          void talk["selftest:run"]().then(
+            (report) => setTest({ kind: "done", report }),
+            (e: unknown) => setTest({ kind: "error", message: cleanError(e) }),
+          );
+        },
+        onOpenSettings: (pane) =>
+          void talk["permissions:openSettings"](pane).catch((e: unknown) => notify(cleanError(e), "error")),
+      }}
       onConnectCalendar={() => void talk["calendar:connect"]()}
       onLaunchAtLoginChange={(launchAtLogin) => change({ launchAtLogin })}
       onDetectCallsChange={(callDetection) => change({ callDetection })}

@@ -46,6 +46,8 @@ export interface SidebarProps {
   onNewNote: () => void;
   /** A downloaded update, as a quiet pill in the footer (hidden while recording: pass null). */
   update?: UpdatePillProps | null;
+  /** Why New note can't start right now (a microphone and system audio test is running). */
+  newNoteDisabledReason?: string;
   /** The search field at the top: opens search (⌘K). */
   onSearch?: () => void;
   recording?: RecordingSummary | null;
@@ -252,7 +254,9 @@ export function Sidebar(props: SidebarProps) {
           <button
             type="button"
             onClick={props.onNewNote}
-            className="no-drag flex h-8 w-full items-center gap-2 rounded-lg border border-sidebar-border bg-background/70 px-2.5 text-[13px] font-medium shadow-xs transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            disabled={!!props.newNoteDisabledReason}
+            title={props.newNoteDisabledReason}
+            className="no-drag flex h-8 w-full items-center gap-2 rounded-lg border border-sidebar-border bg-background/70 px-2.5 text-[13px] font-medium shadow-xs transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
           >
             <PenLine className="size-[15px] text-foreground/60" />
             New note

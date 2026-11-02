@@ -373,6 +373,55 @@ function SearchScene({
   );
 }
 
+function SelfTestScene({
+  running,
+  animate = false,
+}: {
+  running?: boolean;
+  animate?: boolean;
+}) {
+  const levels = useLevels(animate);
+  const side = {
+    status: "ok",
+    peak: 0.42,
+    clipping: false,
+    clippedSamples: 0,
+    dropouts: 0,
+  } as const;
+  return (
+    <Frame current={{ to: "settings" }}>
+      <SettingsScreen
+        account={ready(mock.account)}
+        permissions={ready(mock.permissionsGranted)}
+        calendar={ready({ state: "connected", email: "ben@every.to" })}
+        launchAtLogin
+        detectCalls
+        theme="system"
+        selfTest={{
+          state: running
+            ? { kind: "running", levels }
+            : {
+                kind: "done",
+                report: {
+                  seconds: 8,
+                  passed: false,
+                  voiceProcessing: false,
+                  mic: {
+                    ...side,
+                    device: "MacBook Pro Microphone",
+                    clipping: true,
+                  },
+                  system: { ...side, status: "denied", peak: 0 },
+                },
+              },
+          onRun: noop,
+          onOpenSettings: noop,
+        }}
+      />
+    </Frame>
+  );
+}
+
 /* Registry ---------------------------------------------------------------- */
 
 const home = (overrides: Partial<Parameters<typeof HomeScreen>[0]> = {}) => (
@@ -916,6 +965,18 @@ export const scenes: Scene[] = [
         />
       </Frame>
     ),
+  },
+  {
+    id: "settings-selftest-running",
+    group: "Settings",
+    label: "Self-test running",
+    render: (ctx) => <SelfTestScene running animate={ctx.animate} />,
+  },
+  {
+    id: "settings-selftest-result",
+    group: "Settings",
+    label: "Self-test result (no sound from the Mac)",
+    render: () => <SelfTestScene />,
   },
   {
     id: "settings-loading",

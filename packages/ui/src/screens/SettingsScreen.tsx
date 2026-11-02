@@ -21,6 +21,7 @@ import type {
   PermissionStatus,
 } from "../types";
 import { Avatar } from "./AppFrame";
+import { SelfTest, type SelfTestProps } from "./SelfTest";
 import { ScreenBody, ScreenTitle } from "./parts";
 
 export type CalendarConnection =
@@ -52,6 +53,8 @@ export interface SettingsScreenProps {
   /** "conflict": another app holds ⌃⌥⌘R, so Talk couldn't take it. */
   recordShortcutStatus?: "off" | "on" | "conflict";
   onRecordShortcutChange?: (on: boolean) => void;
+  /** "Test microphone & system audio", under the permissions. */
+  selfTest?: SelfTestProps;
   onConnectCalendar?: () => void;
   onLaunchAtLoginChange?: (on: boolean) => void;
   onDetectCallsChange?: (on: boolean) => void;
@@ -70,6 +73,7 @@ export function SettingsScreen(props: SettingsScreenProps) {
         hint="Talk records only after you click record. Audio is transcribed and never stored."
       >
         <Permissions {...props} />
+        {props.selfTest && <SelfTest {...props.selfTest} />}
       </Section>
       <Section title="Calendar">
         <CalendarRow {...props} />

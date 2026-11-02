@@ -2,7 +2,7 @@
 // settings (userData/settings.json) and pushes them on the state snapshot; the controller shows a
 // change at once and settles on what main answers.
 
-import type { PermissionKind, PermissionsSnapshot, Settings, SettingsPatch, TalkBridge } from "@shared/ipc";
+import type { AppSnapshot, PermissionKind, PermissionsSnapshot, Settings, SettingsPatch, TalkBridge } from "@shared/ipc";
 import type { PermissionStatus } from "@shared/protocol";
 
 export type DeviceSettings = Settings;
@@ -101,4 +101,17 @@ export function loginItemHint(status: string | undefined, wanted: boolean): stri
   if (status === "unsupported") return "Only in the installed app; a dev run can't open at login.";
   if (wanted && status === "disabled") return "macOS hasn't turned it on yet.";
   return undefined;
+}
+
+/** Why "Test microphone & system audio" can't run right now, if it can't. */
+export function selfTestBlockedReason(state: AppSnapshot | undefined, runningHere: boolean): string | undefined {
+  if (!state) return undefined;
+  if (state.recording.state !== "idle") return "Stop the recording to test your microphone and system audio.";
+  if (state.selfTest?.running && !runningHere) return "A microphone and system audio test is already running.";
+  return undefined;
+}
+
+/** Why New note (and ⌘N) can't start right now: main refuses a recording during a test. */
+export function newNoteBlockedReason(state: AppSnapshot | undefined): string | undefined {
+  return state?.selfTest?.running ? "A microphone and system audio test is running. Start recording when it finishes." : undefined;
 }
