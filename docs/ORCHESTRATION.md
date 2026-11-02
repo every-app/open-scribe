@@ -112,3 +112,4 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - H: release runbook + scripts/release-mac.sh (dry-run, no uploads). M3: robustness (offline state, sign-in expiry, logs + diagnostics, helper crash UX).
 - #18 merged (recording warning, cancelled-start UX, fresh screenshots). #20 merged (helper fast shutdown). #21 (Codex V1 UI fixes) rebasing.
 - #21 merged (Codex V1 UI fixes). #23 merged (M3 robustness: connection state, expiry, unsaved replay, logs/diagnostics, crash notice, update-feed auth). #22 (UI connection states) rebasing onto #23. Codex V2 running. API: private update feed route. H: release runbook.
+- #24 merged (private update feed route). #22 merged (offline/sign-in-again/reconnecting banners).
