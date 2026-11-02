@@ -120,3 +120,4 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - #29 merged (SwiftUI app retired; 118 mac tests). #31 merged (runbook feed details). #32 merged (clipboard hardening). H: realtime outage buffer → fallback replay.
 - #33 merged (desktop e2e in CI: 7 flows, 36 s job). M3: update UX + About + optional global shortcut.
 - #34 merged (⌘K search UI).
+- #35 merged (update UX, About, optional ⌃⌥⌘R; e2e 8 flows). #37 (helper outage buffer, time-based seqs, catching_up) and #36 (search palette) merging on green.
