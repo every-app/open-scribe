@@ -65,3 +65,16 @@ The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are U
 - 00:42 (Oct 28) Linked dev design is ready: draft #866 (base feature/native-sign-in). Token is bound to the resource ${GATEWAY_URL}/linked-dev/<app> and stays in the CLI. The org opt-in is off by default. Five questions for Ben are relayed. Building next; I run the local proof against a localhost Gateway when pinged.
 - 01:42 (Oct 28) Linked dev is built: #866 is now based on main (#855 was merged to main at 01:03Z by the bensenescu account; unclear if Ben did it, flagged). Proved locally against a localhost Gateway with an empty .dev.vars. web/ now links the SDK and CLI from the feature-linked-dev worktree.
 - (Nov 1) Ben renamed the product to Talk: app id `talk`, bundle id `com.everyapp.talk`, Swift targets Talk/TalkCore/TalkCLI/talk-smoke, env vars `TALK_*`. Older entries keep the old name. Repo created: every-app/private-talk (private). The loop-1 deploy is still under `open-zen` and the Keychain service changed, so the Mac app needs a fresh sign-in.
+
+## Desktop build (2026-11-02)
+
+Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d3273ac856ebf. Plan: docs/desktop-plan.md (#1). The orchestrator merges.
+
+| Lane | Thread | Branch | Owns |
+| --- | --- | --- | --- |
+| W: web overhaul | mcp:launch:b3ccf748831b0386b442e96a2788db9160907e7fc9d6ed409f33ec68dc1ae819 | feature/web-overhaul-v2 | web/ |
+| A: Electron shell | mcp:launch:557a1b00733b3ed3b1f5e43c03c3a818a16b56793cc4debfa6d6a151896fffe4 | feature/desktop-shell | desktop/ |
+| H: Swift helper | mcp:launch:e193a58e407ed712a08c3b4efc2c39b3cb3e7912703a5186fbfcf4b0b3e8dc39 | feature/talk-helper | mac/ |
+
+- Took Talk over from the overnight orchestrator. Its Overnight B thread stopped clean at a3449ca (no new work).
+- Interviewed Ben. Plan merged (#1). Launched W, A, H. Next: API (after W), then UI (after A), then integration.
