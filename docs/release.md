@@ -21,7 +21,8 @@ Keep all of this in your login Keychain and shell, **never in the repo**.
 export APPLE_API_KEY=~/.private_keys/AuthKey_ABC123XYZ.p8   # path to the .p8
 export APPLE_API_KEY_ID=ABC123XYZ
 export APPLE_API_ISSUER=00000000-0000-0000-0000-000000000000
-export TALK_UPDATE_URL=https://talk.<base>/api/v1/updates/mac/   # see "Update feed"
+export TALK_UPDATE_URL=https://talk.<base>/api/v1/updates/mac   # see "Update feed"
+export TALK_UPDATE_BUCKET=<the UPDATES bucket's name>            # for the printed upload commands
 # Only if the keychain holds more than one Developer ID:
 # export TALK_SIGN_ID="Developer ID Application: Ben Senescu (TEAMID)"
 ```
@@ -75,11 +76,20 @@ electron-updater reads `latest-mac.yml` from the feed and installs from the zip.
 
 | Option | How | Trade-offs |
 | --- | --- | --- |
-| **A. Private R2 bucket behind the Gateway** (recommended) | An R2 bucket bound to the Talk Worker (`UPDATES`). A private route `GET /api/v1/updates/mac/:file` streams it. The app sends its bearer token. `TALK_UPDATE_URL=https://talk.<base>/api/v1/updates/mac/` | Only signed-in org members can download. Same auth as the rest of the app. No new credentials. The Worker route shipped in #24. The desktop side, which sends the bearer only to the app's own origin, is in PR #23. |
-| A′. Public R2 bucket, unguessable path (interim) | `r2.dev` or a custom domain, path `/talk/<random>/mac/` | Works today with no code changes. Anyone with the URL can download. |
+| **A. Private R2 bucket behind the Gateway** (recommended) | The R2 bucket bound to the Talk Worker as `UPDATES` (the deploy creates it; find its name in the Cloudflare dashboard; locally `every-talk--updates`). `GET`/`HEAD /api/v1/updates/mac/:file` serves `mac/<file>` to any signed-in member; the app sends its bearer (refreshed before each check). `TALK_UPDATE_URL=https://talk.<base>/api/v1/updates/mac` | Only signed-in org members can download. Same auth as the rest of the app. No new credentials. Shipped: the Worker route in #24, the updater's bearer (own origin only) in #23. |
+| A′. Public R2 bucket, unguessable path (only until the private route is deployed) | `r2.dev` or a custom domain, path `/talk/<random>/mac/` | Works today with no code changes. Anyone with the URL can download. |
 | B. GitHub Releases | `gh release create …` (the script prints it). The `github` provider in electron-builder. | `every-app/private-talk` is private, so the app would need a GitHub token to read releases. That token would be shipped in every copy or handed out per user, and it can read the repo. **Not recommended** unless the releases move to a public repo. |
 
-Uploads for A and A′ use `npx wrangler r2 object put talk-updates/mac/<file> --file … --remote`. The script prints every line, with `latest-mac.yml` last and `--cache-control no-cache`.
+Uploads (the script prints them, with `$TALK_UPDATE_BUCKET` filled in):
+
+```sh
+npx wrangler@4 r2 object put "$BUCKET/mac/<file>" --file dist/release/<version>/<file> --remote      # each zip, dmg, blockmap
+npx wrangler@4 r2 object put "$BUCKET/mac/latest-mac.yml" --file dist/release/<version>/latest-mac.yml --content-type text/yaml --remote   # last
+```
+
+- **`latest-mac.yml` goes last**, so no client ever sees a feed naming a file that isn't there yet.
+- **Never re-upload a different file under a published name.** Release files are served `immutable` for a year; bump the version instead. `latest-mac.yml` is `no-cache`.
+- The route serves only `latest-mac.yml` and `Talk-<x.y.z>[-…].zip` / `.dmg` / `.blockmap` (what the script makes, e.g. `Talk-1.2.3-universal-mac.zip`); anything else is a 404. Range requests work, so blockmap differential downloads do.
 
 ## Check that an update keeps the sign-in (alpha checklist)
 

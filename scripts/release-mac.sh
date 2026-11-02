@@ -19,7 +19,10 @@
 #                      keychain)
 #   APPLE_API_KEY (path to the .p8), APPLE_API_KEY_ID, APPLE_API_ISSUER     notarization, or
 #   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
-#   TALK_UPDATE_URL    the update feed the app will check (required for --release)
+#   TALK_UPDATE_URL    the update feed the app will check (required for --release), e.g.
+#                      https://talk.<base>/api/v1/updates/mac
+#   TALK_UPDATE_BUCKET the deployed R2 bucket bound as UPDATES, for the printed upload commands
+#                      (Cloudflare dashboard; locally every-talk--updates)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -260,13 +263,15 @@ for f in "${OUT}"/*; do
   [[ "${name}" == latest-mac.yml || "${name}" == SHA256SUMS ]] || FILES+=("${name}")
 done
 REL="${OUT#"${ROOT}/"}"
+BUCKET_NAME="${TALK_UPDATE_BUCKET:-<the UPDATES bucket from the Cloudflare dashboard>}"
 step "Nothing was uploaded. To publish, run ONE of these (the feed file goes last):"
 cat << EOF
 
-  # A) Private R2 bucket behind the Gateway (recommended; docs/release.md). Bucket "talk-updates",
-  #    the app built with TALK_UPDATE_URL=<gateway feed URL>/mac/:
-$(for f in "${FILES[@]}"; do echo "  npx wrangler r2 object put talk-updates/mac/${f} --file ${REL}/${f} --remote"; done)
-  npx wrangler r2 object put talk-updates/mac/latest-mac.yml --file ${REL}/latest-mac.yml --cache-control no-cache --remote
+  # A) The private feed: the R2 bucket bound to the Talk Worker as UPDATES (docs/release.md).
+  #    Release files are cached as immutable: never re-upload a different file under a published name.
+  BUCKET="${BUCKET_NAME}"
+$(for f in "${FILES[@]}"; do echo "  npx wrangler@4 r2 object put \"\$BUCKET/mac/${f}\" --file ${REL}/${f} --remote"; done)
+  npx wrangler@4 r2 object put "\$BUCKET/mac/latest-mac.yml" --file ${REL}/latest-mac.yml --content-type text/yaml --remote
 
   # B) GitHub Releases (needs a token in the app for a private repo; see docs/release.md):
   gh release create ${TAG} --repo every-app/private-talk --title "Talk ${VERSION}" --notes "Talk ${VERSION}" \\
