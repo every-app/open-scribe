@@ -44,11 +44,15 @@ export function devSignIn(): { appUrl: string; token: string } | undefined {
 
 export const POLL_INTERVAL_MS = 5 * 60_000;
 
-/** Dev only: keep the Keychain out of it. A rebuilt Talk Dev is signed differently from the build
- * that made its "Talk Dev Safe Storage" item, so touching safeStorage brings up a Keychain password
- * dialog, which stops a computer-use tester. With a dev sign-in (TALK_DEV_APP_URL + TALK_DEV_TOKEN,
- * or dev-signin.json) or TALK_DEV_NO_KEYCHAIN=1, safeStorage is never read or written. */
+/** Dev builds keep the Keychain out of it entirely. A rebuilt Talk Dev is signed differently from
+ * the build that made its "Talk Dev Safe Storage" item, so touching safeStorage can bring up a
+ * Keychain password dialog (and block the main process until it's answered), which stops a
+ * computer-use tester. So a dev build never reads or writes safeStorage: every sign-in, a pasted
+ * token or OAuth, lasts until quit. TALK_DEV_KEYCHAIN=1 opts back in (to test the stored sign-in),
+ * unless a dev sign-in (TALK_DEV_APP_URL + TALK_DEV_TOKEN, or dev-signin.json) is in use or
+ * TALK_DEV_NO_KEYCHAIN=1 is set. Release builds always use the Keychain. */
 export function keychainDisabled(): boolean {
   if (!isDevFlavor()) return false;
-  return process.env.TALK_DEV_NO_KEYCHAIN === "1" || devSignIn() !== undefined;
+  if (process.env.TALK_DEV_NO_KEYCHAIN === "1" || devSignIn() !== undefined) return true;
+  return process.env.TALK_DEV_KEYCHAIN !== "1";
 }

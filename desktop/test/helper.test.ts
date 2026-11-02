@@ -161,6 +161,40 @@ describe("recording against the fake helper and fake server", () => {
     expect(recording.state.state).toBe("idle");
   });
 
+  it("sends echoCancellation only when the setting is on", async () => {
+    const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
+    await auth.signInWithToken(fake.origin, "epat_good");
+    const { s, logs } = make();
+    let echo = false;
+    const recording = new RecordingController(auth, s, () => {}, () => echo);
+    s.start();
+    await ready(s);
+    await recording.start({ title: "Off" });
+    await recording.stop();
+    echo = true;
+    await recording.start({ title: "On" });
+    await recording.stop();
+    await until(() => logs.filter((l) => l.includes("record.start echoCancellation=")).length === 2 || undefined);
+    expect(logs.filter((l) => l.includes("record.start echoCancellation="))).toEqual([
+      "[helper] fake-helper: record.start echoCancellation=false",
+      "[helper] fake-helper: record.start echoCancellation=true",
+    ]);
+  });
+
+  it("deletes the meeting when the start fails", async () => {
+    const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
+    await auth.signInWithToken(fake.origin, "epat_good");
+    const { s } = make({ FAKE_HELPER_START_ERROR: "capture_failed" });
+    const recording = new RecordingController(auth, s);
+    s.start();
+    await ready(s);
+    await expect(recording.start({ title: "Broken" })).rejects.toThrow(/told to fail/);
+    expect(recording.state).toMatchObject({ state: "idle", error: expect.stringMatching(/told to fail/) });
+    await until(() => (fake.deleted.length ? true : undefined));
+    expect(fake.meetings).toEqual([]);
+    expect(fake.finished).toEqual([]);
+  });
+
   it("treats a stop during start as cancelled: no error, no /finish", async () => {
     const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
     await auth.signInWithToken(fake.origin, "epat_good");
@@ -176,8 +210,9 @@ describe("recording against the fake helper and fake server", () => {
     await expect(starting).resolves.toBeUndefined();
     expect(recording.state).toEqual({ state: "idle" });
     expect(logs.join("\n")).toMatch(/cancelled/);
-    await new Promise((r) => setTimeout(r, 200));
+    await until(() => (fake.deleted.length ? true : undefined));
     expect(fake.finished).toEqual([]);
+    expect(fake.meetings).toEqual([]);
     expect(s.state.status).toBe("ready");
   });
 

@@ -23,6 +23,8 @@ export class RecordingController extends EventEmitter<{ change: [RecordingSnapsh
     private readonly auth: AuthService,
     private readonly helper: HelperSupervisor,
     private readonly log: (...parts: unknown[]) => void = () => {},
+    /** Read at each start: the echoCancellation setting. */
+    private readonly echoCancellation: () => boolean = () => false,
   ) {
     super();
     helper.on("event", (event) => this.onHelperEvent(event));
@@ -68,12 +70,16 @@ export class RecordingController extends EventEmitter<{ change: [RecordingSnapsh
       this.set({ meetingId });
       const accessToken = await this.auth.accessToken();
       if (!accessToken) throw new Error("You're signed out. Sign in again.");
-      const { startedAt } = await this.helper.request("record.start", { meetingId, apiBase: api.appUrl, accessToken });
+      // Sent only when on: leaving it out means off, for any helper version.
+      const echo = this.echoCancellation() ? { echoCancellation: true } : {};
+      const { startedAt } = await this.helper.request("record.start", { meetingId, apiBase: api.appUrl, accessToken, ...echo });
       this.set({ state: "recording", startedAt });
       this.log(`recording ${meetingId}`);
     } catch (error) {
-      // Stopped while still starting: a normal outcome. Nothing was captured; the helper doesn't
-      // /finish, and neither do we.
+      // Cancelled (stopped while still starting: a normal outcome, nothing captured, no /finish) or
+      // failed: either way the meeting has no recording behind it. Delete it, so it doesn't sit in
+      // the list as "recording" or as an empty meeting.
+      if (meetingId) void this.discard(meetingId);
       if (error instanceof HelperRequestError && error.code === "cancelled") {
         this.log(`start of ${meetingId ?? "a meeting"} cancelled by a stop`);
         this.set({ state: "idle" }, true);
@@ -81,8 +87,6 @@ export class RecordingController extends EventEmitter<{ change: [RecordingSnapsh
       }
       this.auth.handleError(error);
       this.set({ state: "idle", error: errorMessage(error) }, true);
-      // A meeting with no recording behind it: finish it so it doesn't stay "recording".
-      if (meetingId) void api.finish(meetingId).catch(() => {});
       throw error;
     }
   }
@@ -99,6 +103,15 @@ export class RecordingController extends EventEmitter<{ change: [RecordingSnapsh
       if (error instanceof HelperRequestError && error.code === "not_recording") return this.set({ state: "idle" }, true);
       this.set({ state: "idle", error: errorMessage(error) }, true);
       throw error;
+    }
+  }
+
+  private async discard(meetingId: string): Promise<void> {
+    try {
+      await this.auth.api?.deleteMeeting(meetingId);
+      this.log(`deleted meeting ${meetingId}: its recording never started`);
+    } catch (error) {
+      this.log(`couldn't delete meeting ${meetingId} after a failed start: ${errorMessage(error)}`);
     }
   }
 

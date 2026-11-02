@@ -104,6 +104,16 @@ export class ApiClient {
     }
   }
 
+  /** Deletes a meeting (owner only). Idempotent: 404 means it's already gone. */
+  async deleteMeeting(id: string): Promise<void> {
+    try {
+      await this.request("DELETE", `api/v1/meetings/${encodeURIComponent(id)}`, {});
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) return;
+      throw error;
+    }
+  }
+
   /** One allowlisted /api/v1 call for the window ("api:call"); the caller checked the route. */
   async call(method: string, path: string, opts: { query?: Record<string, string>; body?: unknown } = {}): Promise<unknown> {
     return this.request(method, path, { query: opts.query, json: opts.body });

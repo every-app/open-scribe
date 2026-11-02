@@ -14,6 +14,7 @@
 //   FAKE_HELPER_LINE_MS=n         a transcript line every n ms (default 4000)
 //   FAKE_HELPER_NO_POST=1         don't call the API
 //   FAKE_HELPER_MIC=granted|denied|undetermined (default granted)
+//   FAKE_HELPER_START_ERROR=code  record.start fails with that error code
 //   FAKE_HELPER_START_DELAY_MS=n  record.start takes n ms; a record.stop meanwhile cancels it (stop
 //                                 answers { segments: 0, cancelled: true }, start errors `cancelled`)
 // Non-protocol extra, for tests only: {"id", "cmd": "debug.emit", "params": {event...}} echoes an event.
@@ -132,7 +133,10 @@ const handlers = {
   "record.start": async (p) => {
     if (rec || starting) throw { code: "already_recording", message: "Already recording." };
     if (!p?.meetingId || !p?.apiBase || !p?.accessToken) throw { code: "bad_params", message: "meetingId, apiBase and accessToken are required." };
+    if (p.echoCancellation != null && typeof p.echoCancellation !== "boolean") throw { code: "bad_params", message: "echoCancellation must be a boolean." };
     if (permissions.mic === "denied") throw { code: "mic_denied", message: "Microphone access is off for Talk." };
+    log(`record.start echoCancellation=${p.echoCancellation === true}`);
+    if (env.FAKE_HELPER_START_ERROR) throw { code: env.FAKE_HELPER_START_ERROR, message: "The fake helper was told to fail." };
     const delay = num("FAKE_HELPER_START_DELAY_MS", 0);
     if (delay > 0) {
       const cancelled = await new Promise((resolve) => {

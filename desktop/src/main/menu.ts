@@ -1,0 +1,73 @@
+// The app menu and the Dock menu. Everything in the tray menu is here too (Open Talk, Start and
+// Stop Recording), so it's reachable from the keyboard, by accessibility tools and by computer-use
+// testers, which can't reach the menu bar's status items. Plus Settings… (⌘,) and the standard Edit
+// menu, which is what makes copy, paste and undo work in text fields.
+
+import { app, Menu, type MenuItemConstructorOptions } from "electron";
+import type { AppSnapshot } from "@shared/ipc";
+
+export interface MenuActions {
+  open(): void;
+  settings(): void;
+  start(): void;
+  stop(): void;
+}
+
+/** The recording items, shared by the app menu and the Dock menu. No accelerators: the window
+ * owns its own shortcuts (⌘N starts notes there). */
+export function recordingItems(s: Pick<AppSnapshot, "auth" | "helper" | "recording">, actions: MenuActions): MenuItemConstructorOptions[] {
+  const r = s.recording.state;
+  const busy = r !== "idle";
+  return [
+    { label: "Start Recording", enabled: s.auth.status === "signedIn" && !busy && s.helper.status === "ready", click: () => actions.start() },
+    { label: "Stop Recording", enabled: r === "recording" || r === "starting", click: () => actions.stop() },
+  ];
+}
+
+export class AppMenu {
+  private lastKey = "";
+
+  constructor(private readonly actions: MenuActions) {}
+
+  update(s: AppSnapshot): void {
+    const key = JSON.stringify([s.auth.status, s.helper.status, s.recording.state]);
+    if (key === this.lastKey) return;
+    this.lastKey = key;
+    const recording = recordingItems(s, this.actions);
+    const template: MenuItemConstructorOptions[] = [
+      {
+        label: app.getName(),
+        submenu: [
+          { role: "about" },
+          { type: "separator" },
+          { label: "Settings…", accelerator: "CmdOrCtrl+,", click: () => this.actions.settings() },
+          { type: "separator" },
+          { role: "services" },
+          { type: "separator" },
+          { role: "hide" },
+          { role: "hideOthers" },
+          { role: "unhide" },
+          { type: "separator" },
+          { role: "quit" },
+        ],
+      },
+      { role: "editMenu" },
+      { label: "Recording", submenu: recording },
+      ...(app.isPackaged ? [] : [{ role: "viewMenu" } as MenuItemConstructorOptions]),
+      {
+        role: "windowMenu",
+        submenu: [
+          { label: "Open Talk", click: () => this.actions.open() },
+          { type: "separator" },
+          { role: "minimize" },
+          { role: "zoom" },
+          { role: "close" },
+          { type: "separator" },
+          { role: "front" },
+        ],
+      },
+    ];
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+    app.dock?.setMenu(Menu.buildFromTemplate([{ label: "Open Talk", click: () => this.actions.open() }, { type: "separator" }, ...recording]));
+  }
+}

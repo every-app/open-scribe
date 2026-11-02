@@ -19,7 +19,9 @@ export interface HelperCommands {
     result: { mic: PermissionStatus; systemAudio: PermissionStatus };
   };
   "record.start": {
-    params: { meetingId: string; apiBase: string; accessToken: string; language?: string };
+    /** `echoCancellation`: Apple's voice processing on the mic (echo cancellation, noise
+     * suppression). Default off; sent only when on. */
+    params: { meetingId: string; apiBase: string; accessToken: string; language?: string; echoCancellation?: boolean };
     result: { startedAt: string };
   };
   /** `cancelled`: the stop came while record.start was still starting; nothing was captured and

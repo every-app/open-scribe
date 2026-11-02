@@ -105,6 +105,15 @@ export class MainWindow {
     }
   }
 
+  /** Shows the window and sends once its page has loaded (a fresh window would miss it). */
+  showAndSend(channel: string, payload: unknown): void {
+    this.show();
+    const wc = this.window?.webContents;
+    if (!wc || wc.isDestroyed()) return;
+    if (wc.isLoading()) wc.once("did-finish-load", () => this.send(channel, payload));
+    else this.send(channel, payload);
+  }
+
   send(channel: string, payload: unknown): void {
     const wc = this.window?.webContents;
     if (wc && !wc.isDestroyed()) wc.send(channel, payload);

@@ -30,6 +30,8 @@ describe("settings patches", () => {
       { reminderLeadMinutes: "1" },
       { launchAtLogin: "yes" },
       { callDetection: 1 },
+      { echoCancellation: "on" },
+      { echoCancellation: null },
       { unknown: true },
       { theme: "dark", extra: 1 },
       new Date(),
@@ -52,7 +54,7 @@ describe("settings patches", () => {
 describe("SettingsStore", () => {
   it("starts with the defaults: no login item, call detection on, 1 minute, system theme", () => {
     const store = new SettingsStore(tempPath());
-    expect(store.load()).toEqual({ launchAtLogin: false, callDetection: true, reminderLeadMinutes: 1, theme: "system" });
+    expect(store.load()).toEqual({ launchAtLogin: false, callDetection: true, reminderLeadMinutes: 1, theme: "system", echoCancellation: false });
   });
 
   it("saves a patch, emits only what changed, and reloads it", () => {

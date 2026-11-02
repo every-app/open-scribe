@@ -18,6 +18,10 @@ export interface Settings {
   reminderLeadMinutes: number;
   /** Applied as nativeTheme.themeSource, so prefers-color-scheme follows it. */
   theme: ThemePreference;
+  /** Experimental: echo cancellation and noise suppression on the mic (the helper's
+   * `record.start { echoCancellation }`), for laptop speakers without headphones. Off by default
+   * until a hardware test; applies from the next recording. */
+  echoCancellation: boolean;
 }
 
 export type SettingsPatch = Partial<Settings>;
@@ -27,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   callDetection: true,
   reminderLeadMinutes: 1,
   theme: "system",
+  echoCancellation: false,
 };
 
 export const MAX_REMINDER_LEAD_MINUTES = 30;
@@ -153,9 +158,14 @@ export interface ApiCallOptions {
 export type InvokeChannel = keyof InvokeMap;
 
 /** Pushes from main: name → payload. */
+/** Main asks the window to show a screen (the app menu's Settings…, later the tray). The renderer
+ * validates it before navigating. */
+export type NavigateRequest = { to: "settings" } | { to: "home" } | { to: "meeting"; meetingId: string };
+
 export interface EventMap {
   state: AppSnapshot;
   helper: HelperEvent;
+  navigate: NavigateRequest;
 }
 
 export type EventChannel = keyof EventMap;
@@ -190,4 +200,4 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   "api:call",
 ] as const;
 
-export const EVENT_CHANNELS: readonly EventChannel[] = ["state", "helper"] as const;
+export const EVENT_CHANNELS: readonly EventChannel[] = ["state", "helper", "navigate"] as const;

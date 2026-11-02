@@ -41,6 +41,7 @@ export class FakeServer {
   meetings: { id: string; title: string; status: string; visibility: string; startsAt: string; calendarEventId?: string }[] = [];
   segments = new Map<string, unknown[]>();
   finished: string[] = [];
+  deleted: string[] = [];
   events: unknown[] = [];
   private n = 0;
 
@@ -196,6 +197,11 @@ export class FakeServer {
       const rest = m[2] ?? "";
       if (rest === "" && req.method === "GET") {
         return this.json(res, 200, { meeting: { ...meeting, segments: this.segments.get(meeting.id) ?? [], notes: null, shareLinks: [] } });
+      }
+      if (rest === "" && req.method === "DELETE") {
+        this.meetings = this.meetings.filter((x) => x !== meeting);
+        this.deleted.push(meeting.id);
+        return this.json(res, 200, { ok: true });
       }
       if (rest === "" && req.method === "PATCH") {
         Object.assign(meeting, JSON.parse(body));

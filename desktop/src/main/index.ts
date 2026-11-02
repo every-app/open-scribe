@@ -19,6 +19,7 @@ import { RecordingController } from "./recording";
 import { TrayController, trayStateFor } from "./tray";
 import { startUpdater, type UpdaterState } from "./updater";
 import { MainWindow } from "./window";
+import { AppMenu } from "./menu";
 import { typedAppUrl } from "./auth/url";
 import { guardNavigation, type AppOrigin } from "./navigation";
 import { PermissionProbe } from "./permissions";
@@ -78,7 +79,7 @@ async function main(): Promise<void> {
   if (loginItem.status === "disabled" && settings.value.launchAtLogin) settings.set({ launchAtLogin: false });
 
   const noKeychain = keychainDisabled();
-  if (noKeychain) log("dev: the Keychain is off (dev sign-in or TALK_DEV_NO_KEYCHAIN); sign-ins last until quit");
+  if (noKeychain) log("dev: the Keychain is off; sign-ins last until quit (TALK_DEV_KEYCHAIN=1 to keep them)");
   const store = new SecretStore(
     join(app.getPath("userData"), "signin.bin"),
     {
@@ -99,7 +100,7 @@ async function main(): Promise<void> {
     freshToken: () => auth.freshAccessToken(),
     log,
   });
-  const recording = new RecordingController(auth, helper, log);
+  const recording = new RecordingController(auth, helper, log, () => settings.value.echoCancellation);
   const window = new MainWindow(join(__dirname, "../preload/index.js"));
 
   let updater: UpdaterState = { enabled: false };
@@ -138,6 +139,13 @@ async function main(): Promise<void> {
     quit: () => app.quit(),
   });
 
+  const menu = new AppMenu({
+    open: () => window.show(),
+    settings: () => window.showAndSend("navigate", { to: "settings" }),
+    start: () => void startRecording({}).catch((e) => notifyError("Talk couldn't start", e)),
+    stop: () => void recording.stop().catch((e) => notifyError("Talk couldn't stop", e)),
+  });
+
   const snapshot = (): AppSnapshot => {
     const s = {
       version: app.getVersion(),
@@ -160,6 +168,7 @@ async function main(): Promise<void> {
       queued = false;
       const s = snapshot();
       tray.update(s);
+      menu.update(s);
       window.send("state", s);
     });
   };
