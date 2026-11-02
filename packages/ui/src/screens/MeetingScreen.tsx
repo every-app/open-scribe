@@ -116,6 +116,12 @@ export interface MeetingScreenProps {
   shareUrl?: (linkId: string) => string;
   /** Uncontrolled starting values, mostly for the playground. */
   defaultTab?: MeetingTab;
+  /**
+   * The open tab, when the caller keeps it (the app keeps it in the URL, so a link to
+   * ?tab=jottings switches tabs even on the meeting already open). With `onTabChange`.
+   */
+  tab?: MeetingTab;
+  onTabChange?: (tab: MeetingTab) => void;
   defaultTranscriptOpen?: boolean;
   defaultShareOpen?: boolean;
   defaultEditing?: boolean;
@@ -483,8 +489,14 @@ const tabs: { id: MeetingTab; label: string }[] = [
 
 function AfterBody(props: MeetingScreenProps) {
   const { meeting } = props;
-  const [tab, setTab] = useState<MeetingTab>(props.defaultTab ?? "notes");
+  const [ownTab, setOwnTab] = useState<MeetingTab>(props.defaultTab ?? "notes");
+  const controlled = props.tab !== undefined && !!props.onTabChange;
+  const setTab = (next: MeetingTab) =>
+    controlled ? props.onTabChange!(next) : setOwnTab(next);
   const shown = meeting.mine ? tabs : tabs.filter((t) => t.id !== "jottings");
+  const asked = controlled ? props.tab! : ownTab;
+  // Someone else's meeting has no jottings tab: a link to it opens Notes.
+  const tab = shown.some((t) => t.id === asked) ? asked : "notes";
   return (
     <div className="flex flex-col gap-5">
       <div

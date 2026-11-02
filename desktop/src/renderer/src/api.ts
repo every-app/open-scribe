@@ -27,6 +27,7 @@ import type {
   UpdateSettingsInput,
   UpdateTemplateInput,
 } from "@shared/contract";
+import { cleanError } from "./errors";
 import { talk } from "./talk";
 
 const enc = encodeURIComponent;
@@ -39,11 +40,7 @@ async function call<T>(method: ApiMethod, path: string, opts?: ApiCallOptions): 
   }
 }
 
-/** Electron prefixes errors from main ("Error invoking remote method 'x': Error: …"); drop that. */
-export function cleanError(error: unknown): string {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.replace(/^Error invoking remote method '[^']+': (?:\w*Error: )?/, "");
-}
+export { cleanError } from "./errors";
 
 function listQuery(query: ListMeetingsQuery): Record<string, string> {
   const out: Record<string, string> = {};

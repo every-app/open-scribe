@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import type { MeetingDetail } from "@shared/contract";
 import { EmptyState, ErrorState, MeetingScreen, ScreenBody, useElapsed, type LiveState, type MeetingTab } from "@talk/ui";
@@ -6,6 +7,8 @@ import { Skeleton } from "@talk/ui/components/skeleton";
 import { copyLink, draftKey, useRun, useStartRecording, useStopRecording } from "../actions";
 import { api, cleanError, keys } from "../api";
 import { useJottings } from "../jottings";
+import { useRecordingElapsed } from "../useRecordingElapsed";
+import { meetingForView, recordingHereOf } from "../meeting-view";
 import { SLOW_CONNECTION } from "../recording";
 import { transcriptionNoteOf } from "../connection";
 import { mergeSegments, partialOf, useLevels, useLiveTranscript } from "../live";
@@ -17,6 +20,7 @@ const busy = (m: MeetingDetail | undefined) => m?.status === "recording" || m?.s
 
 export function MeetingPage({ id, tab }: { id: string; tab?: MeetingTab }) {
   const state = useAppState();
+  const navigate = useNavigate();
   const run = useRun();
   const stop = useStopRecording();
   const query = useQuery({
@@ -28,21 +32,22 @@ export function MeetingPage({ id, tab }: { id: string; tab?: MeetingTab }) {
   const folders = useQuery({ queryKey: keys.folders, queryFn: () => api.folders().then((r) => r.folders) });
   const templates = useQuery({ queryKey: keys.templates, queryFn: api.templates });
   const me = useQuery({ queryKey: keys.me, queryFn: api.me });
-  const meeting = query.data;
-  const [jottings, setJottings] = useJottings(id, meeting?.jottings, !!meeting);
-
   const rec = state?.recording;
-  const recordingHere = !!rec && rec.state !== "idle" && rec.meetingId === id;
+  const recordingHere = recordingHereOf(rec, id);
+  // Cached data, or (recording here, nothing fetched yet) the recording snapshot: never an error
+  // page over a notepad someone is typing in.
+  const meeting = meetingForView(query.data, rec, id, state?.auth.email ?? null);
+  const [jottings, setJottings] = useJottings(id, query.data?.jottings, !!query.data);
   const levels = useLevels();
   const transcript = useLiveTranscript();
-  const elapsedMs = useElapsed(recordingHere && rec.startedAt ? rec.startedAt : null);
+  const elapsedMs = useRecordingElapsed(recordingHere ? rec : undefined);
   // Main sets `stopping`/`stoppingSince` from Stop until everything is saved; it doesn't tick.
   const stopping = recordingHere && (rec.stopping === true || rec.state === "stopping");
   const stoppingMs = useElapsed(stopping ? (rec.stoppingSince ?? null) : null);
 
   const [finishing, setFinishing] = useState(false);
-  if (query.isPending) return <Loading />;
-  if (query.isError || !meeting) {
+  if (!meeting && query.isPending) return <Loading />;
+  if (!meeting) {
     return (
       <ScreenBody>
         <div className="pt-6">
@@ -78,7 +83,11 @@ export function MeetingPage({ id, tab }: { id: string; tab?: MeetingTab }) {
   return (
     <MeetingScreen
       key={id}
-      defaultTab={tab}
+      // The tab lives in the URL, so ?tab=… (a search result) switches it on this page too.
+      tab={tab ?? "notes"}
+      onTabChange={(next) =>
+        void navigate({ to: "/meetings/$id", params: { id }, search: next === "notes" ? {} : { tab: next }, replace: true })
+      }
       meeting={shown}
       phase={recordingHere ? "during" : "after"}
       jottings={jottings}

@@ -186,6 +186,44 @@ test("shows the offline banner when the app can't be reached, and clears it afte
   await expect(banner).toBeHidden({ timeout: 20_000 });
 });
 
+test("while recording offline, the notepad stays and keeps taking notes (Codex V3)", async () => {
+  await page.evaluate(() => (location.hash = "#/"));
+  await expect(page.getByText("Coming up")).toBeVisible();
+  await page.keyboard.press("Meta+n");
+  await page.waitForURL(/#\/meetings\//);
+  const id = decodeURIComponent((await page.evaluate(() => location.hash)).split("/").pop() ?? "");
+  const notepad = page.getByRole("textbox", { name: "Your notes" });
+  await notepad.click();
+  await page.keyboard.type("before the outage");
+  await page.waitForTimeout(1200); // autosave
+  await mock.setMode("offline");
+  const banner = page.getByText("Offline. Recording continues, and notes sync when you're back.");
+  await expect(banner).toBeVisible({ timeout: 20_000 });
+  // The meeting refetches every 4 s while recording: a failed one must not replace the page.
+  await page.waitForTimeout(5_000);
+  await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
+  await expect(notepad).toBeVisible();
+  await notepad.click();
+  await page.keyboard.press("Meta+ArrowDown");
+  await page.keyboard.type("\nduring the outage");
+  await expect(notepad).toHaveValue(/before the outage[\s\S]*during the outage/);
+  await mock.setMode("online");
+  await expect(banner).toBeHidden({ timeout: 20_000 });
+  // What was typed offline reaches the server once it's back.
+  await expect
+    .poll(
+      async () => {
+        const res = await fetch(`${mock.url}/api/v1/meetings/${encodeURIComponent(id)}`, { headers: { authorization: "Bearer e2e" } });
+        const body = (await res.json()) as { meeting?: { jottings: { markdown: string } | null } };
+        return body.meeting?.jottings?.markdown ?? "";
+      },
+      { timeout: 20_000 },
+    )
+    .toMatch(/during the outage/);
+  await page.getByRole("button", { name: /^Stop$/ }).click();
+  await expect(page.getByRole("button", { name: /^Stop$/ })).toBeHidden({ timeout: 30_000 });
+});
+
 test("shows the sign-in-again prompt, in place, when the token is refused", async () => {
   await page.evaluate(() => (location.hash = "#/settings"));
   await expect(page.getByRole("switch", { name: "Ask to record calls" })).toBeVisible();

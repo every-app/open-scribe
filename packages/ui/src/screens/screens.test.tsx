@@ -315,4 +315,96 @@ describe("SettingsScreen", () => {
     expect(screen.getAllByRole("button", { name: "Grant" })).toHaveLength(1);
     expect(screen.queryByLabelText("Echo cancellation")).toBeNull();
   });
+
+  it("after: the tab follows the caller (a ?tab= link on the meeting already open)", () => {
+    const base = {
+      meeting,
+      jottings: "- pricing",
+      onJottingsChange: () => {},
+      folders: [],
+      templates: [],
+      orgName: "Every",
+    };
+    const onTabChange = vi.fn();
+    const { rerender } = render(
+      <MeetingScreen
+        {...base}
+        phase="after"
+        tab="notes"
+        onTabChange={onTabChange}
+      />,
+    );
+    expect(
+      screen.getByRole("tab", { name: "Notes" }).getAttribute("aria-selected"),
+    ).toBe("true");
+    // The URL changes to ?tab=jottings: the same screen switches.
+    rerender(
+      <MeetingScreen
+        {...base}
+        phase="after"
+        tab="jottings"
+        onTabChange={onTabChange}
+      />,
+    );
+    expect(
+      screen
+        .getByRole("tab", { name: "Your jottings" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+    fireEvent.click(screen.getByRole("tab", { name: "Transcript" }));
+    expect(onTabChange).toHaveBeenCalledWith("transcript");
+    // Someone else's meeting has no jottings tab: it opens Notes.
+    rerender(
+      <MeetingScreen
+        {...base}
+        phase="after"
+        meeting={{ ...meeting, mine: false }}
+        tab="jottings"
+        onTabChange={onTabChange}
+      />,
+    );
+    expect(
+      screen.getByRole("tab", { name: "Notes" }).getAttribute("aria-selected"),
+    ).toBe("true");
+  });
+});
+
+describe("SettingsScreen record shortcut", () => {
+  const settings = {
+    account: { status: "loading" },
+    permissions: { status: "loading" },
+    calendar: { status: "loading" },
+    launchAtLogin: false,
+    detectCalls: true,
+    theme: "system",
+  } as const;
+
+  it("toggles ⌃⌥⌘R, and says when another app holds it", () => {
+    // Base UI's Switch dispatches a PointerEvent, which jsdom lacks.
+    (window as unknown as { PointerEvent?: unknown }).PointerEvent ??= window.MouseEvent;
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <SettingsScreen
+        {...settings}
+        recordShortcut={false}
+        recordShortcutStatus="off"
+        onRecordShortcutChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByRole("switch", { name: "Record shortcut" }));
+    expect(onChange).toHaveBeenCalledWith(true);
+    rerender(
+      <SettingsScreen
+        {...settings}
+        recordShortcut
+        recordShortcutStatus="conflict"
+        onRecordShortcutChange={onChange}
+      />,
+    );
+    expect(screen.getByText(/Another app is using ⌃⌥⌘R/)).toBeTruthy();
+    rerender(<SettingsScreen {...settings} />);
+    expect(
+      screen.queryByRole("switch", { name: "Record shortcut" }),
+    ).toBeNull();
+  });
 });

@@ -7,7 +7,8 @@ import { ArrowLeft } from "lucide-react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { AppSnapshot } from "@shared/ipc";
 import type { NavTarget, Space } from "@talk/ui";
-import { AppFrame, OfflineBanner, OnboardingScreen, SignInAgainBanner, TitleBar, useElapsed } from "@talk/ui";
+import { AppFrame, OfflineBanner, OnboardingScreen, SignInAgainBanner, TitleBar } from "@talk/ui";
+import { useRecordingElapsed } from "../useRecordingElapsed";
 import { Button } from "@talk/ui/components/button";
 import { useCancelledStart, useFollowRecording, useStartRecording, useStopRecording } from "../actions";
 import { api, cleanError, keys } from "../api";
@@ -172,7 +173,7 @@ function Layout({ state }: { state: AppSnapshot }) {
     followRecording(rec);
   }, [rec, onRecording, followRecording]);
   const recordingId = rec.state !== "idle" ? rec.meetingId : undefined;
-  const elapsedMs = useElapsed(rec.state === "recording" ? (rec.startedAt ?? null) : null);
+  const elapsedMs = useRecordingElapsed(rec);
 
   const onNavigate = (target: NavTarget) => {
     if (target.to === "home") void navigate({ to: "/" });

@@ -1,17 +1,11 @@
 // Adapting what main and /api/v1 send to what the @talk/ui screens draw.
 
-import type { UseQueryResult } from "@tanstack/react-query";
 import type { CalendarSnapshot, AuthSnapshot } from "@shared/ipc";
 import type { MeResponse } from "@shared/contract";
 import type { Account, CalendarEvent, ComingUp, Loadable } from "@talk/ui";
 import type { CalendarConnection } from "@talk/ui";
-import { cleanError } from "./api";
+export { loadable } from "./loadable";
 
-export function loadable<T, R = T>(query: UseQueryResult<T>, select?: (data: T) => R): Loadable<R> {
-  if (query.isPending) return { status: "loading" };
-  if (query.isError) return { status: "error", message: cleanError(query.error) };
-  return { status: "ready", data: select ? select(query.data) : (query.data as unknown as R) };
-}
 
 const HALF_HOUR = 30 * 60_000;
 

@@ -47,6 +47,11 @@ export interface SettingsScreenProps {
   /** The echo cancellation switch shows only when the app has the setting. */
   echoCancellation?: boolean;
   onEchoCancellationChange?: (on: boolean) => void;
+  /** The global ⌃⌥⌘R record shortcut (off by default); the switch shows when given. */
+  recordShortcut?: boolean;
+  /** "conflict": another app holds ⌃⌥⌘R, so Talk couldn't take it. */
+  recordShortcutStatus?: "off" | "on" | "conflict";
+  onRecordShortcutChange?: (on: boolean) => void;
   onConnectCalendar?: () => void;
   onLaunchAtLoginChange?: (on: boolean) => void;
   onDetectCallsChange?: (on: boolean) => void;
@@ -100,6 +105,36 @@ export function SettingsScreen(props: SettingsScreenProps) {
             />
           }
         />
+        {props.recordShortcut !== undefined && (
+          <Row
+            title={
+              <>
+                Record shortcut{" "}
+                <kbd className="ml-1 rounded border border-border px-1 font-sans text-[11px] font-normal text-muted-foreground">
+                  ⌃⌥⌘R
+                </kbd>
+              </>
+            }
+            detail={
+              props.recordShortcut &&
+              props.recordShortcutStatus === "conflict" ? (
+                <span className="text-warning-foreground dark:text-warning">
+                  Another app is using ⌃⌥⌘R, so Talk can't. Change it there,
+                  then turn this off and on again.
+                </span>
+              ) : (
+                "Start or stop a recording from any app."
+              )
+            }
+            control={
+              <Switch
+                aria-label="Record shortcut"
+                checked={props.recordShortcut}
+                onCheckedChange={(on) => props.onRecordShortcutChange?.(on)}
+              />
+            }
+          />
+        )}
         {props.echoCancellation !== undefined && (
           <Row
             title="Echo cancellation (experimental, for laptop speakers)"

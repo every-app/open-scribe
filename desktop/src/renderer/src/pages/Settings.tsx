@@ -43,6 +43,9 @@ export function SettingsPage() {
       launchAtLogin={settings?.launchAtLogin ?? false}
       detectCalls={settings?.callDetection ?? true}
       echoCancellation={settings?.echoCancellation}
+      recordShortcut={settings?.recordShortcut}
+      recordShortcutStatus={state?.recordShortcut}
+      onRecordShortcutChange={(recordShortcut) => change({ recordShortcut })}
       theme={themePreference}
       version={state?.version}
       launchAtLoginHint={loginItemHint(state?.loginItem?.status, settings?.launchAtLogin ?? false)}

@@ -33,3 +33,14 @@ export function liveMeetingToOpen(
   if (next.calendarEventId && context.pathname === `/upcoming/${next.calendarEventId}`) return null;
   return id;
 }
+
+/**
+ * How long the recording ran: from `startedAt`, held at `stoppingSince` once Stop is pressed, so
+ * the sidebar pill and the meeting page show the same time while a Stop finishes.
+ */
+export function recordingElapsedMs(rec: RecordingSnapshot | undefined, nowMs: number): number {
+  if (!rec || rec.state === "idle" || !rec.startedAt) return 0;
+  const start = Date.parse(rec.startedAt);
+  const end = rec.stoppingSince ? Date.parse(rec.stoppingSince) : nowMs;
+  return Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, end - start) : 0;
+}
