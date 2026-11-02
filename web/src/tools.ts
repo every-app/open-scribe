@@ -3,16 +3,24 @@
 // MCP itself.
 import { ToolError, defineTools } from "@every-app/sdk/server";
 import { z } from "zod";
+import * as folders from "@/server/folders";
 import * as meetings from "@/server/meetings";
 
 export const tools = defineTools(
   {
     list_meetings: {
       description:
-        "List the meetings the user can read: their own and the team's, newest first.",
+        "List the meetings the user can read: their own and the team's, newest first. Pass folderId (from list_folders) for one folder's meetings.",
+      risk: "read",
+      input: z.object({ folderId: z.string().uuid().optional() }).strict(),
+      handler: (input, { user }) => meetings.listMeetings(user, input),
+    },
+    list_folders: {
+      description:
+        "List the user's folders: their private ones and the team's (space: private or team).",
       risk: "read",
       input: z.object({}).strict(),
-      handler: (_input, { user }) => meetings.listMeetings(user),
+      handler: (_input, { user }) => folders.listFolders(user),
     },
     get_meeting: {
       description: "One meeting with its notes and transcript.",
@@ -41,7 +49,7 @@ export const tools = defineTools(
   },
   {
     instructions:
-      "Never guess meeting ids: call list_meetings first when an id isn't already known.",
+      "Never guess ids: call list_meetings or list_folders first when an id isn't already known.",
   },
 );
 

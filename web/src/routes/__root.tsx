@@ -1,5 +1,16 @@
-import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  HeadContent,
+  Scripts,
+  useRouter,
+} from "@tanstack/react-router";
 import type { ReactNode } from "react";
+import { Toaster } from "sonner";
+import { TooltipProvider } from "@/client/components/ui/tooltip";
+import {
+  themePreferenceInitScript,
+  useThemePreference,
+} from "@/client/lib/theme";
 import appCss from "@/styles/app.css?url";
 
 export const Route = createRootRoute({
@@ -19,14 +30,27 @@ export const Route = createRootRoute({
   shellComponent: RootDocument,
 });
 
+/** Toasts in the app's theme; "system" follows the OS like the app does. */
+function ThemedToaster() {
+  const { themePreference } = useThemePreference();
+  return <Toaster theme={themePreference} position="bottom-right" />;
+}
+
 function RootDocument({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script
+          nonce={useRouter().options.ssr?.nonce}
+          dangerouslySetInnerHTML={{ __html: themePreferenceInitScript }}
+        />
         <HeadContent />
       </head>
-      <body className="min-h-screen bg-white text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100">
-        {children}
+      <body>
+        <TooltipProvider>
+          {children}
+          <ThemedToaster />
+        </TooltipProvider>
         <Scripts />
       </body>
     </html>

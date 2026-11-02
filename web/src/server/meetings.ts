@@ -1,19 +1,33 @@
-import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { meetings, notes, shareLinks, transcriptSegments } from "@/db/schema";
+import {
+  type Attendee,
+  folders,
+  meetingFolders,
+  meetings,
+  notes,
+  shareLinks,
+  transcriptSegments,
+} from "@/db/schema";
+import { folderVisibleTo, meetingOwnedBy, meetingVisibleTo } from "./access";
+import { getTemplate, resolveTemplate } from "./templates";
+import type { Viewer } from "./viewer";
 
-/** Who is asking: the Gateway's user id and organization. */
-interface Viewer {
-  id: string;
-  orgId: string;
-}
+const attendeeInput = z
+  .object({
+    email: z.string().max(320).nullable().optional(),
+    name: z.string().max(255).nullable().optional(),
+    self: z.boolean().optional(),
+  })
+  .strict();
 
 export const createMeetingInput = z
   .object({
     title: z.string().trim().min(1).max(255),
     startsAt: z.string().datetime({ offset: true }).optional(),
     calendarEventId: z.string().max(255).optional(),
+    attendees: z.array(attendeeInput).max(200).optional(),
   })
   .strict();
 
@@ -47,6 +61,8 @@ interface MeetingRow {
   status: "recording" | "processing" | "done" | "failed";
   visibility: "private" | "team";
   ownerUserId: string;
+  ownerEmail: string | null;
+  attendeeCount: number;
   mine: boolean;
 }
 
@@ -59,6 +75,10 @@ export interface Segment {
 }
 
 interface MeetingDetail extends MeetingRow {
+  attendees: Attendee[];
+  folders: { id: string; name: string; space: "private" | "team" }[];
+  /** The template the notes use, and whether it was chosen on the meeting. */
+  template: { id: string; name: string; chosen: boolean };
   segments: Segment[];
   notes: { markdown: string; model: string; generatedAt: string } | null;
   shareLinks: { id: string; createdAt: string }[];
@@ -72,39 +92,73 @@ const shown = {
   status: meetings.status,
   visibility: meetings.visibility,
   ownerUserId: meetings.ownerUserId,
+  ownerEmail: meetings.ownerEmail,
+  attendees: meetings.attendees,
 };
 
-/** The rows a viewer may read: their own, and the organization's team rows. */
-function visibleTo(viewer: Viewer) {
-  return and(
-    eq(meetings.orgId, viewer.orgId),
-    or(eq(meetings.ownerUserId, viewer.id), eq(meetings.visibility, "team")),
-  );
+const visibleTo = meetingVisibleTo;
+const owned = meetingOwnedBy;
+
+function withMine(
+  viewer: Viewer,
+  {
+    attendees,
+    ...row
+  }: Omit<MeetingRow, "mine" | "attendeeCount"> & {
+    attendees: Attendee[] | null;
+  },
+): MeetingRow {
+  return {
+    ...row,
+    attendeeCount: attendees?.length ?? 0,
+    mine: row.ownerUserId === viewer.id,
+  };
 }
 
-function owned(viewer: Viewer, id: string) {
-  return and(
-    eq(meetings.id, id),
-    eq(meetings.orgId, viewer.orgId),
-    eq(meetings.ownerUserId, viewer.id),
-  );
-}
+export const listMeetingsInput = z
+  .object({
+    /** Only the meetings in this folder (one the viewer can see). */
+    folderId: z.string().uuid().optional(),
+    /** Only team meetings other people own. */
+    shared: z.boolean().optional(),
+  })
+  .strict();
 
-function withMine(viewer: Viewer, row: Omit<MeetingRow, "mine">): MeetingRow {
-  return { ...row, mine: row.ownerUserId === viewer.id };
-}
-
-export async function listMeetings(viewer: Viewer): Promise<MeetingRow[]> {
+/** The meetings a viewer may read, newest first. */
+export async function listMeetings(
+  viewer: Viewer,
+  filter: z.infer<typeof listMeetingsInput> = {},
+): Promise<MeetingRow[]> {
+  const where = [visibleTo(viewer)];
+  if (filter.shared) {
+    where.push(
+      eq(meetings.visibility, "team"),
+      ne(meetings.ownerUserId, viewer.id),
+    );
+  }
+  if (filter.folderId) {
+    const inFolder = db
+      .select({ id: meetingFolders.meetingId })
+      .from(meetingFolders)
+      .innerJoin(folders, eq(folders.id, meetingFolders.folderId))
+      .where(
+        and(
+          eq(meetingFolders.folderId, filter.folderId),
+          folderVisibleTo(viewer),
+        ),
+      );
+    where.push(inArray(meetings.id, inFolder));
+  }
   const rows = await db
     .select(shown)
     .from(meetings)
-    .where(visibleTo(viewer))
+    .where(and(...where))
     .orderBy(desc(meetings.startsAt));
   return rows.map((row) => withMine(viewer, row));
 }
 
 export async function createMeeting(
-  viewer: Viewer,
+  viewer: Viewer & { email?: string },
   input: z.infer<typeof createMeetingInput>,
 ): Promise<MeetingRow> {
   const [row] = await db
@@ -113,9 +167,16 @@ export async function createMeeting(
       id: crypto.randomUUID(),
       orgId: viewer.orgId,
       ownerUserId: viewer.id,
+      ownerEmail: viewer.email ?? null,
       title: input.title,
       startsAt: input.startsAt ?? new Date().toISOString(),
       calendarEventId: input.calendarEventId ?? null,
+      attendees:
+        input.attendees?.map((attendee) => ({
+          email: attendee.email ?? null,
+          name: attendee.name ?? null,
+          self: attendee.self === true,
+        })) ?? null,
     })
     .returning(shown);
   return withMine(viewer, row!);
@@ -126,14 +187,35 @@ export async function getMeeting(
   viewer: Viewer,
   id: string,
 ): Promise<MeetingDetail | null> {
-  const [row] = await db
-    .select(shown)
+  const [found] = await db
+    .select({ ...shown, templateId: meetings.templateId })
     .from(meetings)
     .where(and(eq(meetings.id, id), visibleTo(viewer)));
-  if (!row) return null;
+  if (!found) return null;
+  const { templateId: chosenId, ...row } = found;
   const detail = await loadDetail(row.id);
+  const [filedIn, template] = await Promise.all([
+    db
+      .select({ id: folders.id, name: folders.name, space: folders.space })
+      .from(meetingFolders)
+      .innerJoin(folders, eq(folders.id, meetingFolders.folderId))
+      .where(and(eq(meetingFolders.meetingId, row.id), folderVisibleTo(viewer)))
+      .orderBy(asc(meetingFolders.addedAt)),
+    resolveTemplate(row.id),
+  ]);
   return {
     ...withMine(viewer, row),
+    attendees: row.attendees ?? [],
+    folders: filedIn,
+    // The owner's private template stays theirs: others see that there is one.
+    template:
+      template.visibility === "private" && row.ownerUserId !== viewer.id
+        ? { id: "", name: "Private template", chosen: false }
+        : {
+            id: template.id,
+            name: template.name,
+            chosen: chosenId === template.id,
+          },
     ...detail,
     shareLinks:
       row.ownerUserId === viewer.id
@@ -173,7 +255,11 @@ async function loadDetail(meetingId: string) {
   return { segments, notes: note ?? null };
 }
 
-/** Change title or visibility; null when no meeting of this owner has the id. */
+/**
+ * Change title or visibility; null when no meeting of this owner has the id.
+ * Making a meeting private takes it out of team folders, which share
+ * everything in them.
+ */
 export async function updateMeeting(
   viewer: Viewer,
   id: string,
@@ -184,7 +270,76 @@ export async function updateMeeting(
     .set({ ...change, updatedAt: new Date().toISOString() })
     .where(owned(viewer, id))
     .returning(shown);
+  if (!row) return null;
+  if (change.visibility === "private") {
+    const teamFolders = db
+      .select({ id: folders.id })
+      .from(folders)
+      .where(eq(folders.space, "team"));
+    await db
+      .delete(meetingFolders)
+      .where(
+        and(
+          eq(meetingFolders.meetingId, id),
+          inArray(meetingFolders.folderId, teamFolders),
+        ),
+      );
+  }
+  return withMine(viewer, row);
+}
+
+/** Delete one of the viewer's meetings with its transcript, notes and links. */
+export async function deleteMeeting(
+  viewer: Viewer,
+  id: string,
+): Promise<boolean> {
+  const deleted = await db
+    .delete(meetings)
+    .where(owned(viewer, id))
+    .returning({ id: meetings.id });
+  return deleted.length > 0;
+}
+
+/**
+ * Mark the meeting for rewriting with a template: the owner's finished (or
+ * failed) meeting, with a template the owner may use. The caller then runs
+ * generateNotes with that template, which pins it only once the notes are
+ * written, so a failed rewrite leaves the earlier notes and their template.
+ * Null when not allowed.
+ */
+export async function rewriteWithTemplate(
+  viewer: Viewer,
+  id: string,
+  templateId: string,
+): Promise<MeetingRow | null> {
+  if (!(await getTemplate(viewer, templateId))) return null;
+  const [row] = await db
+    .update(meetings)
+    .set({
+      status: "processing",
+      updatedAt: new Date().toISOString(),
+    })
+    .where(and(owned(viewer, id), inArray(meetings.status, ["done", "failed"])))
+    .returning(shown);
   return row ? withMine(viewer, row) : null;
+}
+
+/**
+ * Choose the template while the meeting is still recording: the notes are
+ * written with it when it ends. Null when not allowed.
+ */
+export async function chooseTemplate(
+  viewer: Viewer,
+  id: string,
+  templateId: string | null,
+): Promise<boolean> {
+  if (templateId && !(await getTemplate(viewer, templateId))) return false;
+  const updated = await db
+    .update(meetings)
+    .set({ templateId, updatedAt: new Date().toISOString() })
+    .where(and(owned(viewer, id), eq(meetings.status, "recording")))
+    .returning({ id: meetings.id });
+  return updated.length > 0;
 }
 
 /** Append transcript turns; false when the owner has no such meeting. */
@@ -244,10 +399,15 @@ export async function transcriptText(meetingId: string): Promise<string> {
     .join("\n");
 }
 
+/**
+ * Save the notes and pin the template they were written with, so a later
+ * change to a folder's or the owner's default doesn't relabel them.
+ */
 export async function saveNotes(
   meetingId: string,
   markdown: string,
   model: string,
+  templateId?: string,
 ): Promise<void> {
   await db
     .insert(notes)
@@ -258,7 +418,11 @@ export async function saveNotes(
     });
   await db
     .update(meetings)
-    .set({ status: "done", updatedAt: new Date().toISOString() })
+    .set({
+      status: "done",
+      ...(templateId ? { templateId } : {}),
+      updatedAt: new Date().toISOString(),
+    })
     .where(eq(meetings.id, meetingId));
 }
 
@@ -341,4 +505,24 @@ export async function getSharedMeeting(token: string): Promise<{
     segments: detail.segments,
     notes: detail.notes ? { markdown: detail.notes.markdown } : null,
   };
+}
+
+/** The viewer's meetings recorded from these calendar events, by event id. */
+export async function meetingsForEvents(
+  viewer: Viewer,
+  eventIds: string[],
+): Promise<Record<string, string>> {
+  if (eventIds.length === 0) return {};
+  const rows = await db
+    .select({ id: meetings.id, eventId: meetings.calendarEventId })
+    .from(meetings)
+    .where(
+      and(
+        eq(meetings.orgId, viewer.orgId),
+        eq(meetings.ownerUserId, viewer.id),
+        inArray(meetings.calendarEventId, eventIds),
+      ),
+    )
+    .orderBy(asc(meetings.startsAt));
+  return Object.fromEntries(rows.map((row) => [row.eventId!, row.id]));
 }

@@ -11,9 +11,8 @@ struct MenuContent: View {
       recording
       upcoming
       Divider()
-      Button("Meetings…") { show("meetings") }
-        .keyboardShortcut("m")
-      Button("Open Talk in Browser") { model.openWebApp() }
+      Button("Open Talk") { model.openWebApp() }
+        .keyboardShortcut("o")
       if let host = model.appURL?.host {
         Text("Signed in to \(host)")
       }
@@ -31,7 +30,7 @@ struct MenuContent: View {
   @ViewBuilder private var recording: some View {
     switch recorder.state {
     case .idle:
-      Button("Record Now") { model.recordNow() }
+      Button("Take Notes Now") { model.recordNow() }
         .keyboardShortcut("r")
       if let id = recorder.lastMeetingID {
         Button("Open Last Meeting's Notes") { model.openMeeting(id: id) }
@@ -60,10 +59,15 @@ struct MenuContent: View {
       Text("Upcoming")
       ForEach(model.events.prefix(8)) { event in
         Menu(Self.label(event)) {
-          Button("Record") { model.record(event) }
-            .disabled(recorder.isActive)
           if let url = event.conferenceURL {
+            Button("Join & Take Notes") { model.record(event, join: true) }
+              .disabled(recorder.isActive)
+            Button("Take Notes") { model.record(event) }
+              .disabled(recorder.isActive)
             Button("Join Call") { NSWorkspace.shared.open(url) }
+          } else {
+            Button("Take Notes") { model.record(event) }
+              .disabled(recorder.isActive)
           }
         }
       }

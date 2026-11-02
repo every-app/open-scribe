@@ -18,9 +18,6 @@ final class AppModel: ObservableObject {
   @Published private(set) var calendarConnected = true
   @Published private(set) var connectURL: URL?
   @Published private(set) var calendarError: String?
-  @Published private(set) var meetings: [MeetingSummary] = []
-  @Published private(set) var meetingsError: String?
-  @Published private(set) var loadingMeetings = false
   @Published var signingIn = false
   @Published var signInError: String?
 
@@ -31,11 +28,20 @@ final class AppModel: ObservableObject {
   private var pollTask: Task<Void, Never>?
   private var signInTask: Task<Void, Never>?
   private var wakeObserver: NSObjectProtocol?
+  private var nudgeTimer: Timer?
+  /// Opens the Settings window; set by the menu bar icon, which has SwiftUI's `openWindow`.
+  var openSettingsWindow: (() -> Void)?
+  private var handlingURL = false
 
   init() {
     reminders.install()
     reminders.onRecord = { [weak self] request in
+      if request.join, let url = request.conferenceURL { NSWorkspace.shared.open(url) }
       self?.record(title: request.title, startsAt: request.start, calendarEventID: request.eventID)
+    }
+    // The "started, take notes?" nudge depends on the recorder, so it's checked here, not scheduled.
+    nudgeTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+      MainActor.assumeIsolated { self?.nudgeStartedMeetings() }
     }
     wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
       forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
@@ -73,6 +79,8 @@ final class AppModel: ObservableObject {
     }
     AppModel.current = self
     log.notice("launched; signed in: \(self.credentials != nil, privacy: .public)")
+    for url in Self.pendingURLs { handle(url) }
+    Self.pendingURLs = []
   }
 
   /// The one model, for the state query.
@@ -106,7 +114,6 @@ final class AppModel: ObservableObject {
     state["calendar.upcoming"] = String(events.count)
     if let calendarError { state["calendar.error"] = calendarError }
     if let lastRefresh { state["calendar.lastRefresh"] = lastRefresh.formatted(.iso8601) }
-    state["meetingsLoaded"] = String(meetings.count)
     for (i, line) in menuLines().enumerated() { state["menu.\(i)"] = line }
     return state
   }
@@ -116,7 +123,7 @@ final class AppModel: ObservableObject {
     var lines: [String] = []
     if isSignedIn {
       switch recorder.state {
-      case .idle: lines.append("Record Now")
+      case .idle: lines.append("Take Notes Now")
       case .starting: lines.append("Starting…")
       case .recording: lines += ["● Recording", recorder.liveLine == nil ? "Listening…" : "(live line)", "Stop Recording"]
       case .stopping: lines.append("Saving…")
@@ -129,7 +136,7 @@ final class AppModel: ObservableObject {
         lines.append("Upcoming")
         lines.append("(\(min(events.count, 8)) meeting\(events.count == 1 ? "" : "s"))")
       }
-      lines += ["Meetings…", "Open Talk in Browser"]
+      lines.append("Open Talk")
       if let host = appURL?.host { lines.append("Signed in to \(host)") }
     } else {
       lines += ["Not signed in", "Sign In…"]
@@ -153,7 +160,6 @@ final class AppModel: ObservableObject {
       api = nil
       me = nil
       events = []
-      meetings = []
       pollTask?.cancel()
       reminders.removeAll()
     }
@@ -214,7 +220,6 @@ final class AppModel: ObservableObject {
     api = nil
     me = nil
     events = []
-    meetings = []
     pollTask?.cancel()
     reminders.removeAll()
   }
@@ -285,7 +290,8 @@ final class AppModel: ObservableObject {
       calendarError = nil
       lastRefresh = Date()
       log.notice("calendar: connected \(upcoming.connected, privacy: .public), \(self.events.count, privacy: .public) upcoming")
-      await reminders.reconcile(events: upcoming.connected ? events : [])
+      await reminders.reconcile(events: upcoming.connected ? events : [], recordingEventID: recorder.calendarEventID)
+      nudgeStartedMeetings()
     } catch APIError.signedOut {
       handleSignedOut()
     } catch {
@@ -305,26 +311,17 @@ final class AppModel: ObservableObject {
     signOut()
   }
 
-  // MARK: Meetings
-
-  func loadMeetings() async {
-    guard let api else { return }
-    loadingMeetings = true
-    defer { loadingMeetings = false }
-    do {
-      meetings = try await api.meetings()
-      meetingsError = nil
-    } catch APIError.signedOut {
-      handleSignedOut()
-    } catch {
-      meetingsError = error.localizedDescription
-    }
+  private func nudgeStartedMeetings() {
+    guard isSignedIn, calendarConnected else { return }
+    reminders.nudgeStarted(events: events, recording: recorder.isActive)
   }
 
-  func open(_ meeting: MeetingSummary) {
-    guard let appURL else { return }
-    NSWorkspace.shared.open(meeting.pageURL(appURL: appURL))
+  func showSettings() {
+    if let openSettingsWindow { openSettingsWindow() }
+    activateApp()
   }
+
+  // MARK: Web app
 
   func openMeeting(id: String) {
     guard let appURL else { return }
@@ -337,20 +334,86 @@ final class AppModel: ObservableObject {
 
   // MARK: Recording
 
+  /// A calendar event's attendees go to the server with the meeting.
   func record(title: String, startsAt: Date = Date(), calendarEventID: String? = nil) {
     guard let api, !recorder.isActive else { return }
-    Task { await recorder.start(api: api, title: title, startsAt: startsAt, calendarEventID: calendarEventID) }
+    let attendees = calendarEventID.flatMap { id in events.first { $0.id == id } }?.attendees ?? []
+    Task {
+      await recorder.start(api: api, title: title, startsAt: startsAt, calendarEventID: calendarEventID, attendees: attendees)
+      // Taking notes for it now: its prompts are moot.
+      if let calendarEventID, recorder.isActive { reminders.clear(eventID: calendarEventID) }
+    }
   }
 
-  func record(_ event: CalendarEvent) {
+  /// `join` also opens the event's call.
+  func record(_ event: CalendarEvent, join: Bool = false) {
+    if join, let url = event.conferenceURL { NSWorkspace.shared.open(url) }
     record(title: event.title, startsAt: event.start, calendarEventID: event.id)
   }
 
   func recordNow() {
-    record(title: "Meeting at \(Date().formatted(date: .omitted, time: .shortened))")
+    record(title: Self.nowTitle())
   }
 
   func stopRecording() {
     Task { await recorder.stop() }
+  }
+
+  static func nowTitle() -> String {
+    "Meeting at \(Date().formatted(date: .omitted, time: .shortened))"
+  }
+
+  // MARK: talk:// URLs
+
+  /// URLs that arrived before the model existed (the app was launched by one).
+  static var pendingURLs: [URL] = []
+
+  static func open(_ url: URL) {
+    if let current { current.handle(url) } else { pendingURLs.append(url) }
+  }
+
+  /// Any web page can open a talk:// URL, so the mic starts at once only for an event the app
+  /// itself knows; anything else asks first.
+  func handle(_ url: URL) {
+    guard let request = TalkURL.parse(url) else {
+      log.notice("ignored URL with scheme \(url.scheme ?? "", privacy: .public)")
+      return
+    }
+    guard isSignedIn else { return showSettings() }
+    guard !recorder.isActive else { return alreadyTakingNotes() }
+    guard !handlingURL else { return }
+    handlingURL = true
+    Task {
+      defer { handlingURL = false }
+      // Launched by the URL: the calendar hasn't loaded yet.
+      if lastRefresh == nil { await refresh() }
+      guard !recorder.isActive else { return alreadyTakingNotes() }
+      switch request.resolve(upcoming: events, fallbackTitle: Self.nowTitle()) {
+      case .start(let event, let join):
+        record(event, join: join)
+      case .confirm(let title, let start, let eventID):
+        guard confirmStart(title: title), !recorder.isActive else { return }
+        record(title: title, startsAt: start ?? Date(), calendarEventID: eventID)
+      }
+    }
+  }
+
+  private func confirmStart(title: String) -> Bool {
+    activateApp()
+    let alert = NSAlert()
+    alert.messageText = "Start taking notes for “\(title)”?"
+    alert.informativeText = "Talk will transcribe your microphone and your Mac's sound."
+    alert.addButton(withTitle: "Take Notes")
+    alert.addButton(withTitle: "Cancel")
+    return alert.runModal() == .alertFirstButtonReturn
+  }
+
+  private func alreadyTakingNotes() {
+    let title: String
+    switch recorder.state {
+    case .starting(let t), .recording(_, let t, _), .stopping(let t): title = t
+    case .idle: return
+    }
+    reminders.notify(title: "Talk is already taking notes", body: "For “\(title)”. Stop it from the menu bar to start another.")
   }
 }

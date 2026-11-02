@@ -199,11 +199,11 @@ import Testing
         event("plain", inMinutes: 50, attendees: [Attendee(email: "me@x"), Attendee(email: "a@x")]),
       ], now: now)
     #expect(plan.map(\.event.id) == ["call", "people", "plain"])
-    #expect(plan[0].fireDate == now.addingTimeInterval(28 * 60))
+    #expect(plan[0].fireDate == now.addingTimeInterval(29 * 60))
   }
 
-  @Test func inTheLastTwoMinutesFiresNowOnce() {
-    let e = event("soon", inMinutes: 1, conference: true)
+  @Test func inTheLastMinuteFiresNowOnce() {
+    let e = event("soon", inMinutes: 0.5, conference: true)
     let plan = ReminderPlanner.plan(events: [e], now: now)
     #expect(plan.count == 1)
     #expect(plan[0].fireDate == now.addingTimeInterval(1))
@@ -214,9 +214,94 @@ import Testing
     #expect(ReminderPlanner.plan(events: [event("past", inMinutes: -1, conference: true)], now: now).isEmpty)
   }
 
+  @Test func theMeetingBeingRecordedIsSkipped() {
+    let plan = ReminderPlanner.plan(
+      events: [event("a", inMinutes: 10, conference: true), event("b", inMinutes: 20, conference: true)], now: now,
+      recordingEventID: "a")
+    #expect(plan.map(\.event.id) == ["b"])
+  }
+
   @Test func identifierChangesWhenTheMeetingMoves() {
     #expect(
       ReminderPlanner.identifier(for: event("a", inMinutes: 10)) != ReminderPlanner.identifier(for: event("a", inMinutes: 20)))
+  }
+}
+
+@Suite struct StartedNudgeTests {
+  let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+  func event(_ id: String, minutesAgo: Double, conference: Bool = true, endsInMinutes: Double? = nil) -> CalendarEvent {
+    CalendarEvent(
+      id: id, title: id, start: now.addingTimeInterval(-minutesAgo * 60), end: endsInMinutes.map { now.addingTimeInterval($0 * 60) },
+      attendees: [], conferenceURL: conference ? URL(string: "https://meet.google.com/x") : nil)
+  }
+
+  @Test func meetingsInTheirFirstFiveMinutes() {
+    let due = StartedNudge.due(
+      events: [
+        event("later", minutesAgo: -3), event("now", minutesAgo: 0), event("two", minutesAgo: 2),
+        event("old", minutesAgo: 6), event("solo", minutesAgo: 1, conference: false),
+        event("over", minutesAgo: 2, endsInMinutes: -1),
+      ], now: now, recording: false, nudged: [])
+    #expect(due.map(\.id) == ["two", "now"])
+  }
+
+  @Test func noneWhileRecording() {
+    #expect(StartedNudge.due(events: [event("a", minutesAgo: 1)], now: now, recording: true, nudged: []).isEmpty)
+  }
+
+  @Test func oncePerEventAndStart() {
+    let e = event("a", minutesAgo: 1)
+    let id = StartedNudge.identifier(for: e)
+    #expect(StartedNudge.due(events: [e], now: now, recording: false, nudged: [id]).isEmpty)
+    var moved = e
+    moved.start = now.addingTimeInterval(-30)
+    #expect(StartedNudge.due(events: [moved], now: now, recording: false, nudged: [id]).count == 1)
+    #expect(id != ReminderPlanner.identifier(for: e))
+  }
+}
+
+@Suite struct TalkURLTests {
+  let standup = CalendarEvent(
+    id: "e1", title: "Standup", start: Date(timeIntervalSince1970: 1_800_000_000), end: nil,
+    attendees: [], conferenceURL: URL(string: "https://meet.google.com/abc"))
+
+  @Test func parsesTheFullForm() {
+    let url = URL(string: "talk://record?event=e1&title=Standup%20%26%20more&start=2026-10-27T16:00:00Z&join=1")!
+    #expect(
+      TalkURL.parse(url)
+        == TalkURL(eventID: "e1", title: "Standup & more", start: FlexibleDate.parse("2026-10-27T16:00:00Z"), join: true))
+  }
+
+  @Test func bareRecordAndOtherForms() {
+    #expect(TalkURL.parse(URL(string: "talk://record")!) == TalkURL())
+    #expect(TalkURL.parse(URL(string: "TALK://Record/")!) == TalkURL())
+    #expect(TalkURL.parse(URL(string: "talk:record?join=0")!) == TalkURL())
+    #expect(TalkURL.parse(URL(string: "talk://record?event=&title=%20&start=nope")!) == TalkURL())
+  }
+
+  @Test func rejectsOtherURLs() {
+    #expect(TalkURL.parse(URL(string: "talk://stop")!) == nil)
+    #expect(TalkURL.parse(URL(string: "https://record")!) == nil)
+    #expect(TalkURL.parse(URL(string: "talk://")!) == nil)
+  }
+
+  @Test func titleIsCleanedAndCapped() {
+    let long = String(repeating: "a", count: 300)
+    let parsed = TalkURL.parse(URL(string: "talk://record?title=a%0Ab%00c\(long)")!)
+    #expect(parsed?.title?.hasPrefix("abca") == true)
+    #expect(parsed?.title?.count == 200)
+  }
+
+  @Test func knownEventStartsWithTheAppsOwnDetails() {
+    let request = TalkURL(eventID: "e1", title: "Something else", start: Date(timeIntervalSince1970: 0), join: true)
+    #expect(request.resolve(upcoming: [standup], fallbackTitle: "x") == .start(standup, join: true))
+  }
+
+  @Test func anythingElseAsksFirst() {
+    #expect(TalkURL().resolve(upcoming: [standup], fallbackTitle: "Meeting at 2:00 PM") == .confirm(title: "Meeting at 2:00 PM", start: nil, eventID: nil))
+    let unknown = TalkURL(eventID: "zzz", title: "Board", start: nil, join: true)
+    #expect(unknown.resolve(upcoming: [standup], fallbackTitle: "x") == .confirm(title: "Board", start: nil, eventID: "zzz"))
   }
 }
 
@@ -322,6 +407,27 @@ import Testing
     #expect(segments.count == 1)
     try await api.finish(meetingID: "m1")
     #expect(stub.requests.map(\.httpMethod) == ["POST", "POST", "POST", "POST"])
+  }
+
+  @Test func createSendsAttendees() async throws {
+    let (api, stub) = client { _ in (201, #"{"meeting":{"id":"m1"}}"#, [:]) }
+    _ = try await api.createMeeting(
+      title: "Standup", startsAt: Date(timeIntervalSince1970: 0), calendarEventId: "e1",
+      attendees: [Attendee(email: "ben@x", name: "Ben", isSelf: true), Attendee(email: "kit@x"), Attendee(email: nil, name: "Room")])
+    let body = try JSONSerialization.jsonObject(with: stub.requests[0].httpBody!) as! [String: Any]
+    let attendees = body["attendees"] as! [[String: Any]]
+    #expect(attendees.count == 3)
+    #expect(attendees[0]["email"] as? String == "ben@x")
+    #expect(attendees[0]["name"] as? String == "Ben")
+    #expect(attendees[0]["self"] as? Bool == true)
+    #expect(attendees[1]["self"] as? Bool == false)
+    #expect(attendees[1]["name"] is NSNull)
+    #expect(attendees[2]["email"] is NSNull)
+
+    _ = try await api.createMeeting(title: "Solo", startsAt: Date(timeIntervalSince1970: 0), calendarEventId: nil)
+    let bare = try JSONSerialization.jsonObject(with: stub.requests[1].httpBody!) as! [String: Any]
+    #expect(bare["attendees"] == nil)
+    #expect(bare["calendarEventId"] == nil)
   }
 
   @Test func openAIShapedTokenAndISOExpiry() throws {

@@ -26,6 +26,8 @@ final class Recorder: ObservableObject {
   @Published private(set) var lastError: String?
   /// The meeting just finished, so the menu can offer to open its notes.
   @Published private(set) var lastMeetingID: String?
+  /// The calendar event being recorded, if any.
+  private(set) var calendarEventID: String?
 
   private var api: APIClient?
   private var mic: MicCapture?
@@ -43,7 +45,9 @@ final class Recorder: ObservableObject {
 
   var isActive: Bool { state != .idle }
 
-  func start(api: APIClient, title: String, startsAt: Date = Date(), calendarEventID: String? = nil) async {
+  func start(
+    api: APIClient, title: String, startsAt: Date = Date(), calendarEventID: String? = nil, attendees: [Attendee] = []
+  ) async {
     guard state == .idle else { return }
     lastError = nil
     warning = nil
@@ -57,11 +61,13 @@ final class Recorder: ObservableObject {
       return
     }
     state = .starting(title: title)
+    self.calendarEventID = calendarEventID
     self.api = api
     batcher = SegmentBatcher()
     var createdID: String?
     do {
-      let meeting = try await api.createMeeting(title: title, startsAt: startsAt, calendarEventId: calendarEventID)
+      let meeting = try await api.createMeeting(
+        title: title, startsAt: startsAt, calendarEventId: calendarEventID, attendees: attendees)
       createdID = meeting.id
       try await startCapture(meetingID: meeting.id, api: api)
       state = .recording(meetingID: meeting.id, title: title, since: Date())
@@ -76,6 +82,7 @@ final class Recorder: ObservableObject {
       // Don't leave the meeting "recording" on the server; best effort.
       if let createdID { try? await api.finish(meetingID: createdID) }
       state = .idle
+      self.calendarEventID = nil
       lastError = "Couldn't start recording: \(error.localizedDescription)"
     }
   }
@@ -104,6 +111,7 @@ final class Recorder: ObservableObject {
     }
     await teardown()
     state = .idle
+    calendarEventID = nil
     liveLine = nil
     warning = nil
   }

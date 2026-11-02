@@ -24,6 +24,17 @@
   <true/>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.productivity</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>com.everyapp.talk</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>talk</string>
+      </array>
+    </dict>
+  </array>
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>NSMicrophoneUsageDescription</key>

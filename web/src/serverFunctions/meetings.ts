@@ -1,13 +1,18 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { ensureUserMiddleware } from "@every-app/sdk/tanstack-start";
+import { waitUntil } from "cloudflare:workers";
 import { z } from "zod";
 import * as meetings from "@/server/meetings";
+import { generateNotes } from "@/server/notes";
+import { templateIdInput } from "@/server/templates";
 
 const idInput = z.object({ id: z.string().uuid() }).strict();
 
 export const listMeetings = createServerFn()
   .middleware([ensureUserMiddleware])
-  .handler(({ context: { user } }) => meetings.listMeetings(user));
+  .validator((data: unknown) => meetings.listMeetingsInput.parse(data ?? {}))
+  .handler(({ data, context: { user } }) => meetings.listMeetings(user, data));
 
 export const getMeeting = createServerFn()
   .middleware([ensureUserMiddleware])
@@ -22,6 +27,40 @@ export const updateMeeting = createServerFn({ method: "POST" })
   .handler(({ data, context: { user } }) =>
     meetings.updateMeeting(user, data.id, data.change),
   );
+
+export const deleteMeeting = createServerFn({ method: "POST" })
+  .middleware([ensureUserMiddleware])
+  .validator((data: unknown) => idInput.parse(data))
+  .handler(({ data, context: { user } }) =>
+    meetings.deleteMeeting(user, data.id),
+  );
+
+/**
+ * Pick the meeting's template. A finished meeting's notes are rewritten
+ * with it in the background; a recording one uses it when it ends.
+ */
+export const setMeetingTemplate = createServerFn({ method: "POST" })
+  .middleware([ensureUserMiddleware])
+  .validator((data: unknown) =>
+    idInput.extend({ templateId: templateIdInput }).parse(data),
+  )
+  .handler(async ({ data, context: { user } }) => {
+    const meeting = await meetings.rewriteWithTemplate(
+      user,
+      data.id,
+      data.templateId,
+    );
+    if (meeting) {
+      waitUntil(
+        generateNotes(getRequest(), meeting.id, meeting.title, data.templateId),
+      );
+      return { rewriting: true };
+    }
+    if (await meetings.chooseTemplate(user, data.id, data.templateId)) {
+      return { rewriting: false };
+    }
+    throw new Error("You can't change this meeting's template.");
+  });
 
 export const createShareLink = createServerFn({ method: "POST" })
   .middleware([ensureUserMiddleware])

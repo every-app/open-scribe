@@ -5,6 +5,8 @@
     "src/entry.worker.ts",
     "src/router.tsx",
     "src/routes/**/*.{ts,tsx}",
+    // shadcn components are copied in whole; pages use only some exports
+    "src/client/components/ui/**",
   ],
   "project": ["**/*.{ts,tsx}", "!src/routeTree.gen.ts"],
   "ignoreDependencies": [
@@ -14,5 +16,8 @@
     "jose",
     // Loaded by @tailwindcss/vite from src/styles/app.css.
     "tailwindcss",
+    // Imported by app.css; shadcn is also the component CLI.
+    "tw-animate-css",
+    "shadcn",
   ],
 }

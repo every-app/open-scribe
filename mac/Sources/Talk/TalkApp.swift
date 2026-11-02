@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct TalkApp: App {
+  @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
   @StateObject private var model = AppModel()
 
   init() {
@@ -19,15 +20,9 @@ struct TalkApp: App {
     MenuBarExtra {
       MenuContent(model: model, recorder: model.recorder)
     } label: {
-      MenuBarIcon(recorder: model.recorder)
+      MenuBarIcon(model: model, recorder: model.recorder)
     }
     .menuBarExtraStyle(.menu)
-
-    Window("Meetings", id: "meetings") {
-      MeetingsView(model: model)
-    }
-    .defaultSize(width: 420, height: 480)
-    .windowResizability(.contentMinSize)
 
     Window("Talk Settings", id: "settings") {
       SettingsView(model: model)
@@ -38,15 +33,21 @@ struct TalkApp: App {
 
 /// A waveform normally; a red record dot while recording. The red one isn't a template image,
 /// so the menu bar keeps its color.
+/// It's always on screen, so it hands the model SwiftUI's `openWindow` (for talk:// URLs).
 struct MenuBarIcon: View {
+  let model: AppModel
   @ObservedObject var recorder: Recorder
+  @Environment(\.openWindow) private var openWindow
 
   var body: some View {
-    if case .recording = recorder.state {
-      Image(nsImage: Self.recordingImage)
-    } else {
-      Image(systemName: "waveform")
+    Group {
+      if case .recording = recorder.state {
+        Image(nsImage: Self.recordingImage)
+      } else {
+        Image(systemName: "waveform")
+      }
     }
+    .onAppear { model.openSettingsWindow = { [openWindow] in openWindow(id: "settings") } }
   }
 
   static let recordingImage: NSImage = {
@@ -63,4 +64,19 @@ struct MenuBarIcon: View {
 @MainActor
 func activateApp() {
   NSApp.activate()
+}
+
+/// Takes talk:// URLs straight from the Apple Event, so SwiftUI doesn't route them to a window.
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+  func applicationWillFinishLaunching(_ notification: Notification) {
+    NSAppleEventManager.shared().setEventHandler(
+      self, andSelector: #selector(handleGetURL(_:reply:)),
+      forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
+  }
+
+  @objc func handleGetURL(_ event: NSAppleEventDescriptor, reply: NSAppleEventDescriptor) {
+    guard let text = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue, let url = URL(string: text) else { return }
+    AppModel.open(url)
+  }
 }
