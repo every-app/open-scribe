@@ -21,6 +21,16 @@ public actor ChunkChannel: SpeakerChannel {
     public var now: @Sendable () -> ContinuousClock.Instant = { .now }
 
     public init() {}
+
+    /// Replaying a Realtime outage: the whole outage (≤ 5 min, `OutageBuffer`) is queued at once
+    /// and uploaded one chunk at a time, so neither limit may drop any of it. Memory is already
+    /// bounded by the outage buffer; time is bounded by the pipeline's stop budget.
+    public static var replay: Limits {
+      var limits = Limits()
+      limits.maxQueuedBytes = OutageBuffer.defaultMaxBytes + (1 << 20)  // + WAV headers
+      limits.maxQueuedAge = .seconds(3_600)
+      return limits
+    }
   }
 
   struct Pending {

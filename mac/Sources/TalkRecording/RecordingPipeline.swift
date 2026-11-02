@@ -89,6 +89,9 @@ public final class RecordingPipeline {
     public var levelInterval: Duration = .milliseconds(100)
     /// How long a `me` segment waits for the other side before the echo check.
     public var echoHoldMs = EchoFilter.defaultHoldMs
+    /// How long stop waits for outage replays still uploading before cutting them short. Bounds
+    /// the whole stop: this + the final flush (≤ ~6 min with a token wait) + `/finish`.
+    public var replayStopBudget: Duration = .seconds(300)
     /// The clock for the echo hold (tests pass a manual one).
     public var now: @Sendable () -> ContinuousClock.Instant = { .now }
 
@@ -162,6 +165,7 @@ public final class RecordingPipeline {
   private var replayChannels: [any SpeakerChannel] = []
   private var replayFailures = 0
   private var isStopping = false
+  private var replayCutShort = false
   private let startedAt: ContinuousClock.Instant
   private var flushTask: Task<Void, Never>?
   private var levelTask: Task<Void, Never>?
@@ -246,15 +250,23 @@ public final class RecordingPipeline {
     try? await Task.sleep(for: deps.settle)
     // Audio from an outage still uploading: finish it first (`/audio-chunk` needs the meeting
     // still recording, and its `them` text informs the echo check).
+    let budget = Task { [weak self, deps] in
+      try? await Task.sleep(for: deps.replayStopBudget)
+      guard !Task.isCancelled else { return }
+      await self?.cutReplaysShort()
+    }
     var next = 0
     while next < replayTasks.count {  // one may start while we wait (a channel handing over late)
       await replayTasks[next].value
       next += 1
     }
+    budget.cancel()
     // Both sides are complete: judge every `me` segment still waiting for the echo check.
     if echo != nil { queue(echo!.releaseAll()) }
     var problem = await flush(final: true)
-    if problem == nil, replayFailures > 0 {
+    if problem == nil, replayCutShort {
+      problem = "The recording stopped before all the audio from a reconnect was transcribed (it took over \(deps.replayStopBudget.components.seconds / 60) minutes)."
+    } else if problem == nil, replayFailures > 0 {
       problem = "Some audio from a reconnect couldn't be transcribed (\(replayFailures) stretch\(replayFailures == 1 ? "" : "es"))."
     }
     let unsaved = batcher.pending
@@ -346,7 +358,9 @@ public final class RecordingPipeline {
       backlog: { [weak self] speaker, message in
         Task { @MainActor in self?.onEvent(.fallbackBacklog(speaker, message)) }
       })
-    let make = deps.makeReplay ?? { ChunkChannel(speaker: $0, language: $1, offsetMs: $2, seqFor: $3, upload: $4, callbacks: $5) }
+    let make = deps.makeReplay ?? {
+      ChunkChannel(speaker: $0, language: $1, offsetMs: $2, seqFor: $3, upload: $4, callbacks: $5, limits: .replay)
+    }
     let channel = make(
       speaker, language, startMs, { TranscriptSeq.make(startedMs: $0, speaker: speaker, replay: true) },
       { wav, number, t0, t1 in
@@ -362,6 +376,12 @@ public final class RecordingPipeline {
       await channel.finish()
       self?.replayDone(speaker)
     })
+  }
+
+  /// Stop's budget ran out: cancel the replays (their in-flight uploads too).
+  private func cutReplaysShort() async {
+    replayCutShort = true
+    for channel in replayChannels { await channel.cancel() }
   }
 
   private func replayDone(_ speaker: Speaker) {

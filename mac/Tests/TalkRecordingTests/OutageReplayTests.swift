@@ -20,7 +20,10 @@ import TalkCore
     let worker: FakeWorker
     let server: HelperServer
 
-    @MainActor init(worker: FakeWorker = .happy(), replayText: [Speaker: String] = [:], clock: ManualClock? = nil, failReplay: Bool = false) {
+    @MainActor init(
+      worker: FakeWorker = .happy(), replayText: [Speaker: String] = [:], clock: ManualClock? = nil, failReplay: Bool = false,
+      stopBudget: Duration? = nil
+    ) {
       self.worker = worker
       worker.audioChunk = { fields in
         if failReplay { return (503, #"{"error":"unavailable"}"#) }
@@ -29,9 +32,10 @@ import TalkCore
         return (201, #"{"segment":{"seq":\#(fields["seq"]!),"startedMs":\#(fields["startedMs"]!),"endedMs":\#(fields["endedMs"]!),"speaker":"\#(speaker.rawValue)","text":"\#(text)"}}"#)
       }
       var env = environment(worker: worker, rig: rig)
-      var fast = ChunkChannel.Limits()
+      var fast = ChunkChannel.Limits.replay
       fast.retryBase = .milliseconds(1)
       env.pipeline.makeReplay = { ChunkChannel(speaker: $0, language: $1, offsetMs: $2, seqFor: $3, upload: $4, callbacks: $5, limits: fast) }
+      if let stopBudget { env.pipeline.replayStopBudget = stopBudget }
       if let clock {
         env.pipeline.echoHoldMs = 4_000
         env.pipeline.now = { clock.now }
@@ -158,5 +162,36 @@ import TalkCore
     let mine = f.out.events("transcript.segment").filter { $0["speaker"] == "me" }.compactMap { $0["text"]?.string }
     #expect(mine == ["I can take that"])
     #expect(try f.posted().map(\.text) == ["I can take that"])
+  }
+
+  @Test func aFiveMinuteOutageIsReplayedWhole() async throws {
+    // 4 min of continuous speech: eight 30 s chunks, ~11.5 MB of WAV queued at once. The live
+    // fallback's 8 MB / 180 s queue limits would drop the oldest; replay's don't.
+    let f = Fixture()
+    await f.server.handle(Self.start)
+    let me = try #require(f.rig.channel(.me))
+    await me.report("dropped")
+    await me.reconnect(outage: Self.speech(240_000, silenceMs: 0), startedAt: 0)
+    await f.server.handle(#"{"id":2,"cmd":"record.stop"}"#)
+    let chunks = f.worker.requests.filter { $0.url!.path.hasSuffix("/audio-chunk") }.map { FakeWorker.multipartFields($0.httpBody) }
+    #expect(chunks.compactMap { $0["startedMs"] }.compactMap(Int.init) == stride(from: 0, to: 240_000, by: 30_000).map { $0 })
+    #expect(!f.out.events("error").contains { $0["code"] == "fallback_backlog" })
+    #expect(f.out.response(2)?["result"] == ["segments": 8, "finished": true])
+  }
+
+  @Test func stopCutsAReplayShortAfterItsBudget() async throws {
+    let worker = FakeWorker.happy()
+    // An upload that never answers (until cancelled, as URLSession is).
+    worker.hold = { path, _ in if path.hasSuffix("/audio-chunk") { try? await Task.sleep(for: .seconds(3_600)) } }
+    let f = Fixture(worker: worker, stopBudget: .milliseconds(50))
+    await f.server.handle(Self.start)
+    let me = try #require(f.rig.channel(.me))
+    await me.report("dropped")
+    await me.reconnect(outage: Self.speech(2_000), startedAt: 0)
+    #expect(await f.out.waitFor { !f.worker.requests.filter { $0.url!.path.hasSuffix("/audio-chunk") }.isEmpty })
+    await f.server.handle(#"{"id":2,"cmd":"record.stop"}"#)
+    #expect(f.out.response(2)?["result"]?["finished"] == true)
+    #expect(f.out.events("error").contains { $0["code"] == "save_failed" && ($0["message"]?.string ?? "").contains("before all the audio") })
+    #expect(f.worker.paths().last == "/api/v1/meetings/m1/finish")
   }
 }
