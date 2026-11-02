@@ -97,3 +97,7 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - #11 (helper review fixes) red on a timing-dependent test; H making it deterministic.
 - #11 merged (helper review fixes, deterministic tests). All 5 Codex findings fixed.
 - H relaunched: feature/helper-echo (text-level echo dedupe on by default; voice processing behind a flag).
+- #13 merged (UI phase 2: screens mounted, live view, autosaved jottings, allowlisted api:call). M2 core on main.
+- Open: #14 (echo dedupe + voice-processing flag; 159 mac tests) merging on green; #15 (M3: settings, permissions IPC, login item, nav guards, icon, real helper default) rebasing onto #13.
+- Codex V1 computer-use pass launched on Talk Dev (fake helper flows + real helper permissions). Report → ~/overnight/2026-11-02/talk-verify-1/. Other lanes told: no GUI launches meanwhile.
+- UI lane: feature/ui-split (route code-splitting, notepad lists).
