@@ -10,6 +10,7 @@ import {
   HomeScreen,
   MeetingScreen,
   OnboardingScreen,
+  SearchScreen,
   SettingsScreen,
   SharedScreen,
   TemplatesScreen,
@@ -294,6 +295,41 @@ function Onboarding(props: OnboardingScreenProps) {
       onFinish={noop}
       {...props}
     />
+  );
+}
+
+/* Search ------------------------------------------------------------------ */
+
+function SearchScene({
+  query: initial,
+  none,
+  loading: busy,
+}: {
+  query: string;
+  none?: boolean;
+  loading?: boolean;
+}) {
+  const [query, setQuery] = useState(initial);
+  return (
+    <Frame current={{ to: "search" }}>
+      <SearchScreen
+        query={query}
+        onQueryChange={setQuery}
+        now={mock.NOW}
+        results={
+          !query.trim()
+            ? { status: "idle" }
+            : busy
+              ? loading
+              : ready({
+                  results: none ? [] : mock.searchResults,
+                  hasMore: !none,
+                })
+        }
+        onOpen={noop}
+        onLoadMore={noop}
+      />
+    </Frame>
   );
 }
 
@@ -587,6 +623,30 @@ export const scenes: Scene[] = [
     ),
   },
 
+  {
+    id: "search",
+    group: "Search",
+    label: "Results",
+    render: () => <SearchScene query="pricing seat" />,
+  },
+  {
+    id: "search-idle",
+    group: "Search",
+    label: "Empty box",
+    render: () => <SearchScene query="" />,
+  },
+  {
+    id: "search-none",
+    group: "Search",
+    label: "No results",
+    render: () => <SearchScene query="quarterly okr" none />,
+  },
+  {
+    id: "search-loading",
+    group: "Search",
+    label: "Loading",
+    render: () => <SearchScene query="pricing" loading />,
+  },
   {
     id: "folder",
     group: "Folders",

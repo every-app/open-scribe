@@ -6,7 +6,7 @@ const upcomingApi = getRouteApi("/upcoming/$eventId");
 
 export const meetingRoute = createLazyRoute("/meetings/$id")({
   component: function Meeting() {
-    return <MeetingPage id={meetingApi.useParams().id} />;
+    return <MeetingPage id={meetingApi.useParams().id} tab={meetingApi.useSearch().tab} />;
   },
 });
 

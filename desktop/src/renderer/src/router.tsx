@@ -5,8 +5,10 @@
 // here keep only paths and search validation.
 
 import { createHashHistory, createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
+import type { MeetingTab } from "@talk/ui";
 import { HomePage } from "./pages/Home";
 import { Root } from "./pages/Root";
+import { parseTab } from "./search";
 
 const rootRoute = createRootRoute({ component: Root });
 
@@ -18,9 +20,15 @@ const shared = createRoute({ getParentRoute: () => rootRoute, path: "/shared" })
 const folder = createRoute({ getParentRoute: () => rootRoute, path: "/folders/$id" }).lazy(() =>
   import("./routes/folders.lazy").then((m) => m.folderRoute),
 );
-const meeting = createRoute({ getParentRoute: () => rootRoute, path: "/meetings/$id" }).lazy(() =>
-  import("./routes/meeting.lazy").then((m) => m.meetingRoute),
-);
+const meeting = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/meetings/$id",
+  // ?tab=transcript|jottings opens the meeting where a search matched.
+  validateSearch: (s: Record<string, unknown>): { tab?: MeetingTab } => {
+    const tab = parseTab(s.tab);
+    return tab ? { tab } : {};
+  },
+}).lazy(() => import("./routes/meeting.lazy").then((m) => m.meetingRoute));
 const upcoming = createRoute({ getParentRoute: () => rootRoute, path: "/upcoming/$eventId" }).lazy(() =>
   import("./routes/meeting.lazy").then((m) => m.upcomingRoute),
 );
@@ -30,11 +38,17 @@ const templates = createRoute({
   validateSearch: (search: Record<string, unknown>): { id?: string } =>
     typeof search.id === "string" ? { id: search.id } : {},
 }).lazy(() => import("./routes/templates.lazy").then((m) => m.templatesRoute));
+const search = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/search",
+  validateSearch: (s: Record<string, unknown>): { q?: string } =>
+    typeof s.q === "string" && s.q.length <= 200 ? { q: s.q } : {},
+}).lazy(() => import("./routes/search.lazy").then((m) => m.searchRoute));
 const settings = createRoute({ getParentRoute: () => rootRoute, path: "/settings" }).lazy(() =>
   import("./routes/settings.lazy").then((m) => m.settingsRoute),
 );
 
-export const routeTree = rootRoute.addChildren([home, shared, folder, meeting, upcoming, templates, settings]);
+export const routeTree = rootRoute.addChildren([home, shared, search, folder, meeting, upcoming, templates, settings]);
 
 export const router = createRouter({ routeTree, history: createHashHistory() });
 

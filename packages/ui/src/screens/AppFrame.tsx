@@ -5,6 +5,7 @@ import {
   LayoutTemplate,
   PenLine,
   Plus,
+  Search,
   Settings,
   Square,
   Users,
@@ -57,12 +58,15 @@ function NavItem({
   target,
   current,
   onNavigate,
+  shortcut,
 }: {
   icon: ComponentType<{ className?: string }>;
   label: string;
   target: NavTarget;
   current: NavTarget | null;
   onNavigate: (target: NavTarget) => void;
+  /** A keyboard hint, shown quietly on the right. */
+  shortcut?: string;
 }) {
   const active = same(current, target);
   return (
@@ -85,6 +89,11 @@ function NavItem({
           )}
         />
         <span className="truncate">{label}</span>
+        {shortcut && (
+          <kbd className="ml-auto font-sans text-[11px] text-sidebar-foreground/40">
+            {shortcut}
+          </kbd>
+        )}
       </button>
     </li>
   );
@@ -240,6 +249,14 @@ export function Sidebar(props: SidebarProps) {
             icon={House}
             label="Home"
             target={{ to: "home" }}
+            current={current}
+            onNavigate={onNavigate}
+          />
+          <NavItem
+            icon={Search}
+            label="Search"
+            shortcut="⌘K"
+            target={{ to: "search" }}
             current={current}
             onNavigate={onNavigate}
           />

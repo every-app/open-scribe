@@ -19,6 +19,7 @@ import type {
   PatchMeetingResponse,
   SaveJottingsResponse,
   SaveTemplateInput,
+  SearchResponse,
   SettingsResponse,
   ShareLinkResponse,
   TemplateResponse,
@@ -55,6 +56,8 @@ export const api = {
   settings: () => call<SettingsResponse>("GET", "settings"),
   updateSettings: (body: UpdateSettingsInput) => call<SettingsResponse>("PATCH", "settings", { body }),
 
+  search: (q: string, cursor?: string, limit = 20) =>
+    call<SearchResponse>("GET", "search", { query: { q, limit: String(limit), ...(cursor ? { cursor } : {}) } }),
   meetings: (query: ListMeetingsQuery = {}) => call<ListMeetingsResponse>("GET", "meetings", { query: listQuery(query) }),
   meeting: (id: string) => call<GetMeetingResponse>("GET", `meetings/${enc(id)}`),
   patchMeeting: (id: string, body: PatchMeetingInput) => call<PatchMeetingResponse>("PATCH", `meetings/${enc(id)}`, { body }),
@@ -90,4 +93,5 @@ export const keys = {
   meeting: (id: string) => ["meeting", id] as const,
   folders: ["folders"] as const,
   templates: ["templates"] as const,
+  search: (q: string) => ["search", q] as const,
 };

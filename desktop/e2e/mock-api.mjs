@@ -81,6 +81,37 @@ const routes = [
     }));
     return [200, { events, connected: true, calendar: { available: true, connected: true } }];
   }],
+  ["GET", /^\/api\/v1\/search$/, (_, __, url) => {
+    // A small stand-in for the Worker's FTS: every word must prefix-match within one field.
+    const words = (url.searchParams.get("q") ?? "").toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+    if (words.length === 0) return [400, { error: "invalid_query" }];
+    const results = [];
+    for (const row of db.rows.filter((r) => r.mine || r.visibility === "team")) {
+      const d = detail(row.id);
+      const fields = [
+        ["title", row.title],
+        ["notes", d?.notes?.markdown ?? ""],
+        ["jottings", row.mine ? (d?.jottings?.markdown ?? "") : ""],
+        ["transcript", (d?.segments ?? []).map((s) => s.text).join(" ")],
+      ];
+      for (const [field, text] of fields) {
+        const lower = text.toLowerCase();
+        const hits = words.map((w) => lower.search(new RegExp(`(^|[^\\p{L}\\p{N}])${w}`, "u")));
+        if (hits.some((h) => h < 0)) continue;
+        const first = Math.min(...hits);
+        const from = Math.max(0, first - 40);
+        const excerpt = (from > 0 ? "…" : "") + text.slice(from, from + 160) + (from + 160 < text.length ? "…" : "");
+        const low = excerpt.toLowerCase();
+        const ranges = words
+          .map((w) => ({ start: low.indexOf(w), end: low.indexOf(w) + w.length }))
+          .filter((r) => r.start >= 0)
+          .sort((a, b) => a.start - b.start);
+        results.push({ meeting: row, field, snippet: { text: excerpt, ranges } });
+        break;
+      }
+    }
+    return [200, { results: results.slice(0, Number(url.searchParams.get("limit") ?? 20)), nextCursor: null }];
+  }],
   ["GET", /^\/api\/v1\/settings$/, () => [200, { settings: { defaultTemplateId: db.defaultTemplateId } }]],
   ["PATCH", /^\/api\/v1\/settings$/, (_, b) => {
     if (b.defaultTemplateId) db.defaultTemplateId = b.defaultTemplateId;

@@ -101,6 +101,27 @@ export interface ListMeetingsResponse {
   nextCursor: string | null;
 }
 
+export type SearchField = "title" | "notes" | "jottings" | "transcript";
+
+/** Plain text (never markup), with matched words as [start, end) UTF-16 offsets; "…" marks a cut. */
+export interface SearchSnippet {
+  text: string;
+  ranges: { start: number; end: number }[];
+}
+
+export interface SearchResult {
+  meeting: MeetingRow;
+  /** Where the best match is. */
+  field: SearchField;
+  snippet: SearchSnippet;
+}
+
+/** GET /search?q&limit&cursor: one result per meeting, best match first. */
+export interface SearchResponse {
+  results: SearchResult[];
+  nextCursor: string | null;
+}
+
 export interface GetMeetingResponse {
   meeting: MeetingDetail;
 }

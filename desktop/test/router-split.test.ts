@@ -26,7 +26,7 @@ describe("renderer route split", () => {
     expect(routes.filter((r) => !r.lazy).map((r) => r.path)).toEqual(["/"]);
     const lazy = routes.filter((r) => r.lazy).map((r) => [r, r.path, r.lazy![1], r.lazy![2]] as const);
     const paths = lazy.map((m) => m[1]).sort();
-    expect(paths).toEqual(["/folders/$id", "/meetings/$id", "/settings", "/shared", "/templates", "/upcoming/$eventId"]);
+    expect(paths).toEqual(["/folders/$id", "/meetings/$id", "/search", "/settings", "/shared", "/templates", "/upcoming/$eventId"]);
     for (const [, path, file, name] of lazy) {
       const module = readFileSync(join(src, "routes", `${file}.tsx`), "utf8");
       expect(module, `${file} defines ${name} for ${path}`).toMatch(new RegExp(`export const ${name} = createLazyRoute\\("${path!.replace(/\$/g, "\\$")}"\\)`));

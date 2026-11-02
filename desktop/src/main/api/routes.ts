@@ -10,6 +10,7 @@ const ID = "[A-Za-z0-9_-]{1,128}";
 const routes: [ApiMethod[], RegExp][] = [
   [["GET"], /^api\/v1\/me$/],
   [["GET"], /^api\/v1\/calendar\/upcoming$/],
+  [["GET"], /^api\/v1\/search$/],
   [["GET", "PATCH"], /^api\/v1\/settings$/],
   [["GET", "POST"], /^api\/v1\/meetings$/],
   [["GET", "PATCH", "DELETE"], new RegExp(`^api/v1/meetings/${ID}$`)],

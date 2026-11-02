@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import type { MeetingDetail } from "@shared/contract";
-import { EmptyState, ErrorState, MeetingScreen, ScreenBody, useElapsed, type LiveState } from "@talk/ui";
+import { EmptyState, ErrorState, MeetingScreen, ScreenBody, useElapsed, type LiveState, type MeetingTab } from "@talk/ui";
 import { Skeleton } from "@talk/ui/components/skeleton";
 import { copyLink, draftKey, useRun, useStartRecording, useStopRecording } from "../actions";
 import { api, cleanError, keys } from "../api";
@@ -15,7 +15,7 @@ import { useAppState } from "../talk";
 
 const busy = (m: MeetingDetail | undefined) => m?.status === "recording" || m?.status === "processing";
 
-export function MeetingPage({ id }: { id: string }) {
+export function MeetingPage({ id, tab }: { id: string; tab?: MeetingTab }) {
   const state = useAppState();
   const run = useRun();
   const stop = useStopRecording();
@@ -75,6 +75,7 @@ export function MeetingPage({ id }: { id: string }) {
   return (
     <MeetingScreen
       key={id}
+      defaultTab={tab}
       meeting={shown}
       phase={recordingHere ? "during" : "after"}
       jottings={jottings}

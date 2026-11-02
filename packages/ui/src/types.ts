@@ -77,6 +77,17 @@ export interface MeetingDetail extends MeetingRow {
   shareLinks: { id: string; createdAt: string }[];
 }
 
+export type SearchField = "title" | "notes" | "jottings" | "transcript";
+
+/** GET /api/v1/search: one result per meeting, best match first. */
+export interface SearchResult {
+  meeting: MeetingRow;
+  /** Where the best match is. */
+  field: SearchField;
+  /** Plain text with matched words as [start, end) UTF-16 offsets; "…" marks a cut. */
+  snippet: { text: string; ranges: { start: number; end: number }[] };
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -153,6 +164,7 @@ export type Loadable<T> =
 export type NavTarget =
   | { to: "home" }
   | { to: "shared" }
+  | { to: "search" }
   | { to: "folder"; id: string }
   | { to: "templates" }
   | { to: "settings" };

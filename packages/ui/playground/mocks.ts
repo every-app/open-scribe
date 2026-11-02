@@ -1,5 +1,6 @@
 import type {
   Account,
+  SearchResult,
   CalendarEvent,
   ComingUp,
   Folder,
@@ -388,3 +389,52 @@ export const permissionsGranted: Permissions = {
 export const liveStartedAt = new Date(
   NOW.getTime() - (12 * 60 + 41) * 1000,
 ).toISOString();
+
+function snippet(text: string, words: string[]): SearchResult["snippet"] {
+  const lower = text.toLowerCase();
+  const ranges = words.flatMap((w) => {
+    const at = lower.indexOf(w);
+    return at === -1 ? [] : [{ start: at, end: at + w.length }];
+  });
+  return { text, ranges: ranges.sort((a, b) => a.start - b.start) };
+}
+
+export const searchResults: SearchResult[] = [
+  {
+    meeting: recent[0]!,
+    field: "transcript",
+    snippet: snippet(
+      "…On pricing, Devon needs a number per seat for forty people, and whether there's an annual discount.",
+      ["pricing", "seat"],
+    ),
+  },
+  {
+    meeting: recent[3]!,
+    field: "notes",
+    snippet: snippet(
+      "…## Pricing - Renewal at the current per-seat price through June; they asked about volume tiers…",
+      ["pricing", "seat"],
+    ),
+  },
+  {
+    meeting: recent[1]!,
+    field: "jottings",
+    snippet: snippet(
+      "- ask Ana about pricing page copy - seat limits for the free plan?",
+      ["pricing", "seat"],
+    ),
+  },
+  {
+    meeting: { ...recent[2]!, title: "Pricing and seat packaging review" },
+    field: "title",
+    snippet: snippet("Pricing and seat packaging review", ["pricing", "seat"]),
+  },
+  {
+    meeting: sharedMeetings[0]!,
+    field: "notes",
+    snippet: snippet(
+      "…Q4: ship usage-based pricing for teams over 50 seats; keep the per-seat plan for small teams…",
+      ["pricing", "seat"],
+    ),
+  },
+];

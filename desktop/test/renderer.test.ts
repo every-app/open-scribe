@@ -89,6 +89,8 @@ describe("jottings saver", () => {
 describe("api:call allowlist", () => {
   it("lets the window's routes through", () => {
     expect(isAllowedApiCall("GET", "api/v1/meetings")).toBe(true);
+    expect(isAllowedApiCall("GET", "api/v1/search")).toBe(true);
+    expect(isAllowedApiCall("POST", "api/v1/search")).toBe(false);
     expect(isAllowedApiCall("PUT", "api/v1/meetings/abc-123/jottings")).toBe(true);
     expect(isAllowedApiCall("DELETE", "api/v1/meetings/m1/share/l1")).toBe(true);
     expect(isAllowedApiCall("PUT", "api/v1/folders/f1/meetings/m1")).toBe(true);

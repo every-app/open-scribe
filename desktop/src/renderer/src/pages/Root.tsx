@@ -91,6 +91,7 @@ function FirstRun({ state, onDone }: { state: AppSnapshot; onDone: () => void })
 function navFrom(pathname: string): NavTarget | null {
   if (pathname === "/") return { to: "home" };
   if (pathname === "/shared") return { to: "shared" };
+  if (pathname === "/search") return { to: "search" };
   if (pathname === "/templates") return { to: "templates" };
   if (pathname === "/settings") return { to: "settings" };
   const folder = /^\/folders\/([^/]+)$/.exec(pathname);
@@ -168,6 +169,7 @@ function Layout({ state }: { state: AppSnapshot }) {
   const onNavigate = (target: NavTarget) => {
     if (target.to === "home") void navigate({ to: "/" });
     else if (target.to === "shared") void navigate({ to: "/shared" });
+    else if (target.to === "search") void navigate({ to: "/search", search: {} });
     else if (target.to === "templates") void navigate({ to: "/templates", search: {} });
     else if (target.to === "settings") void navigate({ to: "/settings" });
     else void navigate({ to: "/folders/$id", params: { id: target.id } });
@@ -180,10 +182,17 @@ function Layout({ state }: { state: AppSnapshot }) {
         event.preventDefault();
         if (!recordingId) void start({});
       }
+      // ⌘K: search (from anywhere; on the search page it just focuses the box).
+      if (event.metaKey && event.key.toLowerCase() === "k" && !event.shiftKey) {
+        event.preventDefault();
+        const box = document.querySelector<HTMLInputElement>("[data-slot='search-input']");
+        if (box) box.select();
+        else void navigate({ to: "/search", search: {} });
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [recordingId, start]);
+  }, [recordingId, start, navigate]);
 
   const deep = pathname.startsWith("/meetings/") || pathname.startsWith("/upcoming/");
 
