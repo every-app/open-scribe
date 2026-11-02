@@ -97,7 +97,7 @@ At most 4 child threads run at once. Each has its own worktree and branch, opens
 | --- | --- | --- | --- |
 | M1 | **Foundations** | #1–#14 | done |
 | M2 | **Works locally end to end** | #12–#21, Codex passes 1–2 | done |
-| M3 | **Desktop features complete** | #15–#48: plus search, offline, updates, e2e CI, outage replay, self-test; Codex pass 3 | done (self-test button pending) |
+| M3 | **Desktop features complete** | #15–#48: plus search, offline, updates, e2e CI, outage replay, self-test; Codex pass 3 | done |
 | M4 | **Alpha release** (needs Ben) | Developer ID signing + notarization (Ben's credentials; runbook: [docs/release.md](release.md), `scripts/release-mac.sh`), update feed (Ben picks hosting), a real Gateway sign-in test on a deployed Talk (when Ben says go), the alpha checklist, Codex verification pass 2 on the signed build | **waiting on Ben**: Developer ID, R2 bucket + deploy, live test go-ahead (docs/release.md) |
 
 ## Local testing and signing
