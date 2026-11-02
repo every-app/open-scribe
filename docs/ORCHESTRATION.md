@@ -108,3 +108,5 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - Routed: UI (settings persistence, notifications grant UI, stale-recording state, ⌘, nav), M3 (#17 Keychain-free dev sign-in, reminders persist, plist; next: echoCancellation setting, delete on cancel, app menu + Settings ⌘, + Edit menu, tray items in app/Dock menu), H (fast idle shutdown).
 - #16 merged; #17, #18 in review.
 - #17 merged (Keychain-free dev sign-in, persisted reminder prompts, plist cleanup).
+- #19 merged (echoCancellation setting, delete on failed start, memory-only dev sign-ins, app/Dock menus with ⌘, Settings). #20 (helper fast shutdown) merging on green.
+- H: release runbook + scripts/release-mac.sh (dry-run, no uploads). M3: robustness (offline state, sign-in expiry, logs + diagnostics, helper crash UX).
