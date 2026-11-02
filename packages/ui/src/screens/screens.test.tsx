@@ -187,7 +187,30 @@ describe("MeetingScreen", () => {
         onStop={onStop}
       />,
     );
-    expect(screen.getByText("Saving…")).toBeTruthy();
+    expect(screen.getByText("Finishing the transcript…")).toBeTruthy();
+    // The elapsed time shows once it's taking a while.
+    rerender(
+      <MeetingScreen
+        {...base}
+        phase="during"
+        stopping
+        stoppingMs={83_000}
+        live={live}
+        onStop={onStop}
+      />,
+    );
+    expect(screen.getByText("1:23")).toBeTruthy();
+    rerender(
+      <MeetingScreen
+        {...base}
+        phase="during"
+        stopping
+        stoppingMs={2_000}
+        live={live}
+        onStop={onStop}
+      />,
+    );
+    expect(screen.queryByText("0:02")).toBeNull();
   });
 
   it("during: shows a quiet warning above the controls", () => {

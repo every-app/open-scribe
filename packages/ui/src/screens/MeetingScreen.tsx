@@ -58,6 +58,9 @@ export const transcriptionText: Record<TranscriptionNote, string> = {
   catching_up: "Catching up on the transcript…",
 };
 
+/** While a Stop finishes saving (after an outage it can take minutes). */
+export const FINISHING_TEXT = "Finishing the transcript…";
+
 export type MeetingPhase = "before" | "during" | "after";
 export type MeetingTab = "notes" | "jottings" | "transcript";
 
@@ -87,6 +90,8 @@ export interface MeetingScreenProps {
   transcription?: TranscriptionNote | null;
   /** Stop was pressed and the recording is finishing (a long outage's replay can take a while). */
   stopping?: boolean;
+  /** How long it's been finishing; shown once it's more than a few seconds. */
+  stoppingMs?: number;
   folders: Folder[];
   templates: Template[];
   orgName: string;
@@ -641,6 +646,7 @@ function ControlBar({
   warningDetail,
   transcription,
   stopping,
+  stoppingMs,
 }: MeetingScreenProps & {
   transcriptOpen: boolean;
   onToggleTranscript: () => void;
@@ -659,11 +665,21 @@ function ControlBar({
           className="animate-in fade-in-0 pointer-events-auto flex items-center gap-1.5 rounded-full bg-background/85 px-3 py-1 text-[12px] text-muted-foreground backdrop-blur"
         >
           <span className="record-pulse size-1.5 rounded-full bg-foreground/40" />
-          {stopping
-            ? transcription === "catching_up"
-              ? transcriptionText.catching_up
-              : "Saving…"
-            : transcriptionText[transcription!]}
+          {stopping ? (
+            <>
+              {transcription === "catching_up"
+                ? transcriptionText.catching_up
+                : FINISHING_TEXT}
+              {stoppingMs !== undefined && stoppingMs >= 5_000 && (
+                <span className="tabular-nums opacity-70">
+                  {" "}
+                  · <Elapsed ms={stoppingMs} />
+                </span>
+              )}
+            </>
+          ) : (
+            transcriptionText[transcription!]
+          )}
         </p>
       )}
       {phase === "during" && warning && (

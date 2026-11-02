@@ -583,7 +583,11 @@ export const scenes: Scene[] = [
       <MeetingScene
         phase="during"
         {...ctx}
-        extra={{ transcription: "catching_up", stopping: true }}
+        extra={{
+          transcription: "catching_up",
+          stopping: true,
+          stoppingMs: 47_000,
+        }}
       />
     ),
   },

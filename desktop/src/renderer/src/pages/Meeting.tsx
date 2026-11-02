@@ -36,6 +36,9 @@ export function MeetingPage({ id, tab }: { id: string; tab?: MeetingTab }) {
   const levels = useLevels();
   const transcript = useLiveTranscript();
   const elapsedMs = useElapsed(recordingHere && rec.startedAt ? rec.startedAt : null);
+  // Main sets `stopping`/`stoppingSince` from Stop until everything is saved; it doesn't tick.
+  const stopping = recordingHere && (rec.stopping === true || rec.state === "stopping");
+  const stoppingMs = useElapsed(stopping ? (rec.stoppingSince ?? null) : null);
 
   const [finishing, setFinishing] = useState(false);
   if (query.isPending) return <Loading />;
@@ -84,7 +87,8 @@ export function MeetingPage({ id, tab }: { id: string; tab?: MeetingTab }) {
       warning={recordingHere && rec.warning ? SLOW_CONNECTION : null}
       warningDetail={recordingHere ? rec.warning : null}
       transcription={recordingHere ? transcriptionNoteOf(state) : null}
-      stopping={recordingHere && rec.state === "stopping"}
+      stopping={stopping}
+      stoppingMs={stopping ? stoppingMs : undefined}
       folders={folders.data ?? []}
       templates={templates.data?.templates ?? []}
       orgName={accountFrom(me.data, state?.auth)?.orgName ?? "Team"}
