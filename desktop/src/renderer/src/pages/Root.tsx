@@ -4,7 +4,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import type { AppSnapshot } from "@shared/ipc";
 import type { NavTarget, Space } from "@talk/ui";
 import { AppFrame, OnboardingScreen, TitleBar, useElapsed } from "@talk/ui";
@@ -12,13 +12,15 @@ import { Button } from "@talk/ui/components/button";
 import { useStartRecording, useStopRecording } from "../actions";
 import { api, cleanError, keys } from "../api";
 import { asUiStatus, permissionsFrom, requestPermission } from "../desktop-settings";
-import { NameDialog } from "../dialogs";
 import { useLevels } from "../live";
 import { accountFrom, loadable } from "../map";
 import { notify } from "../notice";
 import { talk, useAppState } from "../talk";
 
 const ONBOARDED_KEY = "talk.onboarded";
+
+// Only needed when someone adds a folder: keep Base UI's dialog out of the first chunk.
+const NameDialog = lazy(() => import("../dialogs").then((m) => ({ default: m.NameDialog })));
 
 export function Root() {
   const state = useAppState();
@@ -169,25 +171,29 @@ function Layout({ state }: { state: AppSnapshot }) {
       >
         <Outlet />
       </AppFrame>
-      <NameDialog
-        open={adding !== null}
-        onOpenChange={(open) => !open && setAdding(null)}
-        title={adding === "team" ? `New folder in ${orgName}` : "New folder"}
-        description={adding === "team" ? "Everyone on the team sees this folder and the notes in it." : "Only you see this folder."}
-        submitLabel="Create folder"
-        placeholder="Customer calls"
-        onSubmit={async (name) => {
-          if (!adding) return;
-          try {
-            const { folder } = await api.createFolder({ name, space: adding });
-            setAdding(null);
-            await client.invalidateQueries({ queryKey: keys.folders });
-            await navigate({ to: "/folders/$id", params: { id: folder.id } });
-          } catch (error) {
-            notify(`Couldn't create the folder. ${cleanError(error)}`, "error");
-          }
-        }}
-      />
+      {adding !== null && (
+        <Suspense fallback={null}>
+          <NameDialog
+            open={adding !== null}
+            onOpenChange={(open) => !open && setAdding(null)}
+            title={adding === "team" ? `New folder in ${orgName}` : "New folder"}
+            description={adding === "team" ? "Everyone on the team sees this folder and the notes in it." : "Only you see this folder."}
+            submitLabel="Create folder"
+            placeholder="Customer calls"
+            onSubmit={async (name) => {
+              if (!adding) return;
+              try {
+                const { folder } = await api.createFolder({ name, space: adding });
+                setAdding(null);
+                await client.invalidateQueries({ queryKey: keys.folders });
+                await navigate({ to: "/folders/$id", params: { id: folder.id } });
+              } catch (error) {
+                notify(`Couldn't create the folder. ${cleanError(error)}`, "error");
+              }
+            }}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

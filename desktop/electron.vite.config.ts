@@ -19,5 +19,8 @@ export default defineConfig({
     root: resolve(__dirname, "src/renderer"),
     resolve: { alias: { ...shared, "@renderer": resolve(__dirname, "src/renderer/src") } },
     plugins: [react(), tailwindcss()],
+    // The window loads from disk, but parsing still costs: minify, and let each page be its own
+    // chunk (src/renderer/src/router.tsx).
+    build: { minify: true },
   },
 });
