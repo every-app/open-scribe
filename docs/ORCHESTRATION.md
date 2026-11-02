@@ -78,3 +78,6 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 
 - Took Talk over from the overnight orchestrator. Its Overnight B thread stopped clean at a3449ca (no new work).
 - Interviewed Ben. Plan merged (#1). Launched W, A, H. Next: API (after W), then UI (after A), then integration.
+- W done: #2 merged (a30bd87). Public page assets, template-rewrite failure, delete confirm, nested main fixed; 15 tests.
+- Launched API lane: mcp:launch:ee4a60e16dbdfc94a4d6c847031d297c12de2b2e4b38ca421902f3750ac498ec, branch feature/desktop-api, owns web/ (folders, templates, jottings, notes edit, seed script).
+- Codex computer use confirmed (mcp__cua_repl.js); lane V runs after A + H merge.
