@@ -163,19 +163,26 @@ export async function updateTemplate(
   return row ? toTemplate(viewer, row) : null;
 }
 
-/** A partial edit, merged over the owner's template; null when not theirs. */
+/**
+ * A partial edit of the owner's template; null when it isn't theirs. Only
+ * the named fields are written, in one UPDATE that checks the owner, so a
+ * concurrent edit of another field (say, making it private) is never undone
+ * by a stale copy of it.
+ */
 export async function patchTemplate(
   viewer: Viewer,
   id: string,
   change: z.infer<typeof updateTemplateInput>,
 ): Promise<Template | null> {
-  const current = await getTemplate(viewer, id);
-  if (!current || current.builtIn || !current.mine) return null;
-  return updateTemplate(viewer, id, {
-    name: change.name ?? current.name,
-    instructions: change.instructions ?? current.instructions,
-    visibility: change.visibility ?? current.visibility,
-  });
+  const set = Object.fromEntries(
+    Object.entries(change).filter(([, value]) => value !== undefined),
+  ) as Partial<z.infer<typeof saveTemplateInput>>;
+  const [row] = await db
+    .update(templates)
+    .set({ ...set, updatedAt: new Date().toISOString() })
+    .where(ownedTemplate(viewer, id))
+    .returning(templateFields);
+  return row ? toTemplate(viewer, row) : null;
 }
 
 /**

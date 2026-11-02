@@ -412,6 +412,11 @@ export async function transcriptText(meetingId: string): Promise<string> {
 /**
  * Save the notes and pin the template they were written with, so a later
  * change to a folder's or the owner's default doesn't relabel them.
+ *
+ * Only while the meeting is `processing` (finished, or a rewrite started):
+ * the owner can't edit notes then (see editNotes), so the written notes
+ * never replace an edit made after the writing began. The notes go first and
+ * the status flips after, so edits stay refused until both are in.
  */
 export async function saveNotes(
   meetingId: string,
@@ -419,9 +424,22 @@ export async function saveNotes(
   model: string,
   templateId?: string,
 ): Promise<void> {
-  await db
+  const written = await db
     .insert(notes)
-    .values({ meetingId, markdown, model })
+    .select(
+      db
+        .select({
+          meetingId: meetings.id,
+          markdown: sql<string>`${markdown}`.as("markdown"),
+          model: sql<string>`${model}`.as("model"),
+          generatedAt: sql<string>`(current_timestamp)`.as("generated_at"),
+          editedAt: sql<string | null>`null`.as("edited_at"),
+        })
+        .from(meetings)
+        .where(
+          and(eq(meetings.id, meetingId), eq(meetings.status, "processing")),
+        ),
+    )
     .onConflictDoUpdate({
       target: notes.meetingId,
       // Written afresh, so no longer the person's edit.
@@ -431,7 +449,9 @@ export async function saveNotes(
         generatedAt: sql`(current_timestamp)`,
         editedAt: null,
       },
-    });
+    })
+    .returning({ meetingId: notes.meetingId });
+  if (written.length === 0) return;
   await db
     .update(meetings)
     .set({
@@ -439,7 +459,7 @@ export async function saveNotes(
       ...(templateId ? { templateId } : {}),
       updatedAt: new Date().toISOString(),
     })
-    .where(eq(meetings.id, meetingId));
+    .where(and(eq(meetings.id, meetingId), eq(meetings.status, "processing")));
 }
 
 export async function markFailed(meetingId: string): Promise<void> {
@@ -594,28 +614,50 @@ export async function saveJottings(
  * The owner's edit of the notes; sets `editedAt`. Null when the viewer owns
  * no such meeting; "busy" while it records or its notes are being written,
  * since those notes are about to be replaced (jot in the notepad instead).
+ *
+ * The status check and the write are one statement (an upsert from a SELECT
+ * of the meeting that only matches when it is done or failed), so a template
+ * rewrite that starts meanwhile either comes after the edit (and replaces
+ * it, as the person asked last) or refuses it; an edit never lands on notes
+ * that are being rewritten.
  */
 export async function editNotes(
   viewer: Viewer,
   meetingId: string,
   markdown: string,
 ): Promise<MeetingDetail["notes"] | "busy" | null> {
-  const [row] = await db
-    .select({ status: meetings.status })
-    .from(meetings)
-    .where(owned(viewer, meetingId));
-  if (!row) return null;
-  if (row.status === "recording" || row.status === "processing") {
-    return "busy";
-  }
   const editedAt = new Date().toISOString();
-  await db
+  const written = await db
     .insert(notes)
-    .values({ meetingId, markdown, model: "manual", editedAt })
+    .select(
+      db
+        .select({
+          meetingId: meetings.id,
+          markdown: sql<string>`${markdown}`.as("markdown"),
+          model: sql<string>`'manual'`.as("model"),
+          generatedAt: sql<string>`(current_timestamp)`.as("generated_at"),
+          editedAt: sql<string>`${editedAt}`.as("edited_at"),
+        })
+        .from(meetings)
+        .where(
+          and(
+            owned(viewer, meetingId),
+            inArray(meetings.status, ["done", "failed"]),
+          ),
+        ),
+    )
     .onConflictDoUpdate({
       target: notes.meetingId,
       set: { markdown, editedAt },
-    });
+    })
+    .returning({ meetingId: notes.meetingId });
+  if (written.length === 0) {
+    const [row] = await db
+      .select({ id: meetings.id })
+      .from(meetings)
+      .where(owned(viewer, meetingId));
+    return row ? "busy" : null;
+  }
   const { notes: saved } = await loadDetail(meetingId);
   return saved;
 }
