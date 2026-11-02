@@ -86,3 +86,6 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - UI lane launched: mcp:launch:74d3dc8f6e117aab75acf493606ce4db74f535140bad46bc75cee6e80b04291d, branch feature/desktop-ui (packages/ui + screens + playground).
 - API done: #5 merged (folders, templates, meetings filters, jottings, notes edit, settings, apiContract.ts, notesPrompt, `pnpm seed`; 36 tests).
 - Codex review of #4 + #5 launched (read-only).
+- A done: #6 merged (Electron 45 shell, sign-in port, safeStorage tokens, supervisor, reminders, talk:// (dev: talk-dev://), package:local → ~/Applications/Talk Dev.app; 67 tests).
+- Launched M3 desktop main: mcp:launch:4f62d9e1f0e24689ea2e199e145f365eb990591486f21bf70503d4060975005b, branch feature/desktop-main-m3 (real helper bundling, permissions IPC, login item, settings, icon, nav guards).
+- UI lane told: Phase 1 PR with root workspace, then Phase 2 (mount screens in desktop/src/renderer).
