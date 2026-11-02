@@ -11,6 +11,7 @@ import type { AuthService } from "../auth/service";
 import { errorMessage } from "../auth/oauth";
 import { POLL_INTERVAL_MS } from "../config";
 import { dueStartedNudges, planReminders, startedId, type Reminder } from "./planner";
+import { parsePromptId, PromptLedger } from "./ledger";
 
 export interface PromptHandlers {
   /** Take notes for an event; `join` also opens its call link. */
@@ -32,8 +33,8 @@ export class CalendarService extends EventEmitter<{ change: [CalendarSnapshot] }
   private pollTimer: NodeJS.Timeout | undefined;
   private nudgeTimer: NodeJS.Timeout | undefined;
   private scheduled = new Map<string, NodeJS.Timeout>();
-  private delivered = new Set<string>();
-  private nudged = new Set<string>();
+  /** Prompts already shown, kept across restarts when a ledger file is given. */
+  private readonly ledger: PromptLedger;
   /** Shown notifications, kept so they aren't garbage-collected (their click handlers die with them). */
   private shown = new Map<string, Notification>();
   private running = false;
@@ -42,8 +43,10 @@ export class CalendarService extends EventEmitter<{ change: [CalendarSnapshot] }
     private readonly auth: AuthService,
     private readonly handlers: PromptHandlers,
     private readonly log: (...parts: unknown[]) => void,
+    ledger?: PromptLedger,
   ) {
     super();
+    this.ledger = ledger ?? new PromptLedger("");
     powerMonitor.on("resume", () => {
       if (this.running) void this.refresh();
     });
@@ -120,7 +123,7 @@ export class CalendarService extends EventEmitter<{ change: [CalendarSnapshot] }
   /** Makes the scheduled prompts match the upcoming events. */
   private reconcile(): void {
     const events = this.snapshot.connected ? this.snapshot.events : [];
-    const plan = planReminders(events, Date.now(), this.delivered, this.handlers.recordingEventId(), this.handlers.reminderLeadMs?.());
+    const plan = planReminders(events, Date.now(), this.ledger.delivered, this.handlers.recordingEventId(), this.handlers.reminderLeadMs?.());
     const wanted = new Set(plan.map((r) => r.id));
     for (const [id, timer] of this.scheduled) {
       if (!wanted.has(id)) {
@@ -141,7 +144,7 @@ export class CalendarService extends EventEmitter<{ change: [CalendarSnapshot] }
 
   private fire(reminder: Reminder): void {
     this.scheduled.delete(reminder.id);
-    this.delivered.add(reminder.id);
+    this.ledger.markDelivered(reminder.id);
     if (this.handlers.isRecording() && this.handlers.recordingEventId() === reminder.event.id) return;
     const event = reminder.event;
     const canJoin = !!event.conferenceUrl;
@@ -155,9 +158,9 @@ export class CalendarService extends EventEmitter<{ change: [CalendarSnapshot] }
 
   private nudgeStarted(): void {
     if (!this.snapshot.connected || !this.auth.api) return;
-    for (const event of dueStartedNudges(this.snapshot.events, Date.now(), this.handlers.isRecording(), this.nudged)) {
+    for (const event of dueStartedNudges(this.snapshot.events, Date.now(), this.handlers.isRecording(), this.ledger.nudged)) {
       const id = startedId(event);
-      this.nudged.add(id);
+      this.ledger.markNudged(id);
       this.show(id, {
         title: `${event.title} started`,
         body: "Take notes?",
@@ -189,6 +192,7 @@ export class CalendarService extends EventEmitter<{ change: [CalendarSnapshot] }
     if (!Notification.isSupported()) return;
     this.shown.get(id)?.close();
     const n = new Notification({
+      id,
       title: o.title,
       body: o.body,
       actions: o.actions.map((text) => ({ type: "button" as const, text })),
@@ -202,6 +206,53 @@ export class CalendarService extends EventEmitter<{ change: [CalendarSnapshot] }
     });
     this.shown.set(id, n);
     n.show();
+  }
+
+  /** After a restart: re-attach handlers to our prompts still in Notification Center, so clicking
+   * one still takes notes. "Record this call?" prompts from the last run are stale and removed.
+   * (macOS only; an unsigned dev run has no history.) */
+  async restoreDelivered(): Promise<void> {
+    if (process.platform !== "darwin" || typeof Notification.getHistory !== "function") return;
+    let history: Notification[];
+    try {
+      history = await Notification.getHistory();
+    } catch (error) {
+      this.log(`notifications: no history (${errorMessage(error)})`);
+      return;
+    }
+    for (const n of history) {
+      const id = n.id;
+      if (!id || this.shown.has(id)) continue;
+      if (id.startsWith("call.")) {
+        n.close();
+        continue;
+      }
+      const prompt = parsePromptId(id);
+      if (!prompt) continue;
+      const act = (index: number) => void this.actOnRestored(prompt.eventId, index);
+      n.on("click", () => act(0));
+      n.on("action", (details) => act(details.actionIndex));
+      n.on("close", () => {
+        if (this.shown.get(id) === n) this.shown.delete(id);
+      });
+      this.shown.set(id, n);
+    }
+    if (history.length) this.log(`notifications: re-attached to ${this.shown.size} from the last run`);
+  }
+
+  /** A restored prompt was clicked: find its meeting (refreshing once if needed) and take notes. */
+  private async actOnRestored(eventId: string, index: number): Promise<void> {
+    if (this.handlers.isRecording()) return;
+    let event = this.snapshot.events.find((e) => e.id === eventId);
+    if (!event) {
+      await this.refresh();
+      event = this.snapshot.events.find((e) => e.id === eventId);
+    }
+    if (!event) {
+      this.notify("That meeting isn't coming up anymore", "Start notes from the Talk menu if you still need them.");
+      return;
+    }
+    this.handlers.takeNotes(event, !!event.conferenceUrl && index === 0);
   }
 
   /** Generic notification with no actions. */

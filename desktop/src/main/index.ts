@@ -10,7 +10,8 @@ import { SecretStore } from "./auth/store";
 import { errorMessage } from "./auth/oauth";
 import { CalendarService } from "./calendar/service";
 import { parseTalkUrl, resolveTalkUrl } from "./calendar/talkUrl";
-import { devSignIn, helperPath, isDevFlavor } from "./config";
+import { PromptLedger } from "./calendar/ledger";
+import { devSignIn, helperPath, isDevFlavor, keychainDisabled } from "./config";
 import { HelperSupervisor } from "./helper/supervisor";
 import { registerIpc } from "./ipc";
 import { log } from "./log";
@@ -76,11 +77,17 @@ async function main(): Promise<void> {
   if (loginItem.status === "enabled" && !settings.value.launchAtLogin) settings.set({ launchAtLogin: true });
   if (loginItem.status === "disabled" && settings.value.launchAtLogin) settings.set({ launchAtLogin: false });
 
-  const store = new SecretStore(join(app.getPath("userData"), "signin.bin"), {
-    isAvailable: () => safeStorage.isEncryptionAvailable(),
-    encrypt: (plain) => safeStorage.encryptString(plain),
-    decrypt: (data) => safeStorage.decryptString(data),
-  });
+  const noKeychain = keychainDisabled();
+  if (noKeychain) log("dev: the Keychain is off (dev sign-in or TALK_DEV_NO_KEYCHAIN); sign-ins last until quit");
+  const store = new SecretStore(
+    join(app.getPath("userData"), "signin.bin"),
+    {
+      isAvailable: () => safeStorage.isEncryptionAvailable(),
+      encrypt: (plain) => safeStorage.encryptString(plain),
+      decrypt: (data) => safeStorage.decryptString(data),
+    },
+    noKeychain,
+  );
   const auth = new AuthService({
     store,
     openBrowser: (url) => shell.openExternal(url),
@@ -121,6 +128,7 @@ async function main(): Promise<void> {
       notificationResult: (shown) => probe.notificationResult(shown),
     },
     log,
+    new PromptLedger(join(app.getPath("userData"), "prompts.json")).load(),
   );
 
   const tray = new TrayController({
@@ -157,6 +165,7 @@ async function main(): Promise<void> {
   };
 
   let wasSignedIn = false;
+  let restoredPrompts = false;
   /** Call detection runs while signed in, if the setting is on. */
   const syncDetection = () => void helper.setDetection(wasSignedIn && settings.value.callDetection).catch(() => {});
   auth.on("change", (a) => {
@@ -164,6 +173,10 @@ async function main(): Promise<void> {
     if (signedIn && !wasSignedIn) {
       void auth.loadMe();
       calendar.start();
+      if (!restoredPrompts) {
+        restoredPrompts = true;
+        void calendar.restoreDelivered();
+      }
       wasSignedIn = true;
       syncDetection();
     } else if (!signedIn && wasSignedIn) {

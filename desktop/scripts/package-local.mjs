@@ -113,7 +113,10 @@ run("codesign", ["--verify", "--deep", "--strict", built]);
 const apps = join(homedir(), "Applications");
 const target = join(apps, `${PRODUCT}.app`);
 step(`installing ${target}`);
-spawnSync("osascript", ["-e", `tell application id "com.everyapp.talk.dev" to quit`], { stdio: "ignore" });
+// Only when it's running: `tell application … to quit` launches an app that isn't.
+if (spawnSync("pgrep", ["-x", PRODUCT]).status === 0) {
+  spawnSync("osascript", ["-e", `if application id "com.everyapp.talk.dev" is running then tell application id "com.everyapp.talk.dev" to quit`], { stdio: "ignore" });
+}
 for (let i = 0; i < 50 && spawnSync("pgrep", ["-x", PRODUCT]).status === 0; i++) spawnSync("sleep", ["0.2"]);
 spawnSync("pkill", ["-x", PRODUCT]);
 mkdirSync(apps, { recursive: true });

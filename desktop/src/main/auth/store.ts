@@ -28,14 +28,18 @@ export class SecretStore implements ClientIdCache {
    * signature can't read the last build's Keychain key). */
   loadProblem: LoadProblem;
 
+  /** `memoryOnly`: never read or write the file and never call the cipher, so the Keychain is
+   * never touched (dev runs with a token sign-in; see config.ts `keychainDisabled`). A sign-in
+   * then lasts until quit. */
   constructor(
     private readonly path: string,
     private readonly cipher: Cipher,
+    private readonly memoryOnly = false,
   ) {}
 
   load(): void {
     this.loadProblem = undefined;
-    if (!existsSync(this.path)) return;
+    if (this.memoryOnly || !existsSync(this.path)) return;
     try {
       const plain = this.cipher.decrypt(readFileSync(this.path));
       const parsed = JSON.parse(plain) as Contents;
@@ -71,6 +75,7 @@ export class SecretStore implements ClientIdCache {
 
   /** Writes atomically; refuses to write plaintext when encryption isn't available. */
   private write(): void {
+    if (this.memoryOnly) return;
     if (!this.cipher.isAvailable()) throw new Error("The Keychain isn't available, so Talk can't keep a sign-in.");
     const empty = !this.contents.credentials && Object.keys(this.contents.clients).length === 0;
     if (empty) {

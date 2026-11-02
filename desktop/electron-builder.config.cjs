@@ -33,6 +33,9 @@ if (!dev && process.platform === "darwin") {
   }
 }
 
+/** Usage strings Electron's template adds that Talk doesn't need (see afterPack). */
+const UNUSED_USAGE_KEYS = ["NSCameraUsageDescription", "NSBluetoothAlwaysUsageDescription", "NSBluetoothPeripheralUsageDescription"];
+
 const hasSigningIdentity = !!(env.CSC_NAME || env.CSC_LINK);
 const canNotarize = !!(
   (env.APPLE_API_KEY && env.APPLE_API_KEY_ID && env.APPLE_API_ISSUER) ||
@@ -92,4 +95,17 @@ module.exports = {
     },
   },
   dmg: { title: productName },
+  // Electron's own Info.plist asks for the camera and Bluetooth, which Talk never uses: drop those
+  // usage strings so only the mic and audio capture appear. Runs before signing.
+  afterPack: async (context) => {
+    if (context.electronPlatformName !== "darwin") return;
+    const plist = join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, "Contents", "Info.plist");
+    for (const key of UNUSED_USAGE_KEYS) {
+      try {
+        require("node:child_process").execFileSync("/usr/libexec/PlistBuddy", ["-c", `Delete :${key}`, plist], { stdio: "ignore" });
+      } catch {
+        // Not there: nothing to drop.
+      }
+    }
+  },
 };
