@@ -34,6 +34,7 @@ import { Route as ApiV1MeetingsIdSegmentsRouteImport } from './routes/api/v1/mee
 import { Route as ApiV1MeetingsIdTranscriptionTokenRouteImport } from './routes/api/v1/meetings.$id.transcription-token'
 import { Route as ApiV1TemplatesIdIndexRouteImport } from './routes/api/v1/templates.$id.index'
 import { Route as ApiV1TemplatesIdDuplicateRouteImport } from './routes/api/v1/templates.$id.duplicate'
+import { Route as ApiV1UpdatesMacFileRouteImport } from './routes/api/v1/updates.mac.$file'
 import { Route as ApiV1FoldersIdMeetingsMeetingIdRouteImport } from './routes/api/v1/folders.$id.meetings.$meetingId'
 import { Route as ApiV1MeetingsIdShareIndexRouteImport } from './routes/api/v1/meetings.$id.share.index'
 import { Route as ApiV1MeetingsIdShareLinkIdRouteImport } from './routes/api/v1/meetings.$id.share.$linkId'
@@ -165,6 +166,11 @@ const ApiV1TemplatesIdDuplicateRoute =
     path: '/api/v1/templates/$id/duplicate',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1UpdatesMacFileRoute = ApiV1UpdatesMacFileRouteImport.update({
+  id: '/api/v1/updates/mac/$file',
+  path: '/api/v1/updates/mac/$file',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1FoldersIdMeetingsMeetingIdRoute =
   ApiV1FoldersIdMeetingsMeetingIdRouteImport.update({
     id: '/api/v1/folders/$id/meetings/$meetingId',
@@ -206,6 +212,7 @@ export interface FileRoutesByFullPath {
   '/api/v1/meetings/$id/segments': typeof ApiV1MeetingsIdSegmentsRoute
   '/api/v1/meetings/$id/transcription-token': typeof ApiV1MeetingsIdTranscriptionTokenRoute
   '/api/v1/templates/$id/duplicate': typeof ApiV1TemplatesIdDuplicateRoute
+  '/api/v1/updates/mac/$file': typeof ApiV1UpdatesMacFileRoute
   '/api/v1/folders/$id/': typeof ApiV1FoldersIdIndexRoute
   '/api/v1/meetings/$id/': typeof ApiV1MeetingsIdIndexRoute
   '/api/v1/templates/$id/': typeof ApiV1TemplatesIdIndexRoute
@@ -235,6 +242,7 @@ export interface FileRoutesByTo {
   '/api/v1/meetings/$id/segments': typeof ApiV1MeetingsIdSegmentsRoute
   '/api/v1/meetings/$id/transcription-token': typeof ApiV1MeetingsIdTranscriptionTokenRoute
   '/api/v1/templates/$id/duplicate': typeof ApiV1TemplatesIdDuplicateRoute
+  '/api/v1/updates/mac/$file': typeof ApiV1UpdatesMacFileRoute
   '/api/v1/folders/$id': typeof ApiV1FoldersIdIndexRoute
   '/api/v1/meetings/$id': typeof ApiV1MeetingsIdIndexRoute
   '/api/v1/templates/$id': typeof ApiV1TemplatesIdIndexRoute
@@ -266,6 +274,7 @@ export interface FileRoutesById {
   '/api/v1/meetings/$id/segments': typeof ApiV1MeetingsIdSegmentsRoute
   '/api/v1/meetings/$id/transcription-token': typeof ApiV1MeetingsIdTranscriptionTokenRoute
   '/api/v1/templates/$id/duplicate': typeof ApiV1TemplatesIdDuplicateRoute
+  '/api/v1/updates/mac/$file': typeof ApiV1UpdatesMacFileRoute
   '/api/v1/folders/$id/': typeof ApiV1FoldersIdIndexRoute
   '/api/v1/meetings/$id/': typeof ApiV1MeetingsIdIndexRoute
   '/api/v1/templates/$id/': typeof ApiV1TemplatesIdIndexRoute
@@ -297,6 +306,7 @@ export interface FileRouteTypes {
     | '/api/v1/meetings/$id/segments'
     | '/api/v1/meetings/$id/transcription-token'
     | '/api/v1/templates/$id/duplicate'
+    | '/api/v1/updates/mac/$file'
     | '/api/v1/folders/$id/'
     | '/api/v1/meetings/$id/'
     | '/api/v1/templates/$id/'
@@ -326,6 +336,7 @@ export interface FileRouteTypes {
     | '/api/v1/meetings/$id/segments'
     | '/api/v1/meetings/$id/transcription-token'
     | '/api/v1/templates/$id/duplicate'
+    | '/api/v1/updates/mac/$file'
     | '/api/v1/folders/$id'
     | '/api/v1/meetings/$id'
     | '/api/v1/templates/$id'
@@ -356,6 +367,7 @@ export interface FileRouteTypes {
     | '/api/v1/meetings/$id/segments'
     | '/api/v1/meetings/$id/transcription-token'
     | '/api/v1/templates/$id/duplicate'
+    | '/api/v1/updates/mac/$file'
     | '/api/v1/folders/$id/'
     | '/api/v1/meetings/$id/'
     | '/api/v1/templates/$id/'
@@ -381,6 +393,7 @@ export interface RootRouteChildren {
   ApiV1MeetingsIdSegmentsRoute: typeof ApiV1MeetingsIdSegmentsRoute
   ApiV1MeetingsIdTranscriptionTokenRoute: typeof ApiV1MeetingsIdTranscriptionTokenRoute
   ApiV1TemplatesIdDuplicateRoute: typeof ApiV1TemplatesIdDuplicateRoute
+  ApiV1UpdatesMacFileRoute: typeof ApiV1UpdatesMacFileRoute
   ApiV1FoldersIdIndexRoute: typeof ApiV1FoldersIdIndexRoute
   ApiV1MeetingsIdIndexRoute: typeof ApiV1MeetingsIdIndexRoute
   ApiV1TemplatesIdIndexRoute: typeof ApiV1TemplatesIdIndexRoute
@@ -566,6 +579,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1TemplatesIdDuplicateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/updates/mac/$file': {
+      id: '/api/v1/updates/mac/$file'
+      path: '/api/v1/updates/mac/$file'
+      fullPath: '/api/v1/updates/mac/$file'
+      preLoaderRoute: typeof ApiV1UpdatesMacFileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/folders/$id/meetings/$meetingId': {
       id: '/api/v1/folders/$id/meetings/$meetingId'
       path: '/api/v1/folders/$id/meetings/$meetingId'
@@ -628,6 +648,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiV1MeetingsIdTranscriptionTokenRoute:
     ApiV1MeetingsIdTranscriptionTokenRoute,
   ApiV1TemplatesIdDuplicateRoute: ApiV1TemplatesIdDuplicateRoute,
+  ApiV1UpdatesMacFileRoute: ApiV1UpdatesMacFileRoute,
   ApiV1FoldersIdIndexRoute: ApiV1FoldersIdIndexRoute,
   ApiV1MeetingsIdIndexRoute: ApiV1MeetingsIdIndexRoute,
   ApiV1TemplatesIdIndexRoute: ApiV1TemplatesIdIndexRoute,

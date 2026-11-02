@@ -11,6 +11,10 @@ export default defineEveryApp({
   access: "everyone",
   resources: {
     d1: ["DB"],
+    // The desktop app's private update feed: electron-builder's
+    // latest-mac.yml, zips, dmgs and blockmaps under mac/, served to members
+    // by /api/v1/updates/mac/:file (src/server/updates.ts).
+    r2: ["UPDATES"],
   },
   // A shared meeting page: anyone with the unguessable link reads it. The
   // route checks the token itself (src/server/meetings.ts, getSharedMeeting).
