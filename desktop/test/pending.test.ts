@@ -75,6 +75,23 @@ describe("pending uploads", () => {
     expect(await p.replay(fakeApi("https://talk.example.com").api)).toBe(0);
   });
 
+  it("keeps time-based seqs (not consecutive, replays in between) in order without duplicates", async () => {
+    const p = new PendingUploads(join(mkdtempSync(join(tmpdir(), "talk-pending-")), "pending"));
+    const seg = (startedMs: number, them: boolean, replayed: boolean): TranscriptSegment => ({
+      seq: startedMs * 4 + (them ? 2 : 0) + (replayed ? 1 : 0),
+      speaker: them ? "them" : "me",
+      text: `at ${startedMs}`,
+      startedMs,
+      endedMs: startedMs + 900,
+    });
+    p.add("m1", "https://talk.example.com", [seg(12_000, true, false), seg(1_000, false, false)], false);
+    p.add("m1", "https://talk.example.com", [seg(5_000, true, true), seg(12_000, true, false)], true);
+    expect(p.list()[0]!.segments.map((s) => s.seq)).toEqual([4_000, 20_003, 48_002]);
+    const { api, calls } = fakeApi();
+    await p.replay(api);
+    expect(calls).toEqual(["segments m1 4000-48002", "finish m1"]);
+  });
+
   it("ignores an empty hand-back", () => {
     const p = new PendingUploads(join(mkdtempSync(join(tmpdir(), "talk-pending-")), "pending"));
     p.add("m1", "https://a", [], false);

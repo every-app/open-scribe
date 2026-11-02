@@ -1,7 +1,7 @@
 // The typed bridge between the renderer and main. The preload exposes `window.talk` with exactly
 // these calls; main registers a handler for each `invoke` channel and validates its arguments.
 
-import type { HelperEvent, PermissionStatus, ChannelHealth } from "./protocol";
+import type { HelperEvent, PermissionStatus, ChannelHealth, TranscriptionState } from "./protocol";
 import type { CalendarEvent, Me, MeetingDetail, MeetingPatch, MeetingSummary } from "./api";
 
 export type TrayState = "idle" | "recording" | "attention";
@@ -116,8 +116,9 @@ export interface RecordingSnapshot {
   mode?: "realtime" | "fallback";
   mic?: ChannelHealth;
   system?: ChannelHealth;
-  /** "reconnecting": the live transcript is paused (transcription can't be reached). */
-  transcription?: "live" | "reconnecting";
+  /** "reconnecting": transcription can't be reached (the audio is kept, up to 5 minutes);
+   * "catching_up": that kept audio is being transcribed now, live audio goes on. */
+  transcription?: TranscriptionState;
   /** Something the person should know that doesn't stop the recording (e.g. the fallback upload
    * fell behind and dropped some audio: helper error `fallback_backlog`). */
   warning?: string;

@@ -256,6 +256,23 @@ describe("recording against the fake helper and fake server", () => {
     expect(s.state.status).toBe("ready");
   });
 
+  it("follows the helper's transcription state, including catching up after an outage", async () => {
+    const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
+    await auth.signInWithToken(fake.origin, "epat_good");
+    const { s } = make();
+    const recording = new RecordingController(auth, s);
+    s.start();
+    await ready(s);
+    await recording.start({ title: "Flaky Wi-Fi" });
+    const state = (transcription: string) =>
+      s.request("debug.emit" as never, { event: "state", recording: true, mode: "realtime", mic: "ok", system: "ok", transcription } as never);
+    for (const t of ["reconnecting", "catching_up", "live"]) {
+      await state(t);
+      await until(() => recording.state.transcription === t || undefined);
+    }
+    await recording.stop();
+  });
+
   it("surfaces fallback_backlog as a warning and keeps recording", async () => {
     const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
     await auth.signInWithToken(fake.origin, "epat_good");

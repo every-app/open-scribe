@@ -6,8 +6,11 @@ export const HELPER_PROTOCOL = 1;
 export type PermissionStatus = "granted" | "denied" | "undetermined" | "unknown";
 export type Speaker = "me" | "them";
 
+export type TranscriptionState = "live" | "reconnecting" | "catching_up";
+
 /** A finished transcript line, as posted to /api/v1/meetings/:id/segments. */
 export interface TranscriptSegment {
+  /** Time-based, not consecutive: startedMs × 4 + (them ? 2 : 0) + (replayed ? 1 : 0). */
   seq: number;
   speaker: Speaker;
   text: string;
@@ -67,8 +70,10 @@ export interface HelperEvents {
     mode: "realtime" | "fallback";
     mic: ChannelHealth;
     system: ChannelHealth;
-    /** "reconnecting": a speaker's transcription channel is down (that stretch isn't transcribed). */
-    transcription?: "live" | "reconnecting";
+    /** "reconnecting": a speaker's Realtime channel is down (its audio is kept, up to 5 minutes).
+     * "catching_up": back, and the kept audio is being transcribed through the fallback while
+     * live audio goes on. Then "live" again. */
+    transcription?: TranscriptionState;
   };
   levels: { mic: number; system: number };
   "transcript.delta": { speaker: Speaker; text: string; itemId: string };

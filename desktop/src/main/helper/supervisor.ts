@@ -47,7 +47,10 @@ type Pending = { resolve: (v: unknown) => void; reject: (e: Error) => void; time
 const SLOW: Partial<Record<HelperCommand, number>> = {
   "permissions.request": 5 * 60_000,
   "record.start": 60_000,
-  "record.stop": 90_000,
+  // Stop waits for the helper to transcribe audio kept through an outage (at most 5 minutes per
+  // speaker in ≤ 30 s chunks, each up to 3 tries of ≤ 60 s) before /finish. Usually seconds;
+  // this only stops main from calling a slow save a failure.
+  "record.stop": 20 * 60_000,
 };
 
 export interface SupervisorEvents {
