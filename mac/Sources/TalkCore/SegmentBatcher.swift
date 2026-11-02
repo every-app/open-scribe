@@ -5,7 +5,9 @@ import Foundation
 /// assigned here from the turn's start (`TranscriptSeq`), so the transcript reads in time order.
 public struct SegmentBatcher: Sendable {
   public static let interval: TimeInterval = 10
-  public static let maxBatch = 200
+  /// Segments per `/segments` request. The Worker inserts a request's rows in one statement,
+  /// and D1 limits the variables in one (a 300-segment backlog after an outage got a 500).
+  public static let maxBatch = 50
 
   public private(set) var pending: [Segment] = []
   private var used = Set<Int>()

@@ -17,6 +17,13 @@ public enum APIError: Error, LocalizedError, Equatable {
   /// The transcription-token route says live keys can't be had (the Gateway doesn't allow the
   /// Realtime route, or the upstream refused): use the audio-chunk fallback. Not for a missing
   /// OpenAI key, which the fallback can't fix either, nor for sign-in problems.
+  /// The server refused the request itself (a 4xx that a retry won't change): not 401 (sign-in,
+  /// handled by the auth provider), 408, 409 or 429 (transient).
+  public var isPermanentRefusal: Bool {
+    guard case .server(let status, _, _) = self else { return false }
+    return (400..<500).contains(status) && ![401, 408, 409, 429].contains(status)
+  }
+
   public var isRealtimeUnavailable: Bool {
     guard case .server(let status, let code, _) = self else { return false }
     if code == "ai_route_not_allowed" { return true }

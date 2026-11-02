@@ -165,6 +165,8 @@ public final class RecordingPipeline {
   private var pumps: [Task<Void, Never>] = []
   private var continuations: [Speaker: AsyncStream<Data>.Continuation] = [:]
   private var batcher = SegmentBatcher()
+  /// Segments the Worker refused outright (a 4xx a retry won't fix): not retried, handed back.
+  private var refused: [Segment] = []
   private var echo: EchoFilter?
   /// Speakers whose transcription is failing right now (a Realtime reconnect, fallback errors).
   private var down: Set<Speaker> = []
@@ -278,7 +280,8 @@ public final class RecordingPipeline {
     } else if problem == nil, replayFailures > 0 {
       problem = "Some audio from a reconnect couldn't be transcribed (\(replayFailures) stretch\(replayFailures == 1 ? "" : "es"))."
     }
-    let unsaved = batcher.pending
+    let unsaved = (refused + batcher.pending).sorted { $0.seq < $1.seq }
+    if problem == nil, !refused.isEmpty { problem = "Talk refused \(refused.count) transcript segment(s)." }
     var finished = false
     if unsaved.isEmpty {
       do {
@@ -523,11 +526,16 @@ public final class RecordingPipeline {
 
   private func drain(final: Bool) async -> String? {
     var attempts = 0
+    // Oldest first, ≤ 50 per request; a failure stops the drain so seqs post in order.
     while !batcher.isEmpty {
       let batch = batcher.takeBatch()
       do {
         try await api.appendSegments(meetingID: meetingID, batch)
         saved += batch.count
+      } catch let error as APIError where error.isPermanentRefusal {
+        // Retrying won't change the answer: set them aside (handed back on stop) and go on.
+        refused.append(contentsOf: batch)
+        onEvent(.saveProblem("Talk refused \(batch.count) transcript segment(s): \(error.localizedDescription)"))
       } catch {
         batcher.restore(batch)
         attempts += 1
