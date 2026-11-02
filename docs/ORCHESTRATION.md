@@ -132,3 +132,4 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - #50 merged (helper ≤50 segments/request). #51 merged (server chunked inserts, 500 cap, folder/event IN-list fixes, D1-limit test DB). Waiting: M3 fix/replay-batches + long-outage e2e, then Codex re-check.
 - #52 merged (desktop replay ≤50, fake helper handback, outage e2e x2). Codex V5 focused outage re-check launched.
 - Codex V5 (~/overnight/2026-11-02/talk-verify-5/report.md): SIGN-OFF YES for outage recovery (43/43; 418/418 offline-stop replay; no 5xx). Follow-ups: UI calendar stale error after reconnect; H verify final in-progress turn saved on Stop.
+- #53 merged (Coming up refresh on reconnect). #54 (helper saves final in-progress turn on stop, 3 s wait) in CI.
