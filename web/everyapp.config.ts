@@ -15,10 +15,10 @@ export default defineEveryApp({
   // A shared meeting page: anyone with the unguessable link reads it. The
   // route checks the token itself (src/server/meetings.ts, getSharedMeeting).
   public: [{ path: "/s/:token" }],
-  // The built CSS and JavaScript that page loads; without them an outsider
+  // The built CSS and JavaScript (and icons) that page loads; without them an outsider
   // gets it unstyled and it never hydrates. Only static files: the Gateway
   // forwards these with no identity and the Worker answers nothing else.
-  publicAssets: ["/assets/**"],
+  publicAssets: ["/assets/**", "/favicon.ico", "/apple-touch-icon.png"],
   // The paths Cloudflare Access lets through for bearer-only calls from the
   // Mac app; the perimeter still demands the token and refuses a cookie
   // there (the web UI uses server functions, which stay outside).
