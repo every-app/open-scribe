@@ -39,13 +39,28 @@ public struct RecordingAborted: Error, LocalizedError {
   public var errorDescription: String? { "The recording was stopped before it started." }
 }
 
+/// Per-recording choices.
+public struct RecordingOptions: Sendable, Equatable {
+  /// AVAudioEngine voice processing on the mic (echo cancellation). Off until a hardware test.
+  public var echoCancellation = false
+  /// Drop `me` segments that repeat what `them` just said (EchoDedupe). On by default.
+  public var dedupeEcho = true
+
+  public init(echoCancellation: Bool = false, dedupeEcho: Bool = true) {
+    self.echoCancellation = echoCancellation
+    self.dedupeEcho = dedupeEcho
+  }
+}
+
 /// One meeting's recording, minus creating the meeting: capture both sides, stream each to its
 /// own transcription channel, post finished segments every ten seconds and on stop, then
 /// `/finish`. Shared by the SwiftUI app's `Recorder` and `talk-helper`. Audio is never stored.
 @MainActor
 public final class RecordingPipeline {
   public struct Dependencies: Sendable {
-    public var makeMic: @Sendable (_ onAudio: @escaping @Sendable (Data) -> Void, _ onInterrupted: @escaping @Sendable (String?) -> Void) -> any AudioSource
+    public var makeMic: @Sendable (
+      _ voiceProcessing: Bool, _ onAudio: @escaping @Sendable (Data) -> Void, _ onInterrupted: @escaping @Sendable (String?) -> Void
+    ) -> any AudioSource
     public var makeSystem: @Sendable (_ onAudio: @escaping @Sendable (Data) -> Void, _ onInterrupted: @escaping @Sendable (String?) -> Void) -> any AudioSource
     public var makeRealtime: @Sendable (
       _ speaker: Speaker, _ language: String?, _ fetchToken: @escaping @Sendable () async throws -> TranscriptionToken,
@@ -62,9 +77,13 @@ public final class RecordingPipeline {
     /// No signal at all for this long makes a source `silent`.
     public var silenceAfter: TimeInterval = 5
     public var levelInterval: Duration = .milliseconds(100)
+    /// How long a `me` segment waits for the other side before the echo check.
+    public var echoHoldMs = EchoFilter.defaultHoldMs
+    /// The clock for the echo hold (tests pass a manual one).
+    public var now: @Sendable () -> ContinuousClock.Instant = { .now }
 
     public init(
-      makeMic: @escaping @Sendable (_ onAudio: @escaping @Sendable (Data) -> Void, _ onInterrupted: @escaping @Sendable (String?) -> Void) -> any AudioSource,
+      makeMic: @escaping @Sendable (Bool, @escaping @Sendable (Data) -> Void, @escaping @Sendable (String?) -> Void) -> any AudioSource,
       makeSystem: @escaping @Sendable (_ onAudio: @escaping @Sendable (Data) -> Void, _ onInterrupted: @escaping @Sendable (String?) -> Void) -> any AudioSource,
       makeRealtime: @escaping @Sendable (Speaker, String?, @escaping @Sendable () async throws -> TranscriptionToken, ChannelCallbacks) -> any SpeakerChannel,
       makeFallback: @escaping @Sendable (Speaker, String?, SeqCounter, @escaping @Sendable (Data, Int, Int, Int) async throws -> Segment?, ChannelCallbacks) -> any SpeakerChannel
@@ -78,7 +97,7 @@ public final class RecordingPipeline {
     /// The real mic, the Core Audio tap, OpenAI Realtime and the chunk fallback.
     public static var live: Dependencies {
       Dependencies(
-        makeMic: { MicCapture(onAudio: $0, onInterrupted: $1) },
+        makeMic: { MicCapture(voiceProcessing: $0, onAudio: $1, onInterrupted: $2) },
         makeSystem: { SystemAudioCapture(onAudio: $0, onInterrupted: $1) },
         makeRealtime: { TranscriptionChannel(speaker: $0, language: $1, fetchToken: $2, callbacks: $3) },
         makeFallback: { ChunkChannel(speaker: $0, language: $1, seq: $2, upload: $3, callbacks: $4) }
@@ -95,6 +114,7 @@ public final class RecordingPipeline {
 
   public let meetingID: String
   public let language: String?
+  public let options: RecordingOptions
   public private(set) var mode: RecordingMode = .realtime
   public private(set) var health: (mic: SourceHealth, system: SourceHealth) = (.ok, .ok)
 
@@ -107,6 +127,8 @@ public final class RecordingPipeline {
   private var pumps: [Task<Void, Never>] = []
   private var continuations: [Speaker: AsyncStream<Data>.Continuation] = [:]
   private var batcher = SegmentBatcher()
+  private var echo: EchoFilter?
+  private let startedAt: ContinuousClock.Instant
   private var flushTask: Task<Void, Never>?
   private var levelTask: Task<Void, Never>?
   private var activeFlush: Task<String?, Never>?
@@ -120,15 +142,24 @@ public final class RecordingPipeline {
   public var isRunning: Bool { running }
 
   public init(
-    meetingID: String, api: APIClient, language: String?, dependencies: Dependencies = .live,
-    onEvent: @escaping @MainActor (RecordingEvent) -> Void
+    meetingID: String, api: APIClient, language: String?, options: RecordingOptions = RecordingOptions(),
+    dependencies: Dependencies = .live, onEvent: @escaping @MainActor (RecordingEvent) -> Void
   ) {
     self.meetingID = meetingID
     self.api = api
     self.language = language
+    self.options = options
     self.deps = dependencies
     self.onEvent = onEvent
+    self.startedAt = dependencies.now()
+    if options.dedupeEcho { echo = EchoFilter(holdMs: dependencies.echoHoldMs) }
   }
+
+  /// `me` segments waiting for the echo check.
+  var heldForEcho: Int { echo?.heldCount ?? 0 }
+
+  /// `me` segments dropped / trimmed as echo so far.
+  public var echoCounts: (dropped: Int, trimmed: Int) { (echo?.dropped ?? 0, echo?.trimmed ?? 0) }
 
   /// Gets both keys (or falls back to chunks), then starts the mic and the system tap. Throws if
   /// transcription or the mic can't start; everything is torn down then. A system tap that
@@ -177,6 +208,8 @@ public final class RecordingPipeline {
     }
     // Segments reach the batcher through main-actor tasks; let the last ones land.
     try? await Task.sleep(for: deps.settle)
+    // Both sides are complete: judge every `me` segment still waiting for the echo check.
+    if echo != nil { queue(echo!.releaseAll()) }
     var problem = await flush(final: true)
     do {
       try await api.finish(meetingID: meetingID)
@@ -223,9 +256,32 @@ public final class RecordingPipeline {
       })
   }
 
+  private var nowMs: Int {
+    let elapsed = deps.now() - startedAt
+    return Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
+  }
+
+  /// A finished turn: through the echo filter (`me` waits there a moment), then into the batcher.
   private func add(speaker: Speaker, t0: Int, t1: Int, text: String) {
-    guard let segment = batcher.add(speaker: speaker, startedMs: t0, endedMs: t1, text: text) else { return }
-    onEvent(.segment(segment))
+    let pending = EchoFilter.Pending(speaker: speaker, startedMs: t0, endedMs: t1, text: text)
+    if echo != nil {
+      queue(echo!.add(pending, nowMs: nowMs))
+    } else {
+      queue([pending])
+    }
+  }
+
+  /// `me` segments whose echo check is due.
+  private func releaseEcho() {
+    guard echo != nil, echo!.heldCount > 0 else { return }
+    queue(echo!.release(nowMs: nowMs))
+  }
+
+  private func queue(_ ready: [EchoFilter.Pending]) {
+    for p in ready {
+      guard let segment = batcher.add(speaker: p.speaker, startedMs: p.startedMs, endedMs: p.endedMs, text: p.text) else { continue }
+      onEvent(.segment(segment))
+    }
   }
 
   private func startCapture() async throws {
@@ -271,7 +327,7 @@ public final class RecordingPipeline {
 
     let micSink = continuations[.me]!
     let micMeter = meters[.me]!
-    let mic = deps.makeMic({ micMeter.measure($0); micSink.yield($0) }, { [weak self] problem in
+    let mic = deps.makeMic(options.echoCancellation, { micMeter.measure($0); micSink.yield($0) }, { [weak self] problem in
       Task { @MainActor in self?.setCaptureProblem(.me, problem) }
     })
     try mic.start()
@@ -305,6 +361,7 @@ public final class RecordingPipeline {
   /// few quick retries. Returns a sentence when segments were left unsaved.
   @discardableResult
   private func flush(final: Bool = false) async -> String? {
+    if !final { releaseEcho() }
     if let running = activeFlush {
       guard final else { return nil }
       _ = await running.value
@@ -346,6 +403,7 @@ public final class RecordingPipeline {
 
   private func tickLevels() {
     guard running else { return }
+    releaseEcho()
     let me = meters[.me]!.take()
     let them = meters[.them]!.take()
     onEvent(.levels(mic: me, system: them))

@@ -53,7 +53,7 @@ Newline-delimited JSON on stdin/stdout, with logs on stderr. Requests carry an `
 | `hello` | `{ protocol: 1 }` | `{ protocol: 1, version, macos }` |
 | `permissions.status` | none | `{ mic, systemAudio }`, each `granted`, `denied` or `undetermined` (systemAudio may be `unknown`) |
 | `permissions.request` | `{ kind: "mic" \| "systemAudio" }` | the new status |
-| `record.start` | `{ meetingId, apiBase, accessToken, language? }` | `{ startedAt }` |
+| `record.start` | `{ meetingId, apiBase, accessToken, language?, echoCancellation? }` (`echoCancellation`: mic voice processing, default `false`) | `{ startedAt }` |
 | `record.stop` | none | `{ segments }`: posts the last segments and calls `/finish` |
 | `token.update` | `{ accessToken }` | `{}` |
 | `detect.set` | `{ enabled }` | `{}` |

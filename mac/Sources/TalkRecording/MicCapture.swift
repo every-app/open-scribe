@@ -10,9 +10,16 @@ public final class MicCapture: AudioSource, @unchecked Sendable {
   private let onAudio: @Sendable (Data) -> Void
   private var configObserver: NSObjectProtocol?
   private let onInterrupted: @Sendable (String?) -> Void
+  /// Apple's voice processing (echo cancellation, noise suppression) on the input. Off by
+  /// default until it's been tried on real hardware.
+  public let voiceProcessing: Bool
 
   /// `onInterrupted` gets a sentence when the mic stops and can't be restarted, nil when it's back.
-  public init(onAudio: @escaping @Sendable (Data) -> Void, onInterrupted: @escaping @Sendable (String?) -> Void = { _ in }) {
+  public init(
+    voiceProcessing: Bool = false, onAudio: @escaping @Sendable (Data) -> Void,
+    onInterrupted: @escaping @Sendable (String?) -> Void = { _ in }
+  ) {
+    self.voiceProcessing = voiceProcessing
     self.onAudio = onAudio
     self.onInterrupted = onInterrupted
   }
@@ -39,6 +46,15 @@ public final class MicCapture: AudioSource, @unchecked Sendable {
 
   private func startEngine() throws {
     let input = engine.inputNode
+    if voiceProcessing {
+      // Must be set while the engine is stopped; it's set again after a device change, which
+      // rebuilds the engine's I/O. The format is read after, since voice processing changes it.
+      if !input.isVoiceProcessingEnabled { try input.setVoiceProcessingEnabled(true) }
+      // Don't turn the call down while it's being recorded: the person needs to hear it, and
+      // the system tap would hear it quieter too.
+      input.voiceProcessingOtherAudioDuckingConfiguration = AVAudioVoiceProcessingOtherAudioDuckingConfiguration(
+        enableAdvancedDucking: false, duckingLevel: .min)
+    }
     let format = input.outputFormat(forBus: 0)
     guard format.sampleRate > 0, format.channelCount > 0 else { throw CaptureError("No microphone is available.") }
     converter = AudioConverter24k(inputRate: format.sampleRate)
@@ -61,22 +77,45 @@ public final class MicCapture: AudioSource, @unchecked Sendable {
   private func handle(_ buffer: AVAudioPCMBuffer) {
     guard let channels = buffer.floatChannelData, buffer.frameLength > 0 else { return }
     let frames = Int(buffer.frameLength)
-    let count = Int(buffer.format.channelCount)
-    var mono = [Float](repeating: 0, count: frames)
+    let total = Int(buffer.format.channelCount)
+    // With voice processing the processed voice is channel 0; the others aren't the mic.
+    let use = voiceProcessing ? 1 : total
+    let mono: [Float]
     if buffer.format.isInterleaved {
-      mono = PCM16.downmix(interleaved: UnsafeBufferPointer(start: channels[0], count: frames * count), channels: count)
+      mono = Self.mono(interleaved: UnsafeBufferPointer(start: channels[0], count: frames * total), channels: total, using: use)
     } else {
-      for ch in 0..<count {
-        let p = channels[ch]
-        for i in 0..<frames { mono[i] += p[i] }
-      }
-      if count > 1 {
-        let scale = 1 / Float(count)
-        for i in 0..<frames { mono[i] *= scale }
-      }
+      mono = Self.mono(planar: (0..<use).map { UnsafeBufferPointer(start: channels[$0], count: frames) })
     }
     guard let data = converter?.convert(mono: mono), !data.isEmpty else { return }
     onAudio(data)
+  }
+
+  /// The average of the first `using` channels of interleaved audio with `channels` per frame.
+  static func mono(interleaved samples: UnsafeBufferPointer<Float>, channels: Int, using: Int) -> [Float] {
+    let channels = max(1, channels)
+    let using = min(max(1, using), channels)
+    let frames = samples.count / channels
+    var out = [Float](repeating: 0, count: frames)
+    for i in 0..<frames {
+      var sum: Float = 0
+      for c in 0..<using { sum += samples[i * channels + c] }
+      out[i] = sum / Float(using)
+    }
+    return out
+  }
+
+  /// The average of planar channels.
+  static func mono(planar channels: [UnsafeBufferPointer<Float>]) -> [Float] {
+    guard let first = channels.first else { return [] }
+    var out = [Float](repeating: 0, count: first.count)
+    for channel in channels {
+      for i in 0..<min(out.count, channel.count) { out[i] += channel[i] }
+    }
+    if channels.count > 1 {
+      let scale = 1 / Float(channels.count)
+      for i in 0..<out.count { out[i] *= scale }
+    }
+    return out
   }
 }
 

@@ -170,6 +170,11 @@ public final class HelperServer {
     }
     guard let token = p["accessToken"]?.string, !token.isEmpty else { throw HelperError.badParams("accessToken is required") }
     let language = p["language"]?.string ?? env.defaultLanguage
+    var options = RecordingOptions()
+    if let value = p["echoCancellation"], value != .null {
+      guard let enabled = value.bool else { throw HelperError.badParams("echoCancellation must be true or false") }
+      options.echoCancellation = enabled
+    }
 
     starting = true
     startCancelled = false
@@ -189,7 +194,7 @@ public final class HelperServer {
     }
     let pipeline = RecordingPipeline(
       meetingID: meetingID, api: APIClient(auth: auth, transport: env.transport), language: language,
-      dependencies: env.pipeline
+      options: options, dependencies: env.pipeline
     ) { [weak self] event in self?.recordingEvent(event) }
     mode = .realtime
     health = (.ok, .ok)
@@ -203,7 +208,7 @@ public final class HelperServer {
       throw Self.startError(error)
     }
     self.pipeline = pipeline
-    log("recording started (\(mode.rawValue))")
+    log("recording started (\(mode.rawValue)\(options.echoCancellation ? ", voice processing" : ""))")
     emitState()
     if closing { _ = try? await stop() }
     return ["startedAt": .string(env.now().formatted(.iso8601))]
@@ -233,7 +238,8 @@ public final class HelperServer {
     self.pipeline = nil
     await auth?.close()
     auth = nil
-    log("recording stopped (\(result.segments) segments)")
+    let echo = pipeline.echoCounts
+    log("recording stopped (\(result.segments) segments; echo: \(echo.dropped) dropped, \(echo.trimmed) trimmed)")
     if let problem = result.problem { emitError("save_failed", problem) }
     emitState()
     return ["segments": .int(result.segments)]

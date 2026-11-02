@@ -84,13 +84,19 @@ actor FakeChannel: SpeakerChannel {
   let speaker: Speaker
   let fetchToken: (@Sendable () async throws -> TranscriptionToken)?
   let callbacks: ChannelCallbacks
+  /// The text of turn n (1-based); nil for the default "<speaker> turn n".
+  let script: @Sendable (Speaker, Int) -> String?
   private var clock = 0
   private var turns = 0
 
-  init(speaker: Speaker, fetchToken: (@Sendable () async throws -> TranscriptionToken)?, callbacks: ChannelCallbacks) {
+  init(
+    speaker: Speaker, fetchToken: (@Sendable () async throws -> TranscriptionToken)?, callbacks: ChannelCallbacks,
+    script: @escaping @Sendable (Speaker, Int) -> String? = { _, _ in nil }
+  ) {
     self.speaker = speaker
     self.fetchToken = fetchToken
     self.callbacks = callbacks
+    self.script = script
   }
 
   func start() async throws { _ = try await fetchToken?() }
@@ -99,7 +105,7 @@ actor FakeChannel: SpeakerChannel {
     let ms = pcm.count / 48
     turns += 1
     callbacks.delta(speaker, "turn \(turns)", "item-\(speaker.rawValue)-\(turns)")
-    callbacks.segment(speaker, clock, clock + ms, "\(speaker.rawValue) turn \(turns)")
+    callbacks.segment(speaker, clock, clock + ms, script(speaker, turns) ?? "\(speaker.rawValue) turn \(turns)")
     clock += ms
   }
 
@@ -114,15 +120,31 @@ final class FakeRig: @unchecked Sendable {
   private var _system: FakeSource?
   var systemFails = false
   var fallbackUsed = false
+  /// Scripted turn texts per speaker (turn 1 first); past the end, the default text.
+  var script: [Speaker: [String]] = [:]
 
+  private var _micVoiceProcessing: Bool?
   var mic: FakeSource? { lock.withLock { _mic } }
+
+  var scripted: @Sendable (Speaker, Int) -> String? {
+    { [self] speaker, turn in
+      lock.withLock {
+        guard let texts = script[speaker], turn - 1 < texts.count else { return nil }
+        return texts[turn - 1]
+      }
+    }
+  }
+  var micVoiceProcessing: Bool? { lock.withLock { _micVoiceProcessing } }
   var system: FakeSource? { lock.withLock { _system } }
 
   var dependencies: RecordingPipeline.Dependencies {
     var deps = RecordingPipeline.Dependencies(
-      makeMic: { [self] onAudio, onInterrupted in
+      makeMic: { [self] voiceProcessing, onAudio, onInterrupted in
         let source = FakeSource(onAudio: onAudio, onInterrupted: onInterrupted)
-        lock.withLock { _mic = source }
+        lock.withLock {
+          _mic = source
+          _micVoiceProcessing = voiceProcessing
+        }
         return source
       },
       makeSystem: { [self] onAudio, onInterrupted in
@@ -130,7 +152,9 @@ final class FakeRig: @unchecked Sendable {
         lock.withLock { _system = source }
         return source
       },
-      makeRealtime: { speaker, _, fetchToken, callbacks in FakeChannel(speaker: speaker, fetchToken: fetchToken, callbacks: callbacks) },
+      makeRealtime: { [self] speaker, _, fetchToken, callbacks in
+        FakeChannel(speaker: speaker, fetchToken: fetchToken, callbacks: callbacks, script: scripted)
+      },
       makeFallback: { [self] speaker, _, _, _, callbacks in
         lock.withLock { fallbackUsed = true }
         return FakeChannel(speaker: speaker, fetchToken: nil, callbacks: callbacks)
@@ -139,6 +163,8 @@ final class FakeRig: @unchecked Sendable {
     deps.settle = .milliseconds(20)
     deps.finalRetryDelay = .milliseconds(10)
     deps.levelInterval = .seconds(3600)
+    // No echo hold unless a test sets one (with a manual clock).
+    deps.echoHoldMs = 0
     return deps
   }
 }
