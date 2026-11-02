@@ -120,7 +120,8 @@ export class RecordingController extends EventEmitter<RecordingEvents> {
       const leftovers = Array.isArray(unsaved) ? unsaved : [];
       const appUrl = this.auth.api?.appUrl ?? this.auth.state.appUrl;
       if (!cancelled && meetingId && appUrl && (leftovers.length || finished === false)) {
-        this.emit("unsaved", { meetingId, appUrl, segments: leftovers, needsFinish: finished === false });
+        // The helper skips /finish whenever it hands segments back, so those always need it.
+        this.emit("unsaved", { meetingId, appUrl, segments: leftovers, needsFinish: finished === false || leftovers.length > 0 });
       }
       this.set({ state: "idle", error: undefined }, true);
     } catch (error) {

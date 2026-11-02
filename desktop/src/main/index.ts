@@ -2,6 +2,7 @@
 // and the helper supervisor. The renderer reaches it only through the typed preload bridge.
 
 import { app, BrowserWindow, clipboard, dialog, net, powerMonitor, session, shell, safeStorage } from "electron";
+import { statSync } from "node:fs";
 import { join } from "node:path";
 import type { AppSnapshot, LoginItemSnapshot, PermissionKind, StartRecordingRequest } from "@shared/ipc";
 import type { CalendarEvent } from "@shared/api";
@@ -26,7 +27,7 @@ import { MainWindow } from "./window";
 import { AppMenu } from "./menu";
 import { typedAppUrl } from "./auth/url";
 import { guardNavigation, type AppOrigin } from "./navigation";
-import { PermissionProbe } from "./permissions";
+import { helperIdentity, PermissionProbe } from "./permissions";
 import { SettingsStore } from "./settings";
 import { applyLoginItem, applyTheme, loginItemStatus, requestNotificationPermission, settingsPaneUrl } from "./system";
 
@@ -274,7 +275,23 @@ async function main(): Promise<void> {
     broadcast();
   });
   let loggedPermissions = "";
+  let helperHello = "";
   helper.on("status", (h) => {
+    // A (re)started helper said hello: key "system audio verified" to this binary, and never let
+    // the fake helper's made-up levels count.
+    const hello = h.status === "ready" ? `${h.version}|${h.macos}|${h.restarts}` : "";
+    if (hello && hello !== helperHello) {
+      const path = helperPath();
+      let stat: { size?: number; mtimeMs?: number } = {};
+      try {
+        const st = statSync(path);
+        stat = { size: st.size, mtimeMs: st.mtimeMs };
+      } catch {
+        // Gone: no identity, so nothing counts.
+      }
+      probe.setHelper(helperIdentity({ path, ...stat, version: h.version, macos: h.macos }));
+    }
+    helperHello = hello || helperHello;
     const key = JSON.stringify(h.permissions ?? null);
     if (h.permissions && key !== loggedPermissions) {
       loggedPermissions = key;

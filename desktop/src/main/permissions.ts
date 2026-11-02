@@ -20,7 +20,21 @@ export const SYSTEM_AUDIO_THRESHOLD = 0.001;
 
 interface ProbeFile {
   systemAudioVerifiedAt?: string;
+  /** The helper that delivered the sound (helperIdentity); verification counts only for it. */
+  systemAudioHelper?: string;
   notifications?: "granted" | "denied";
+}
+
+/** Who the running helper is, for keying "verified": its binary (path, size, modification time)
+ * and its hello version. Undefined for the fake helper (a script, or hello says "fake"), whose
+ * made-up levels must never count. */
+export function helperIdentity(
+  helper: { path: string; size?: number; mtimeMs?: number; version?: string; macos?: string },
+): string | undefined {
+  if (/\.(c|m)?js$/.test(helper.path)) return undefined;
+  if ((helper.version ?? "").includes("fake") || helper.macos === "fake") return undefined;
+  if (helper.size === undefined || helper.mtimeMs === undefined || !helper.version) return undefined;
+  return `${helper.path}|${helper.size}|${Math.round(helper.mtimeMs)}|${helper.version}`;
 }
 
 export type HelperPermissions = { mic: PermissionStatus; systemAudio: PermissionStatus };
@@ -37,6 +51,8 @@ export function combinePermissions(helper: HelperPermissions | undefined, probe:
 
 export class PermissionProbe extends EventEmitter<{ change: [] }> {
   private state: ProbeFile = {};
+  /** The running helper (helperIdentity), set once it says hello; undefined: nothing counts. */
+  private helper: string | undefined;
 
   constructor(
     private readonly path: string,
@@ -45,8 +61,21 @@ export class PermissionProbe extends EventEmitter<{ change: [] }> {
     super();
   }
 
+  /** Verified by the helper that's running now (a real one). */
   get systemAudioVerified(): boolean {
-    return !!this.state.systemAudioVerifiedAt;
+    return !!this.helper && !!this.state.systemAudioVerifiedAt && this.state.systemAudioHelper === this.helper;
+  }
+
+  /** The helper said hello (identity from helperIdentity; undefined for the fake helper). A
+   * different helper than the one that verified system audio starts over. */
+  setHelper(identity: string | undefined): void {
+    const before = this.systemAudioVerified;
+    this.helper = identity;
+    if (identity && this.state.systemAudioVerifiedAt && this.state.systemAudioHelper !== identity) {
+      this.log("permissions: a different helper than the one that verified system audio; checking again");
+      this.clearVerification();
+    }
+    if (before !== this.systemAudioVerified) this.emit("change");
   }
 
   get notifications(): "granted" | "denied" | undefined {
@@ -58,6 +87,7 @@ export class PermissionProbe extends EventEmitter<{ change: [] }> {
       const o = JSON.parse(readFileSync(this.path, "utf8")) as Record<string, unknown>;
       this.state = {
         systemAudioVerifiedAt: typeof o.systemAudioVerifiedAt === "string" ? o.systemAudioVerifiedAt : undefined,
+        systemAudioHelper: typeof o.systemAudioHelper === "string" ? o.systemAudioHelper : undefined,
         notifications: o.notifications === "granted" || o.notifications === "denied" ? o.notifications : undefined,
       };
     } catch {
@@ -65,11 +95,18 @@ export class PermissionProbe extends EventEmitter<{ change: [] }> {
     }
   }
 
-  /** Feed every helper event; returns true when it just verified system audio. */
+  /** Feed every helper event; returns true when it just verified system audio. Only a real helper
+   * counts. The tap erroring (`state.system: "error"`) takes the verification back. */
   observe(event: HelperEvent): boolean {
-    if (this.systemAudioVerified || event.event !== "levels") return false;
+    if (event.event === "state" && event.recording && event.system === "error" && this.state.systemAudioVerifiedAt) {
+      this.log("permissions: the system-audio tap errored; checking again");
+      this.clearVerification();
+      this.emit("change");
+      return false;
+    }
+    if (!this.helper || this.systemAudioVerified || event.event !== "levels") return false;
     if (!(typeof event.system === "number" && event.system > SYSTEM_AUDIO_THRESHOLD)) return false;
-    this.state = { ...this.state, systemAudioVerifiedAt: new Date().toISOString() };
+    this.state = { ...this.state, systemAudioVerifiedAt: new Date().toISOString(), systemAudioHelper: this.helper };
     this.log("permissions: system audio verified (the tap delivered sound)");
     this.save();
     this.emit("change");
@@ -87,6 +124,11 @@ export class PermissionProbe extends EventEmitter<{ change: [] }> {
 
   snapshot(helper: HelperPermissions | undefined): PermissionsSnapshot {
     return combinePermissions(helper, { systemAudioVerified: this.systemAudioVerified, notifications: this.state.notifications });
+  }
+
+  private clearVerification(): void {
+    this.state = { ...this.state, systemAudioVerifiedAt: undefined, systemAudioHelper: undefined };
+    this.save();
   }
 
   private save(): void {

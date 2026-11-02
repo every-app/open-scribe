@@ -16,7 +16,8 @@
     "package": "node scripts/release-helper.mjs && electron-vite build && electron-builder --config electron-builder.config.cjs --mac --dir",
     "package:local": "node scripts/package-local.mjs",
     "dist": "node scripts/release-helper.mjs && electron-vite build && electron-builder --config electron-builder.config.cjs --mac",
-    "icons": "node scripts/make-icons.mjs"
+    "icons": "node scripts/make-icons.mjs",
+    "check:icon": "node scripts/check-app-icon.mjs"
   },
   "dependencies": {
     "electron-updater": "^6.8.11"
