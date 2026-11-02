@@ -91,3 +91,5 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - UI lane told: Phase 1 PR with root workspace, then Phase 2 (mount screens in desktop/src/renderer).
 - Codex review of #4/#5: 1 high (helper stop during pending start), 4 medium (flush join, fallback backlog, template patch race, notes-edit busy race). No access bypass. Fixes sent to H (fix/helper-review) and API (fix/api-review).
 - #7 merged (web/src/api/contract.ts, zod-only contract; replaces server/apiContract.ts). #8 merged (desktop unit tests headless; node >=22). CI desktop job still skips until the root workspace lands (UI lane).
+- UI phase 1: #9 merged (packages/ui, root pnpm workspace; desktop CI now real). Screens reviewed: calm, native, good.
+- Review fixes: #11 (helper: stop-during-start, flush join, bounded fallback backlog; 133 tests) in CI; #10 (API races) rebasing onto #7.
