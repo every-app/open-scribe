@@ -7,6 +7,7 @@ pnpm install
 pnpm dev              # electron-vite dev, with the fake helper unless TALK_HELPER_PATH is set
 pnpm test             # vitest: PKCE, discovery, redirect parser, refresh/rotation, Access, supervisor, settings, navigation guard, permission probe…
 pnpm typecheck
+pnpm build && pnpm e2e  # Electron e2e smoke: the built app + fake helper against a mock /api/v1 (below)
 pnpm package          # an unsigned (ad hoc) release-flavor .app in dist/release/, with the universal helper
 pnpm icons            # redraws the app icon (build/icon.icns) and tray icons (macOS: sips, iconutil)
 pnpm check:icon       # checks a packaged app's CFBundleIconFile + .icns sizes (default: the .app under dist/)
@@ -47,6 +48,24 @@ main (Node) ──────────────────────�
 - **Recording outcomes**: a stop while `record.start` is still starting is a normal cancel: the helper answers stop with `{ segments: 0, cancelled: true }` and start with error `cancelled`; the app goes back to idle with no error and doesn't `/finish`. A cancelled or failed start deletes the meeting it created (`DELETE /api/v1/meetings/:id`; failures are logged), so no empty or stuck "recording" meeting is left. The non-fatal helper error `fallback_backlog` (the fallback upload fell behind and dropped audio) shows as `recording.warning` (and in the tray menu) while the recording goes on.
 - **Reminders**: the app polls `/api/v1/calendar/upcoming` every 5 minutes and on wake. The lead time (default one minute) before each event that has other attendees or a call link, it shows a notification with "Join & take notes" (when there's a link) and "Take notes". A meeting that started without notes gets one nudge in its first 5 minutes. Shown prompts are remembered in `userData/prompts.json` (for a day past each meeting's start), so a restart doesn't prompt again; after a restart, prompts still in Notification Center get their handlers back (`Notification.getHistory`), so clicking one still takes notes. (`Notification.handleActivation` is Windows-only in Electron 45.) The helper's `call.started` brings up "Record this call?". Nothing ever records without a click.
 - **`talk://record?event=…&title=…&start=…&join=1`** (`talk-dev://` in dev builds): it starts at once only for an event in the app's own upcoming list. Anything else asks first, and the app never opens a link taken from the URL.
+
+## End-to-end smoke
+
+`pnpm build && pnpm e2e` runs `e2e/smoke.spec.ts` with Playwright's `_electron`. It uses the built app (not packaged), the fake helper, and `e2e/mock-api.mjs`, an in-memory `/api/v1` seeded with the `@talk/ui` playground data, run as its own process on a free port.
+
+The flows:
+- launch signed in through `TALK_DEV_*`, with first run shown and then skipped
+- Home lists meetings
+- open a meeting and switch tabs
+- ⌘N, type jottings, the fake transcript appears, Stop (the segments and `/finish` reach the mock)
+- reopen the meeting: the jottings are there, on the server too
+- a Settings switch persists across a reload (in main's `settings.json`)
+- the offline banner while the mock drops connections, cleared once it's back
+- the "new access token" prompt, in place, while the mock answers 401, then signing in again
+
+It always uses a temporary `--user-data-dir`, so it never takes the installed Talk Dev's lock or touches its settings or logs (an unpackaged run with that switch keeps its logs in the profile). On failure it keeps a screenshot and a trace in `test-results/e2e`.
+
+CI runs it as the `desktop-e2e` job on ubuntu-latest under `xvfb-run` and uploads `test-results/` when it fails. The mock also runs alone (`node e2e/mock-api.mjs`, port 8788). `POST /__mock/mode {"mode":"online"|"offline"|"unauthorized"}` switches it, and `GET /__mock/requests` lists what it received.
 
 ## Where tokens live
 

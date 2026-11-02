@@ -38,6 +38,8 @@ import { applyLoginItem, applyTheme, loginItemStatus, requestNotificationPermiss
 if (!app.isPackaged) {
   app.setName("Talk Dev");
   if (!app.commandLine.hasSwitch("user-data-dir")) app.setPath("userData", join(app.getPath("appData"), "Talk Dev"));
+  // A throwaway profile keeps its logs too, out of the installed Talk Dev's ~/Library/Logs.
+  else app.setAppLogsPath(join(app.getPath("userData"), "logs"));
 }
 
 /** Talk's own page: the bundled renderer, or the electron-vite dev server in an unpackaged run.
