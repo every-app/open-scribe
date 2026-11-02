@@ -17,13 +17,15 @@ function setSnapshot(next: AppSnapshot) {
   for (const l of listeners) l();
 }
 
-/** Start listening to main; call once at startup. */
-export function connectBridge(): void {
+/** Start listening to main; call once at startup. `onNavigate` gets main's page requests. */
+export function connectBridge(onNavigate: (request: unknown) => void): void {
   if (started) return;
   started = true;
   void talk["state:get"]().then(setSnapshot);
   talk.on("state", setSnapshot);
   talk.on("helper", applyHelperEvent);
+  // Main's app menu (Settings…, ⌘,) and the tray ask for a page.
+  talk.on("navigate", onNavigate);
 }
 
 function subscribe(listener: () => void) {

@@ -6,6 +6,7 @@ import type {
   CreateFolderInput,
   EditNotesResponse,
   FileMeetingResponse,
+  FinishMeetingResponse,
   FolderResponse,
   GetMeetingResponse,
   ListFoldersResponse,
@@ -59,6 +60,7 @@ export const api = {
   patchMeeting: (id: string, body: PatchMeetingInput) => call<PatchMeetingResponse>("PATCH", `meetings/${enc(id)}`, { body }),
   saveJottings: (id: string, markdown: string, updatedAt: string) =>
     call<SaveJottingsResponse>("PUT", `meetings/${enc(id)}/jottings`, { body: { markdown, updatedAt } }),
+  finishMeeting: (id: string) => call<FinishMeetingResponse>("POST", `meetings/${enc(id)}/finish`),
   editNotes: (id: string, markdown: string) => call<EditNotesResponse>("PUT", `meetings/${enc(id)}/notes`, { body: { markdown } }),
   createShareLink: (id: string) => call<ShareLinkResponse>("POST", `meetings/${enc(id)}/share`),
   revokeShareLink: (id: string, linkId: string) => call<OkResponse>("DELETE", `meetings/${enc(id)}/share/${enc(linkId)}`),

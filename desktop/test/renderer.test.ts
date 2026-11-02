@@ -76,6 +76,8 @@ describe("api:call allowlist", () => {
 
   it("refuses recording routes, other methods, traversal and other hosts", () => {
     expect(isAllowedApiCall("POST", "api/v1/meetings/m1/segments")).toBe(false);
+    expect(isAllowedApiCall("POST", "api/v1/meetings/m1/finish")).toBe(true);
+    expect(isAllowedApiCall("GET", "api/v1/meetings/m1/finish")).toBe(false);
     expect(isAllowedApiCall("POST", "api/v1/meetings/m1/transcription-token")).toBe(false);
     expect(isAllowedApiCall("DELETE", "api/v1/me")).toBe(false);
     expect(isAllowedApiCall("GET", "api/v1/meetings/../../admin")).toBe(false);

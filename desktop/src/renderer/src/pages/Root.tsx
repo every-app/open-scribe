@@ -11,7 +11,7 @@ import { AppFrame, OnboardingScreen, TitleBar, useElapsed } from "@talk/ui";
 import { Button } from "@talk/ui/components/button";
 import { useCancelledStart, useStartRecording, useStopRecording } from "../actions";
 import { api, cleanError, keys } from "../api";
-import { asUiStatus, permissionsFrom, requestPermission } from "../desktop-settings";
+import { grantPermission, uiPermissions } from "../settings-logic";
 import { useLevels } from "../live";
 import { accountFrom, loadable } from "../map";
 import { notify } from "../notice";
@@ -64,18 +64,17 @@ function SignIn({ state }: { state: AppSnapshot }) {
 
 function FirstRun({ state, onDone }: { state: AppSnapshot; onDone: () => void }) {
   const [step, setStep] = useState<"permissions" | "done">("permissions");
-  const permissions = permissionsFrom(state);
+  const permissions = uiPermissions(state.permissions);
   return (
     <OnboardingScreen
       step={step}
       accountName={accountFrom(undefined, state.auth)?.name}
-      permissions={{
-        mic: permissions.mic,
-        systemAudio: asUiStatus(permissions.systemAudio),
-        notifications: permissions.notifications,
-      }}
+      permissions={permissions}
       onGrant={(kind) =>
-        void requestPermission(kind, permissions[kind]).catch((e: unknown) => notify(cleanError(e), "error"))
+        void grantPermission(talk, kind, permissions[kind]).then(
+          ({ hint }) => hint && notify(hint),
+          (e: unknown) => notify(cleanError(e), "error"),
+        )
       }
       onContinue={() => setStep("done")}
       onFinish={onDone}

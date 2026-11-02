@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { MeetingDetail } from "../types";
 import { MeetingScreen } from "./MeetingScreen";
+import { SettingsScreen } from "./SettingsScreen";
 import { Transcript } from "./Transcript";
 
 afterEach(cleanup);
@@ -138,5 +139,79 @@ describe("MeetingScreen", () => {
       "Connection is slow, some audio may be skipped.",
     );
     expect(status.getAttribute("title")).toBe("Their side: 3 chunks waiting");
+  });
+
+  it("after: a meeting left recording offers Finish to its owner", () => {
+    const onFinish = vi.fn();
+    render(
+      <MeetingScreen
+        {...base}
+        phase="after"
+        meeting={{ ...meeting, status: "recording", notes: null }}
+        onFinish={onFinish}
+      />,
+    );
+    expect(
+      screen.getByText("This meeting was still recording when it stopped"),
+    ).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Finish and write notes" }),
+    );
+    expect(onFinish).toHaveBeenCalledOnce();
+  });
+
+  it("after: someone else's recording reads as in progress, with no Finish", () => {
+    render(
+      <MeetingScreen
+        {...base}
+        phase="after"
+        meeting={{
+          ...meeting,
+          status: "recording",
+          notes: null,
+          mine: false,
+          ownerEmail: "ana@every.to",
+        }}
+      />,
+    );
+    expect(screen.getByText("Recording in progress")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Finish/ })).toBeNull();
+  });
+});
+
+describe("SettingsScreen", () => {
+  it("explains a permission that's still off and offers System Settings", () => {
+    const onOpen = vi.fn();
+    render(
+      <SettingsScreen
+        account={{ status: "loading" }}
+        permissions={{
+          status: "ready",
+          data: {
+            mic: "granted",
+            systemAudio: "unknown",
+            notifications: "unknown",
+          },
+        }}
+        permissionHints={{
+          notifications: "Allow notifications for Talk in System Settings.",
+        }}
+        onOpenSystemSettings={onOpen}
+        calendar={{ status: "loading" }}
+        launchAtLogin
+        detectCalls
+        theme="system"
+      />,
+    );
+    expect(
+      screen.getByText("Allow notifications for Talk in System Settings."),
+    ).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open System Settings" }),
+    );
+    expect(onOpen).toHaveBeenCalledWith("notifications");
+    // The other unknown one still offers Grant; echo cancellation is hidden until the app has it.
+    expect(screen.getAllByRole("button", { name: "Grant" })).toHaveLength(1);
+    expect(screen.queryByLabelText("Echo cancellation")).toBeNull();
   });
 });

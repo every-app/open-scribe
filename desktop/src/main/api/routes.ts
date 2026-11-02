@@ -1,6 +1,7 @@
 // The /api/v1 routes the window may call through "api:call" (web/src/api/contract.ts). Anything
-// else is refused before it reaches the network: recording routes (segments, finish,
-// transcription-token, audio-chunk) belong to main and the helper.
+// else is refused before it reaches the network: recording routes (segments,
+// transcription-token, audio-chunk) belong to main and the helper. `finish` is allowed: the meeting
+// page offers it for a meeting left "recording" that this Mac isn't recording.
 
 export type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -14,6 +15,8 @@ const routes: [ApiMethod[], RegExp][] = [
   [["GET", "PATCH", "DELETE"], new RegExp(`^api/v1/meetings/${ID}$`)],
   [["PUT"], new RegExp(`^api/v1/meetings/${ID}/(jottings|notes)$`)],
   [["POST"], new RegExp(`^api/v1/meetings/${ID}/share$`)],
+  // "Finish" on a meeting left recording (another device, or interrupted); owner-only on the Worker.
+  [["POST"], new RegExp(`^api/v1/meetings/${ID}/finish$`)],
   [["DELETE"], new RegExp(`^api/v1/meetings/${ID}/share/${ID}$`)],
   [["GET", "POST"], /^api\/v1\/folders$/],
   [["PATCH", "DELETE"], new RegExp(`^api/v1/folders/${ID}$`)],

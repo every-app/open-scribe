@@ -36,6 +36,7 @@ export function MeetingPage({ id }: { id: string }) {
   const transcript = useLiveTranscript();
   const elapsedMs = useElapsed(recordingHere && rec.startedAt ? rec.startedAt : null);
 
+  const [finishing, setFinishing] = useState(false);
   if (query.isPending) return <Loading />;
   if (query.isError || !meeting) {
     return (
@@ -86,6 +87,15 @@ export function MeetingPage({ id }: { id: string }) {
       onStop={() => void stop()}
       onRetitle={(title) => void run(() => api.patchMeeting(id, { title }), "Couldn't rename it.", touched)}
       onSaveNotes={(markdown) => void run(() => api.editNotes(id, markdown), "Couldn't save the notes.", touched)}
+      onFinish={
+        meeting.mine && meeting.status === "recording" && !recordingHere
+          ? () => {
+              setFinishing(true);
+              void run(() => api.finishMeeting(id), "Couldn't finish it.", touched).finally(() => setFinishing(false));
+            }
+          : undefined
+      }
+      finishing={finishing}
       onRetryNotes={() =>
         void run(() => api.patchMeeting(id, { templateId: meeting.template.id || null }), "Couldn't start the notes again.", touched)
       }

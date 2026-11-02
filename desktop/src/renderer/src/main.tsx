@@ -5,12 +5,16 @@ import { RouterProvider } from "@tanstack/react-router";
 import { TooltipProvider } from "@talk/ui/components/tooltip";
 import { Notice } from "./notice";
 import { router } from "./router";
+import { navigateTarget } from "./navigate";
 import { connectBridge } from "./talk";
 import "./styles.css";
 
 // The theme before the first paint (the inline init script can't run under the CSP).
 applyStoredTheme();
-connectBridge();
+connectBridge((request) => {
+  const target = navigateTarget(request);
+  if (target) void router.navigate(target);
+});
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } } });
 

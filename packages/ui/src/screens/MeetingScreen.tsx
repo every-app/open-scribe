@@ -80,6 +80,12 @@ export interface MeetingScreenProps {
   onStop?: () => void;
   onSaveNotes?: (markdown: string) => void;
   onRetryNotes?: () => void;
+  /**
+   * The meeting says "recording" but this Mac isn't recording it (another device, or a recording
+   * that stopped without finishing). Given for the owner: offers to finish it and write notes.
+   */
+  onFinish?: () => void;
+  finishing?: boolean;
   onChangeTemplate?: (templateId: string) => void;
   onToggleFolder?: (folderId: string, filed: boolean) => void;
   onSetVisibility?: (visibility: Space) => void;
@@ -503,11 +509,22 @@ function NotesPanel({
   meeting,
   onSaveNotes,
   onRetryNotes,
+  onFinish,
+  finishing,
   defaultEditing,
 }: MeetingScreenProps) {
   const [draft, setDraft] = useState<string | null>(
     defaultEditing ? (meeting.notes?.markdown ?? "") : null,
   );
+  if (meeting.status === "recording") {
+    return (
+      <StillRecording
+        meeting={meeting}
+        onFinish={onFinish}
+        finishing={finishing}
+      />
+    );
+  }
   if (meeting.status === "processing") {
     return (
       <div aria-busy className="flex flex-col gap-3">
@@ -736,5 +753,58 @@ function TranscriptDrawer({
         />
       </div>
     </aside>
+  );
+}
+
+/** A meeting marked "recording" that this window isn't recording. */
+function StillRecording({
+  meeting,
+  onFinish,
+  finishing,
+}: {
+  meeting: MeetingDetail;
+  onFinish?: () => void;
+  finishing?: boolean;
+}) {
+  if (!meeting.mine || !onFinish) {
+    return (
+      <div
+        role="status"
+        className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5"
+      >
+        <RecordDot className="mt-1.5" />
+        <div className="text-[13px]">
+          <p className="font-medium">Recording in progress</p>
+          <p className="mt-0.5 text-muted-foreground">
+            {meeting.mine
+              ? "Talk is recording this meeting. The notes are written when it ends."
+              : `${ownerLabel(meeting)} is recording this meeting. The notes are written when it ends.`}
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div
+      role="status"
+      className="flex flex-wrap items-start gap-3 rounded-xl border border-border bg-card px-4 py-3.5"
+    >
+      <span className="mt-1.5 size-2 shrink-0 rounded-full bg-foreground/25" />
+      <div className="min-w-0 flex-1 text-[13px]">
+        <p className="font-medium">
+          This meeting was still recording when it stopped
+        </p>
+        <p className="mt-0.5 text-muted-foreground">
+          Finish it to write notes from{" "}
+          {meeting.segments.length > 0
+            ? "what was transcribed"
+            : "your jottings"}
+          . If it's still recording on another Mac, stop it there instead.
+        </p>
+      </div>
+      <Button size="sm" onClick={onFinish} pending={finishing}>
+        Finish and write notes
+      </Button>
+    </div>
   );
 }

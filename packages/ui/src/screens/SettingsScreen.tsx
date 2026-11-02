@@ -40,6 +40,13 @@ export interface SettingsScreenProps {
   launchAtLoginHint?: string;
   onSignOut?: () => void;
   onGrant?: (kind: PermissionKind) => void;
+  /** Open that permission's pane in System Settings. */
+  onOpenSystemSettings?: (kind: PermissionKind) => void;
+  /** Shown under a permission when asking didn't turn it on (it then offers System Settings). */
+  permissionHints?: Partial<Record<PermissionKind, string>>;
+  /** The echo cancellation switch shows only when the app has the setting. */
+  echoCancellation?: boolean;
+  onEchoCancellationChange?: (on: boolean) => void;
   onConnectCalendar?: () => void;
   onLaunchAtLoginChange?: (on: boolean) => void;
   onDetectCallsChange?: (on: boolean) => void;
@@ -93,6 +100,19 @@ export function SettingsScreen(props: SettingsScreenProps) {
             />
           }
         />
+        {props.echoCancellation !== undefined && (
+          <Row
+            title="Echo cancellation (experimental, for laptop speakers)"
+            detail="Keeps the call's sound out of your side of the transcript. Applies from the next recording."
+            control={
+              <Switch
+                aria-label="Echo cancellation"
+                checked={props.echoCancellation}
+                onCheckedChange={(on) => props.onEchoCancellationChange?.(on)}
+              />
+            }
+          />
+        )}
         <Row
           title="Appearance"
           control={
@@ -216,9 +236,14 @@ export const permissionInfo: Record<
 export function PermissionControl({
   status,
   onGrant,
+  onOpenSystemSettings,
+  stuck = false,
 }: {
   status: PermissionStatus;
   onGrant?: () => void;
+  onOpenSystemSettings?: () => void;
+  /** Asking didn't turn it on: offer System Settings instead of asking again. */
+  stuck?: boolean;
 }) {
   if (status === "granted") {
     return (
@@ -226,6 +251,13 @@ export function PermissionControl({
         <span className="size-1.5 rounded-full bg-success" />
         Allowed
       </span>
+    );
+  }
+  if (stuck && onOpenSystemSettings) {
+    return (
+      <Button size="sm" variant="outline" onClick={onOpenSystemSettings}>
+        Open System Settings
+      </Button>
     );
   }
   return (
@@ -244,7 +276,12 @@ export function PermissionControl({
   );
 }
 
-function Permissions({ permissions, onGrant }: SettingsScreenProps) {
+function Permissions({
+  permissions,
+  onGrant,
+  onOpenSystemSettings,
+  permissionHints,
+}: SettingsScreenProps) {
   if (permissions.status === "loading") {
     return (
       <>
@@ -268,11 +305,28 @@ function Permissions({ permissions, onGrant }: SettingsScreenProps) {
             key={kind}
             icon={info.icon}
             title={info.title}
-            detail={info.detail}
+            detail={
+              permissionHints?.[kind] &&
+              permissions.data[kind] !== "granted" ? (
+                <>
+                  {info.detail}
+                  <span
+                    role="status"
+                    className="mt-0.5 block text-warning-foreground dark:text-warning"
+                  >
+                    {permissionHints[kind]}
+                  </span>
+                </>
+              ) : (
+                info.detail
+              )
+            }
             control={
               <PermissionControl
                 status={permissions.data[kind]}
                 onGrant={() => onGrant?.(kind)}
+                onOpenSystemSettings={() => onOpenSystemSettings?.(kind)}
+                stuck={!!permissionHints?.[kind]}
               />
             }
           />

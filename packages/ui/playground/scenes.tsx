@@ -436,6 +436,39 @@ export const scenes: Scene[] = [
     ),
   },
   {
+    id: "meeting-stale-recording",
+    group: "Meeting",
+    label: "Left recording (yours)",
+    render: (ctx) => (
+      <MeetingScene
+        phase="after"
+        {...ctx}
+        meeting={{ ...mock.meeting, status: "recording", notes: null }}
+        extra={{ onFinish: () => {} }}
+      />
+    ),
+  },
+  {
+    id: "meeting-recording-teammate",
+    group: "Meeting",
+    label: "Recording (a teammate's)",
+    render: (ctx) => (
+      <MeetingScene
+        phase="after"
+        {...ctx}
+        meeting={{
+          ...mock.meeting,
+          status: "recording",
+          notes: null,
+          mine: false,
+          ownerEmail: "ana@every.to",
+          visibility: "team",
+          jottings: null,
+        }}
+      />
+    ),
+  },
+  {
     id: "meeting-processing",
     group: "Meeting",
     label: "Writing notes",
@@ -634,6 +667,34 @@ export const scenes: Scene[] = [
     render: () => (
       <Frame current={{ to: "settings" }}>
         <SettingsScene />
+      </Frame>
+    ),
+  },
+  {
+    id: "settings-permission-hint",
+    group: "Settings",
+    label: "Notifications still off, echo cancellation",
+    render: () => (
+      <Frame current={{ to: "settings" }}>
+        <SettingsScreen
+          account={ready(mock.account)}
+          permissions={ready({
+            mic: "granted",
+            systemAudio: "granted",
+            notifications: "unknown",
+          })}
+          permissionHints={{
+            notifications: "Allow notifications for Talk in System Settings.",
+          }}
+          onOpenSystemSettings={noop}
+          calendar={ready({ state: "connected", email: "ben@every.to" })}
+          launchAtLogin
+          launchAtLoginHint="Allow Talk in System Settings → General → Login Items."
+          detectCalls
+          echoCancellation={false}
+          theme="system"
+          onGrant={noop}
+        />
       </Frame>
     ),
   },
