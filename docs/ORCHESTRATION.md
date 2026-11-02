@@ -107,3 +107,4 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - Codex V1 done (report: ~/overnight/2026-11-02/talk-verify-1/report.md; built from 85822f5, pre-#15). Core flows + look OK. Findings: high Keychain stall on rebuilt dev launch with pasted token; high Settings toggles not persisting (pre-#15 fallback); medium notifications Grant no-op; medium stale "recording" meeting state; low ⌘, missing; polish icon (fixed in #15). Tray not reachable by CUA.
 - Routed: UI (settings persistence, notifications grant UI, stale-recording state, ⌘, nav), M3 (#17 Keychain-free dev sign-in, reminders persist, plist; next: echoCancellation setting, delete on cancel, app menu + Settings ⌘, + Edit menu, tray items in app/Dock menu), H (fast idle shutdown).
 - #16 merged; #17, #18 in review.
+- #17 merged (Keychain-free dev sign-in, persisted reminder prompts, plist cleanup).
