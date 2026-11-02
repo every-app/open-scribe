@@ -121,3 +121,4 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - #33 merged (desktop e2e in CI: 7 flows, 36 s job). M3: update UX + About + optional global shortcut.
 - #34 merged (⌘K search UI).
 - #35 merged (update UX, About, optional ⌃⌥⌘R; e2e 8 flows). #37 (helper outage buffer, time-based seqs, catching_up) and #36 (search palette) merging on green.
+- #36 merged (search palette). #37 merged (outage buffer, time-based seqs). #38 (catching_up in main, 20-min stop timeout) merging on green. H: helper --selftest. M3: TALK_DEV_FRESH profile + stopping state. API: web→packages/ui. UI: update pill + catching-up copy.
