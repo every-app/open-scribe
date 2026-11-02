@@ -42,7 +42,7 @@ Agreed with Ben on 2026-11-02. Talk becomes a real desktop app. The Mac comes fi
 - **The helper owns audio and transcription,** using the code already proven in `mac/Sources/TalkCore` and `Recorder`/`RealtimeTranscriber`/`SystemAudioCapture`/`MicCapture`/`ChunkChannel`. It posts segments to the Worker itself and also streams them to the app for the live view. It never stores audio.
 - **The main process owns sign-in, tokens, the tray, reminders and updates.** It passes the helper a short-lived access token and refreshes it when the helper asks.
 - **TCC:** macOS charges mic and system-audio permission to the app that launched the helper, so `NSMicrophoneUsageDescription` and `NSAudioCaptureUsageDescription` go in Talk.app's Info.plist. The helper is signed with the same identity and hardened runtime, and carries `com.apple.security.device.audio-input`.
-- **The SwiftUI menu-bar app is retired** once the desktop app does everything it does. Until then it keeps building.
+- **The SwiftUI menu-bar app is retired** (its target, build script and Keychain CLI are removed; an installed `~/Applications/Talk.app` is left for Ben to delete).
 
 ### Helper protocol (v1)
 
@@ -72,7 +72,7 @@ Newline-delimited JSON on stdin/stdout, with logs on stderr. Requests carry an `
 ## Repo layout
 
 - `desktop/`: the Electron app (electron-vite, React 19, Tailwind 4, TanStack Router + Query, electron-builder, electron-updater).
-- `mac/`: the Swift package. It holds `TalkCore`, the new `talk-helper` executable, `TalkCLI`, and the SwiftUI app until it's retired.
+- `mac/`: the Swift package: `TalkCore`, `TalkRecording`, the `talk-helper` executable and the `talk-smoke` API check.
 - `packages/ui`: shared components and styles, extracted from web/ after the web overhaul merges. Both web/ and desktop/ use it.
 - `web/`: the Worker. `/api/v1` grows to cover what the desktop window needs.
 

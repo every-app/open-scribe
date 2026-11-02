@@ -1,6 +1,6 @@
 # Talk spec (v1)
 
-A meeting recorder for Every App: a native macOS menu-bar app records a meeting, transcribes it live, and a web app turns the transcript into notes that stay private unless you share them.
+A meeting recorder for Every App: a macOS desktop app records a meeting, transcribes it live, and a web app turns the transcript into notes that stay private unless you share them.
 
 ## Architecture
 
@@ -13,19 +13,25 @@ OpenAI (Realtime, chat) ──(key)─┤
                      └─────────┬──────────┘
                                │ identity JWT / brokered calls
                      ┌─────────▼──────────┐
-                     │  web/  (Worker+D1)  │  meetings, transcripts, notes,
-                     │  app id: talk       │  sharing, API for the Mac app
+                     │  web/  (Worker+D1)  │  meetings, transcripts, notes, sharing,
+                     │  app id: talk       │  /api/v1 for the desktop app, update feed
                      └─────────▲──────────┘
-         HTTPS, bearer token   │                 ▲  WebSocket, ephemeral key
-                     ┌─────────┴──────────┐      │
-                     │  mac/  (SwiftUI)    │──────┘ audio straight to OpenAI
-                     │  menu bar, capture  │
-                     └────────────────────┘
+       HTTPS, bearer token     │                    ▲  WebSocket, ephemeral key
+      ┌────────────────────────┴───────────────┐    │
+      │ desktop/ Talk.app (Electron)            │    │
+      │  renderer: window, notepad, transcript  │    │
+      │  main: sign-in, tray, reminders, updates│    │
+      │        │ JSON lines over stdio          │    │
+      │  talk-helper (Swift, mac/): mic + system│────┘ audio straight to OpenAI
+      │  audio, Realtime, segments, call detect │
+      └─────────────────────────────────────────┘
 ```
 
-- **web/** is an Every App app (TanStack Start on a Worker, D1 through drizzle). It holds all data and every key-bearing call. It is the main window: a sidebar of folders, the coming week's meetings, the notes (see Web app below).
-- **mac/** is a SwiftUI menu-bar app: it reminds you when a meeting starts and takes the notes. It never holds an API key. It calls `web/` over HTTPS with a bearer token, and streams audio to OpenAI with a short-lived key the Worker mints.
+- **web/** is an Every App app (TanStack Start on a Worker, D1 through drizzle). It holds all data and every key-bearing call. It serves the browser (shared links, browser access) and `/api/v1`, which the desktop app calls, plus the private update feed.
+- **desktop/** is the Mac app: Electron, a React renderer built from `packages/ui`, and a main process that owns sign-in (tokens encrypted with safeStorage), the tray, calendar reminders, call prompts and updates. It never holds an API key. It calls `web/` over HTTPS with a bearer token.
+- **mac/** holds `talk-helper`, a headless Swift process inside Talk.app (`Contents/MacOS/talk-helper`). The app drives it over stdin/stdout (docs/desktop-plan.md "Helper protocol (v1)"). It captures the mic and system audio, streams them to OpenAI with a short-lived key the Worker mints, posts transcript segments to `web/`, and watches which apps use the mic to detect calls. TCC charges its capture to Talk.app.
 - Audio is never uploaded to the Worker and never stored. Only text leaves the Mac.
+- The SwiftUI menu-bar app that came first is retired. An installed copy is left on disk to delete by hand.
 
 ## How the Mac app signs in: Sign in with Every App
 

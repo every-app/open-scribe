@@ -5,27 +5,19 @@ let package = Package(
   name: "Talk",
   platforms: [.macOS(.v15)],
   products: [
-    .executable(name: "Talk", targets: ["Talk"]),
     .executable(name: "talk-helper", targets: ["talk-helper"]),
   ],
   targets: [
-    // Everything that runs without hardware or a window: auth, API, batching, resampling,
-    // reminder planning. Tested by `swift test`.
+    // No hardware: the API client, segment batching, echo dedupe, resampling, turn detection,
+    // chunking, WAV. Tested by `./scripts/test.sh`.
     .target(
       name: "TalkCore",
       path: "Sources/TalkCore",
       swiftSettings: [.swiftLanguageMode(.v5)]
     ),
-    // The smoke and sign-in commands, shared by the app (`Talk --cli`) and talk-smoke.
-    .target(
-      name: "TalkCLI",
-      dependencies: ["TalkCore"],
-      path: "Sources/TalkCLI",
-      swiftSettings: [.swiftLanguageMode(.v5)]
-    ),
     // Capture (mic, Core Audio tap), the Realtime sockets and the chunk fallback, the recording
-    // pipeline, call detection, and the helper protocol. No UI, no Keychain. Used by the app and
-    // talk-helper; the hardware-free parts are tested with fakes.
+    // pipeline, call detection, and the helper protocol. No UI, no Keychain. Used by talk-helper;
+    // the hardware-free parts are tested with fakes.
     .target(
       name: "TalkRecording",
       dependencies: ["TalkCore"],
@@ -39,18 +31,11 @@ let package = Package(
       path: "Sources/talk-helper",
       swiftSettings: [.swiftLanguageMode(.v5)]
     ),
-    // The menu-bar app: SwiftUI, notifications, sign-in; recording comes from TalkRecording.
-    .executableTarget(
-      name: "Talk",
-      dependencies: ["TalkCore", "TalkCLI", "TalkRecording"],
-      path: "Sources/Talk",
-      swiftSettings: [.swiftLanguageMode(.v5)]
-    ),
-    // Drives the API client through a meeting against a running web/ (no audio), and signs in
-    // without a browser click (see TalkCLI).
+    // Drives the API client through a meeting against a running web/ with a bearer token (no
+    // audio, no Keychain).
     .executableTarget(
       name: "talk-smoke",
-      dependencies: ["TalkCLI"],
+      dependencies: ["TalkCore"],
       path: "Sources/talk-smoke",
       swiftSettings: [.swiftLanguageMode(.v5)]
     ),

@@ -180,131 +180,6 @@ import Testing
   }
 }
 
-@Suite struct ReminderPlannerTests {
-  let now = Date(timeIntervalSince1970: 1_800_000_000)
-
-  func event(_ id: String, inMinutes: Double, attendees: [Attendee] = [], conference: Bool = false) -> CalendarEvent {
-    CalendarEvent(
-      id: id, title: id, start: now.addingTimeInterval(inMinutes * 60), end: nil, attendees: attendees,
-      conferenceURL: conference ? URL(string: "https://meet.google.com/x") : nil)
-  }
-
-  @Test func onlyMeetingsAreReminded() {
-    let plan = ReminderPlanner.plan(
-      events: [
-        event("solo", inMinutes: 30),
-        event("call", inMinutes: 30, conference: true),
-        event("people", inMinutes: 40, attendees: [Attendee(email: "me@x", isSelf: true), Attendee(email: "a@x", isSelf: false)]),
-        event("onlyme", inMinutes: 40, attendees: [Attendee(email: "me@x", isSelf: true)]),
-        event("plain", inMinutes: 50, attendees: [Attendee(email: "me@x"), Attendee(email: "a@x")]),
-      ], now: now)
-    #expect(plan.map(\.event.id) == ["call", "people", "plain"])
-    #expect(plan[0].fireDate == now.addingTimeInterval(29 * 60))
-  }
-
-  @Test func inTheLastMinuteFiresNowOnce() {
-    let e = event("soon", inMinutes: 0.5, conference: true)
-    let plan = ReminderPlanner.plan(events: [e], now: now)
-    #expect(plan.count == 1)
-    #expect(plan[0].fireDate == now.addingTimeInterval(1))
-    #expect(ReminderPlanner.plan(events: [e], now: now, delivered: [plan[0].identifier]).isEmpty)
-  }
-
-  @Test func startedMeetingsAreSkipped() {
-    #expect(ReminderPlanner.plan(events: [event("past", inMinutes: -1, conference: true)], now: now).isEmpty)
-  }
-
-  @Test func theMeetingBeingRecordedIsSkipped() {
-    let plan = ReminderPlanner.plan(
-      events: [event("a", inMinutes: 10, conference: true), event("b", inMinutes: 20, conference: true)], now: now,
-      recordingEventID: "a")
-    #expect(plan.map(\.event.id) == ["b"])
-  }
-
-  @Test func identifierChangesWhenTheMeetingMoves() {
-    #expect(
-      ReminderPlanner.identifier(for: event("a", inMinutes: 10)) != ReminderPlanner.identifier(for: event("a", inMinutes: 20)))
-  }
-}
-
-@Suite struct StartedNudgeTests {
-  let now = Date(timeIntervalSince1970: 1_800_000_000)
-
-  func event(_ id: String, minutesAgo: Double, conference: Bool = true, endsInMinutes: Double? = nil) -> CalendarEvent {
-    CalendarEvent(
-      id: id, title: id, start: now.addingTimeInterval(-minutesAgo * 60), end: endsInMinutes.map { now.addingTimeInterval($0 * 60) },
-      attendees: [], conferenceURL: conference ? URL(string: "https://meet.google.com/x") : nil)
-  }
-
-  @Test func meetingsInTheirFirstFiveMinutes() {
-    let due = StartedNudge.due(
-      events: [
-        event("later", minutesAgo: -3), event("now", minutesAgo: 0), event("two", minutesAgo: 2),
-        event("old", minutesAgo: 6), event("solo", minutesAgo: 1, conference: false),
-        event("over", minutesAgo: 2, endsInMinutes: -1),
-      ], now: now, recording: false, nudged: [])
-    #expect(due.map(\.id) == ["two", "now"])
-  }
-
-  @Test func noneWhileRecording() {
-    #expect(StartedNudge.due(events: [event("a", minutesAgo: 1)], now: now, recording: true, nudged: []).isEmpty)
-  }
-
-  @Test func oncePerEventAndStart() {
-    let e = event("a", minutesAgo: 1)
-    let id = StartedNudge.identifier(for: e)
-    #expect(StartedNudge.due(events: [e], now: now, recording: false, nudged: [id]).isEmpty)
-    var moved = e
-    moved.start = now.addingTimeInterval(-30)
-    #expect(StartedNudge.due(events: [moved], now: now, recording: false, nudged: [id]).count == 1)
-    #expect(id != ReminderPlanner.identifier(for: e))
-  }
-}
-
-@Suite struct TalkURLTests {
-  let standup = CalendarEvent(
-    id: "e1", title: "Standup", start: Date(timeIntervalSince1970: 1_800_000_000), end: nil,
-    attendees: [], conferenceURL: URL(string: "https://meet.google.com/abc"))
-
-  @Test func parsesTheFullForm() {
-    let url = URL(string: "talk://record?event=e1&title=Standup%20%26%20more&start=2026-10-27T16:00:00Z&join=1")!
-    #expect(
-      TalkURL.parse(url)
-        == TalkURL(eventID: "e1", title: "Standup & more", start: FlexibleDate.parse("2026-10-27T16:00:00Z"), join: true))
-  }
-
-  @Test func bareRecordAndOtherForms() {
-    #expect(TalkURL.parse(URL(string: "talk://record")!) == TalkURL())
-    #expect(TalkURL.parse(URL(string: "TALK://Record/")!) == TalkURL())
-    #expect(TalkURL.parse(URL(string: "talk:record?join=0")!) == TalkURL())
-    #expect(TalkURL.parse(URL(string: "talk://record?event=&title=%20&start=nope")!) == TalkURL())
-  }
-
-  @Test func rejectsOtherURLs() {
-    #expect(TalkURL.parse(URL(string: "talk://stop")!) == nil)
-    #expect(TalkURL.parse(URL(string: "https://record")!) == nil)
-    #expect(TalkURL.parse(URL(string: "talk://")!) == nil)
-  }
-
-  @Test func titleIsCleanedAndCapped() {
-    let long = String(repeating: "a", count: 300)
-    let parsed = TalkURL.parse(URL(string: "talk://record?title=a%0Ab%00c\(long)")!)
-    #expect(parsed?.title?.hasPrefix("abca") == true)
-    #expect(parsed?.title?.count == 200)
-  }
-
-  @Test func knownEventStartsWithTheAppsOwnDetails() {
-    let request = TalkURL(eventID: "e1", title: "Something else", start: Date(timeIntervalSince1970: 0), join: true)
-    #expect(request.resolve(upcoming: [standup], fallbackTitle: "x") == .start(standup, join: true))
-  }
-
-  @Test func anythingElseAsksFirst() {
-    #expect(TalkURL().resolve(upcoming: [standup], fallbackTitle: "Meeting at 2:00 PM") == .confirm(title: "Meeting at 2:00 PM", start: nil, eventID: nil))
-    let unknown = TalkURL(eventID: "zzz", title: "Board", start: nil, join: true)
-    #expect(unknown.resolve(upcoming: [standup], fallbackTitle: "x") == .confirm(title: "Board", start: nil, eventID: "zzz"))
-  }
-}
-
 @Suite struct APIClientTests {
   func client(_ handler: @escaping StubTransport.Handler) -> (APIClient, StubTransport) {
     let stub = StubTransport(handler)
@@ -471,22 +346,22 @@ import Testing
     }
   }
 
-  @Test func oauthRetriesOnceAfterRefresh() async throws {
+  /// Renews on a 401, the way the helper's `token.needed` → `token.update` does.
+  final class RenewingAuth: AuthProvider, @unchecked Sendable {
+    let appURL = URL(string: "https://talk.example.com")!
+    private let lock = NSLock()
+    private var current = "stale"
+    func accessToken() async throws -> String { lock.withLock { current } }
+    func tokenRejected(_ token: String) async throws -> String { lock.withLock { current = "fresh"; return current } }
+  }
+
+  @Test func retriesOnceWithTheRenewedToken() async throws {
     let stub = StubTransport { request in
-      if request.url!.path == "/token" { return (200, #"{"access_token":"fresh","expires_in":3600}"#, [:]) }
-      let auth = request.value(forHTTPHeaderField: "Authorization")
-      return auth == "Bearer fresh" ? (200, #"{"user":{"id":"u"}}"#, [:]) : (401, "", [:])
+      request.value(forHTTPHeaderField: "Authorization") == "Bearer fresh" ? (200, #"{"user":{"id":"u"}}"#, [:]) : (401, "", [:])
     }
-    let grant = OAuthGrant(
-      appURL: URL(string: "https://talk.example.com")!, issuer: URL(string: "https://gw.example.com")!,
-      tokenEndpoint: URL(string: "https://gw.example.com/token")!, revocationEndpoint: nil, clientID: "c",
-      resource: "https://talk.example.com", accessToken: "stale", refreshToken: "r", expiresAt: Date().addingTimeInterval(3600),
-      scope: nil)
-    let provider = OAuthAuthProvider(grant: grant, client: OAuthClient(transport: stub)) { _ in }
-    let api = APIClient(auth: provider, transport: stub)
-    let me = try await api.me()
+    let me = try await APIClient(auth: RenewingAuth(), transport: stub).me()
     #expect(me.id == "u")
-    #expect(stub.requests.count == 3)
+    #expect(stub.requests.map { $0.value(forHTTPHeaderField: "Authorization") } == ["Bearer stale", "Bearer fresh"])
   }
 }
 

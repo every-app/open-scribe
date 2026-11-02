@@ -25,18 +25,6 @@ public struct URLSessionTransport: HTTPTransport {
   }
 }
 
-enum FormEncoding {
-  /// application/x-www-form-urlencoded, RFC 6749 appendix B.
-  static func encode(_ fields: [(String, String)]) -> Data {
-    var allowed = CharacterSet.alphanumerics
-    allowed.insert(charactersIn: "-._~")
-    let body = fields.map { key, value in
-      "\(key.addingPercentEncoding(withAllowedCharacters: allowed)!)=\(value.addingPercentEncoding(withAllowedCharacters: allowed)!)"
-    }.joined(separator: "&")
-    return Data(body.utf8)
-  }
-}
-
 extension URL {
   /// scheme://host[:port], no trailing slash: what `resource` and the API base are made of.
   public var origin: URL? {

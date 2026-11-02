@@ -1,9 +1,11 @@
 # Talk
 
-Meeting notes for Every App: a native macOS menu-bar app reminds you when a meeting starts, records it (system audio plus the microphone) and transcribes it live with OpenAI; an Every App web app turns the transcript into notes with a template you pick, and keeps them in private and team folders. Notes are private by default, can be shared with the workspace, or published with a revocable link. Audio is never stored.
+Meeting notes for Every App: a macOS desktop app (Electron, with a native Swift helper for audio) reminds you when a meeting starts, records it (system audio plus the microphone) and transcribes it live with OpenAI; an Every App web app turns the transcript into notes with a template you pick, and keeps them in private and team folders. Notes are private by default, can be shared with the workspace, or published with a revocable link. Audio is never stored.
 
 - `web/`: the Every App app (app id `talk`) and the main window: upcoming meetings, folders, notes, templates, the `/api/v1` the Mac app calls, the shared pages.
-- `mac/`: Talk for Mac, a SwiftUI menu-bar app (Swift Package).
+- `desktop/`: Talk for Mac, the Electron app: window, tray, sign-in, reminders, call prompts, updates (`desktop/README.md`).
+- `mac/`: the Swift package for `talk-helper`, the headless audio capture and transcription process the desktop app runs (`mac/README.md`).
+- `packages/ui`: components shared by `web/` and `desktop/`.
 - `docs/SPEC.md`: the architecture, data model, API, web app, folders, templates, reminders, sign-in, sharing and permissions. `TODO.md` holds the decisions and open questions.
 
 ## Run it locally
@@ -16,10 +18,14 @@ pnpm dev          # http://talk.localhost:8787, signed in as a test user
 pnpm test
 ```
 
-Mac, from `mac/`:
+Desktop, from the repo root and `desktop/`:
 
 ```sh
-scripts/build-app.sh   # builds the .app bundle with swift build and signs it
+pnpm install
+pnpm -C desktop dev            # the Electron app, with a fake helper
+pnpm -C desktop package:local  # "Talk Dev" with the real helper, signed locally and installed
 ```
 
-Then open the app, enter the web app's URL and choose Sign in with Every App.
+Swift helper, from `mac/`: `./scripts/test.sh`, `./scripts/build-helper.sh`. Releases: `docs/release.md`.
+
+The old SwiftUI menu-bar app is retired. An installed `~/Applications/Talk.app` from it is left on disk; delete it by hand.

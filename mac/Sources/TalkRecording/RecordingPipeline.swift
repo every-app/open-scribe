@@ -54,7 +54,7 @@ public struct RecordingOptions: Sendable, Equatable {
 
 /// One meeting's recording, minus creating the meeting: capture both sides, stream each to its
 /// own transcription channel, post finished segments every ten seconds and on stop, then
-/// `/finish`. Shared by the SwiftUI app's `Recorder` and `talk-helper`. Audio is never stored.
+/// `/finish`. Driven by `talk-helper`'s `HelperServer`. Audio is never stored.
 @MainActor
 public final class RecordingPipeline {
   public struct Dependencies: Sendable {
