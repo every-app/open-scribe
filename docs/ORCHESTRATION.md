@@ -127,3 +127,4 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - Codex V3 done (~/overnight/2026-11-02/talk-verify-3/report.md): V2 bugs fixed; onboarding, search, offline banner, settings OK. New: high offline notepad replaced by error page during recording; medium search result opens wrong tab from same meeting; low finishing timer mismatch; record-shortcut toggle missing; update menu hidden without feed. Routed to UI (fix/codex-v3) and M3.
 - #47 merged (e2e race fix; main pushes don't cancel). #46 merged (web uses packages/ui, pixel-identical). #43 (update pill), #44 (finishing transcript), #45 (selftest:run IPC) merged after branch updates. UI: fix/codex-v3 then selftest button.
 - #48 merged (Codex V3 fixes). M1–M3 done; M4 waits on Ben.
+- #49 merged (Settings self-test button). No open PRs. Waiting: M3 update-menu tweak.
