@@ -120,6 +120,7 @@ function Frame({
   recording,
   folders = ready(mock.folders),
   banner,
+  update,
 }: {
   current: NavTarget | null;
   children: ReactNode;
@@ -127,6 +128,7 @@ function Frame({
   recording?: RecordingSummary | null;
   folders?: Loadable<typeof mock.folders>;
   banner?: ReactNode;
+  update?: SidebarProps["update"];
 }) {
   const sidebar: SidebarProps = {
     current,
@@ -137,6 +139,7 @@ function Frame({
     onNewFolder: noop,
     onNewNote: noop,
     onSearch: noop,
+    update,
     recording,
     onOpenRecording: noop,
     onStopRecording: noop,
@@ -466,6 +469,32 @@ export const scenes: Scene[] = [
         banner={
           <SignInAgainBanner kind="oauth" signingIn={false} onSignIn={noop} />
         }
+      >
+        {home()}
+      </Frame>
+    ),
+  },
+  {
+    id: "home-update",
+    group: "Home",
+    label: "Update ready",
+    render: () => (
+      <Frame
+        current={{ to: "home" }}
+        update={{ version: "0.2.0", kind: "ready", onRestart: noop }}
+      >
+        {home()}
+      </Frame>
+    ),
+  },
+  {
+    id: "home-update-after-stop",
+    group: "Home",
+    label: "Restart to update (after a recording)",
+    render: () => (
+      <Frame
+        current={{ to: "home" }}
+        update={{ version: "0.2.0", kind: "afterStop", onRestart: noop }}
       >
         {home()}
       </Frame>

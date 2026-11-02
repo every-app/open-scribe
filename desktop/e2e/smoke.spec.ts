@@ -205,6 +205,10 @@ test("an update that downloaded is offered, and waits for the recording to end",
   type Snap = { updater: { state: string; version?: string; deferred?: boolean }; recording: { state: string } };
   const snap = () => page.evaluate(() => (window as unknown as { talk: { "state:get"(): Promise<unknown> } }).talk["state:get"]()) as Promise<Snap>;
   await expect.poll(async () => (await snap()).updater).toMatchObject({ state: "ready", version: "9.9.9" });
+  // The window's quiet pill in the sidebar footer (#43).
+  const pill = page.getByRole("status", { name: "Update" });
+  await expect(pill).toContainText("Update ready · 9.9.9");
+  await expect(pill.getByRole("button", { name: "Restart" })).toBeVisible();
   const menuLabels = () =>
     app.evaluate(({ Menu }) => {
       const out: string[] = [];
@@ -218,6 +222,7 @@ test("an update that downloaded is offered, and waits for the recording to end",
   await page.keyboard.press("Meta+n");
   await page.waitForURL(/#\/meetings\//);
   await expect.poll(async () => (await snap()).recording.state).toBe("recording");
+  await expect(pill).toBeHidden(); // never while recording
   expect(await menuLabels()).toContain("Restart to Update (9.9.9) after this recording");
   const result = await page.evaluate(() => (window as unknown as { talk: { "update:install"(): Promise<{ deferred: boolean }> } }).talk["update:install"]());
   expect(result).toEqual({ deferred: true });
@@ -225,6 +230,8 @@ test("an update that downloaded is offered, and waits for the recording to end",
   await page.getByRole("button", { name: /^Stop$/ }).click();
   await expect.poll(async () => (await snap()).updater.deferred).toBe(false);
   expect(await menuLabels()).toContain("Restart to Update (9.9.9)");
+  // After Stop, the pill offers the restart that was put off.
+  await expect(pill).toContainText("Restart to update", { timeout: 15_000 });
 });
 
 test("Help → Reset Onboarding (dev builds) shows first run again", async () => {

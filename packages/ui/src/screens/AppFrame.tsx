@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import {
+  ArrowUpCircle,
   Folder as FolderIcon,
   House,
   LayoutTemplate,
@@ -11,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 import type { ComponentType, ReactNode } from "react";
+import { Button } from "../components/ui/button";
 import { Skeleton } from "../components/ui/skeleton";
 import type {
   Account,
@@ -42,6 +44,8 @@ export interface SidebarProps {
   onNewFolder?: (space: Space) => void;
   /** Start a note now, not tied to a calendar event. */
   onNewNote: () => void;
+  /** A downloaded update, as a quiet pill in the footer (hidden while recording: pass null). */
+  update?: UpdatePillProps | null;
   /** The search field at the top: opens search (⌘K). */
   onSearch?: () => void;
   recording?: RecordingSummary | null;
@@ -292,6 +296,7 @@ export function Sidebar(props: SidebarProps) {
         />
       </nav>
       <div className="border-t border-sidebar-border px-2.5 py-2">
+        {props.update && <UpdatePill {...props.update} />}
         <ul className="flex flex-col gap-px">
           <NavItem
             icon={LayoutTemplate}
@@ -409,6 +414,45 @@ export function TitleBar({
       }}
     >
       {children}
+    </div>
+  );
+}
+
+export interface UpdatePillProps {
+  version: string;
+  /** "ready": just downloaded. "afterStop": a restart was put off by a recording, now over. */
+  kind: "ready" | "afterStop";
+  onRestart: () => void;
+  restarting?: boolean;
+}
+
+/** "Update ready · Restart", or after a recording, "Restart to update". Quiet; the menus have it too. */
+export function UpdatePill({
+  version,
+  kind,
+  onRestart,
+  restarting,
+}: UpdatePillProps) {
+  return (
+    <div
+      role="status"
+      aria-label="Update"
+      className="no-drag animate-in fade-in-0 mb-2 flex items-center gap-2 rounded-lg border border-sidebar-border bg-background/60 py-1 pl-2.5 pr-1 text-[12px]"
+    >
+      <ArrowUpCircle className="size-3.5 shrink-0 text-foreground/50" />
+      <span className="min-w-0 flex-1 truncate text-sidebar-foreground/80">
+        {kind === "afterStop" ? "Restart to update" : "Update ready"}
+        <span className="text-sidebar-foreground/45"> · {version}</span>
+      </span>
+      <Button
+        size="xs"
+        variant="ghost"
+        className="h-6 shrink-0 px-2 text-[12px]"
+        onClick={onRestart}
+        pending={restarting}
+      >
+        Restart
+      </Button>
     </div>
   );
 }

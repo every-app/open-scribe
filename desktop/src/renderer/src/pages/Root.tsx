@@ -14,6 +14,7 @@ import { api, cleanError, keys } from "../api";
 import { grantPermission, uiPermissions } from "../settings-logic";
 import { connectionOf, gateOf, signInAgainOf, type Gate, type Snapshot } from "../connection";
 import { retryUnsavedJottings } from "../jottings";
+import { installUpdate, rememberDeferred, updatePillOf } from "../update";
 import { useLevels } from "../live";
 import { accountFrom, loadable } from "../map";
 import { notify } from "../notice";
@@ -155,6 +156,10 @@ function Layout({ state }: { state: AppSnapshot }) {
   const stop = useStopRecording();
   const [adding, setAdding] = useState<Space | null>(null);
   const [searching, setSearching] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const deferredRef = useRef(false);
+  deferredRef.current = rememberDeferred(deferredRef.current, state);
+  const pill = updatePillOf(state, deferredRef.current);
   const account = accountFrom(me.data, state.auth);
   const orgName = account?.orgName ?? "Team";
 
@@ -210,6 +215,21 @@ function Layout({ state }: { state: AppSnapshot }) {
           onNewFolder: setAdding,
           onNewNote: () => void start({}),
           onSearch: () => setSearching(true),
+          update: pill
+            ? {
+                ...pill,
+                restarting,
+                onRestart: () => {
+                  setRestarting(true);
+                  void installUpdate(talk)
+                    .then((result) => {
+                      if (result.deferred) notify("Talk restarts to update after this recording.");
+                    })
+                    .catch((e: unknown) => notify(cleanError(e), "error"))
+                    .finally(() => setRestarting(false));
+                },
+              }
+            : null,
           recording: recordingId
             ? {
                 live: {
