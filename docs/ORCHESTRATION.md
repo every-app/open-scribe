@@ -118,3 +118,4 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - #26 merged (helper unsaved-on-stop, state.transcription). #27 (Codex V2 UI fixes: copy link via main clipboard, menu-started recording navigates) merging on green. H: retire SwiftUI app.
 - #28 merged (system-audio verified keyed to real helper; icon check). #30 merged (FTS5 search, speaker names). #29 (retire SwiftUI) rebasing. M3: desktop e2e in CI. UI: search UI.
 - #29 merged (SwiftUI app retired; 118 mac tests). #31 merged (runbook feed details). #32 merged (clipboard hardening). H: realtime outage buffer → fallback replay.
+- #33 merged (desktop e2e in CI: 7 flows, 36 s job). M3: update UX + About + optional global shortcut.
