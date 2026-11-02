@@ -22,6 +22,11 @@
 
 Plan: docs/desktop-plan.md. Decided with Ben: Electron + Swift helper, private alpha on macOS, Every App backend, cloud transcription, built-in UI, notepad + AI notes, calendar + call detection, Granola-calm look, Ben's personal Developer ID, direct download, web overhaul PR first, orchestrator merges.
 
+**Known limits (alpha)**
+- After a Realtime outage, replayed `me` audio goes through /audio-chunk, which stores text directly, so it isn't echo-checked. Fix later with a non-storing transcribe mode on that route.
+- Search needs all words in one field ("acme pricing" won't match the title "Pricing" plus notes that say "Acme").
+- `wrangler d1 export` can't export the FTS table: drop it and rebuild with 0004's backfill.
+
 **Ben still decides**
 - **Signing credentials:** Ben adds his Developer ID Application certificate to this Mac's keychain and creates a notarization App Store Connect API key (or an app-specific password). Agents ask through the secret prompt. This blocks the alpha build, not development.
 - **Update feed hosting:** where electron-updater reads from. Recommended: a private R2 bucket behind the Gateway, or GitHub Releases on private-talk (but each client would need a token). Nothing is uploaded until Ben OKs it.
