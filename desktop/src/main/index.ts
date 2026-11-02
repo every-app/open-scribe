@@ -3,7 +3,7 @@
 
 import { app, BrowserWindow, dialog, session, shell, safeStorage } from "electron";
 import { join } from "node:path";
-import type { AppSnapshot, StartRecordingRequest } from "@shared/ipc";
+import type { AppSnapshot, LoginItemSnapshot, PermissionKind, StartRecordingRequest } from "@shared/ipc";
 import type { CalendarEvent } from "@shared/api";
 import { AuthService } from "./auth/service";
 import { SecretStore } from "./auth/store";
@@ -19,13 +19,26 @@ import { TrayController, trayStateFor } from "./tray";
 import { startUpdater, type UpdaterState } from "./updater";
 import { MainWindow } from "./window";
 import { typedAppUrl } from "./auth/url";
+import { guardNavigation, type AppOrigin } from "./navigation";
+import { PermissionProbe } from "./permissions";
+import { SettingsStore } from "./settings";
+import { applyLoginItem, applyTheme, loginItemStatus, requestNotificationPermission, settingsPaneUrl } from "./system";
 
 // `electron-vite dev` runs as "Talk Dev" too: its own userData and its own "Talk Dev Safe Storage"
 // Keychain item, apart from any installed Talk.
+// An explicit --user-data-dir (a test driver's throwaway profile) wins, so it never shares the
+// installed Talk Dev's userData or single-instance lock.
 if (!app.isPackaged) {
   app.setName("Talk Dev");
-  app.setPath("userData", join(app.getPath("appData"), "Talk Dev"));
+  if (!app.commandLine.hasSwitch("user-data-dir")) app.setPath("userData", join(app.getPath("appData"), "Talk Dev"));
 }
+
+/** Talk's own page: the bundled renderer, or the electron-vite dev server in an unpackaged run.
+ * Navigation guards and IPC sender checks both use it. */
+const origin: AppOrigin = {
+  rendererFile: join(__dirname, "../renderer/index.html"),
+  devUrl: !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined,
+};
 
 /** A dev build owns `talk-dev://`, so it never takes links meant for the installed Talk. */
 const URL_SCHEMES = isDevFlavor() ? ["talk-dev"] : ["talk"];
@@ -40,13 +53,9 @@ if (!app.requestSingleInstanceLock()) {
     if (handleUrl) handleUrl(url);
     else pendingUrls.push(url);
   });
+  // Only Talk's own page loads in a window; https links go to the browser; no webviews.
   app.on("web-contents-created", (_e, contents) => {
-    // Nothing navigates in-app or attaches a webview.
-    contents.on("will-navigate", (e, url) => {
-      const dev = process.env.ELECTRON_RENDERER_URL;
-      if (!(dev && !app.isPackaged && url.startsWith(dev))) e.preventDefault();
-    });
-    contents.on("will-attach-webview", (e) => e.preventDefault());
+    guardNavigation(contents, origin, (url) => void shell.openExternal(url), log);
   });
   void app.whenReady().then(main);
 }
@@ -56,6 +65,16 @@ async function main(): Promise<void> {
   // The renderer needs no device or other permission; the helper does the capturing.
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
+
+  const settings = new SettingsStore(join(app.getPath("userData"), "settings.json"), log);
+  settings.load();
+  applyTheme(settings.value.theme);
+  const probe = new PermissionProbe(join(app.getPath("userData"), "permissions.json"), log);
+  probe.load();
+  // The login item can be removed in System Settings: what macOS says wins over the saved setting.
+  let loginItem: LoginItemSnapshot = loginItemStatus();
+  if (loginItem.status === "enabled" && !settings.value.launchAtLogin) settings.set({ launchAtLogin: true });
+  if (loginItem.status === "disabled" && settings.value.launchAtLogin) settings.set({ launchAtLogin: false });
 
   const store = new SecretStore(join(app.getPath("userData"), "signin.bin"), {
     isAvailable: () => safeStorage.isEncryptionAvailable(),
@@ -98,6 +117,8 @@ async function main(): Promise<void> {
         void startRecording({ title: `${appName} call` }).catch((e) => notifyError("Talk couldn't start", e)),
       isRecording: () => recording.isActive,
       recordingEventId: () => (recording.isActive ? recording.state.calendarEventId : undefined),
+      reminderLeadMs: () => settings.value.reminderLeadMinutes * 60_000,
+      notificationResult: (shown) => probe.notificationResult(shown),
     },
     log,
   );
@@ -117,6 +138,9 @@ async function main(): Promise<void> {
       recording: recording.state,
       calendar: calendar.state,
       updater,
+      settings: settings.value,
+      permissions: probe.snapshot(helper.state.permissions),
+      loginItem,
     };
     return { ...s, tray: trayStateFor(s) };
   };
@@ -133,24 +157,47 @@ async function main(): Promise<void> {
   };
 
   let wasSignedIn = false;
+  /** Call detection runs while signed in, if the setting is on. */
+  const syncDetection = () => void helper.setDetection(wasSignedIn && settings.value.callDetection).catch(() => {});
   auth.on("change", (a) => {
     const signedIn = a.status === "signedIn";
     if (signedIn && !wasSignedIn) {
       void auth.loadMe();
       calendar.start();
-      void helper.setDetection(true).catch(() => {});
+      wasSignedIn = true;
+      syncDetection();
     } else if (!signedIn && wasSignedIn) {
       calendar.stop();
-      void helper.setDetection(false).catch(() => {});
+      wasSignedIn = false;
+      syncDetection();
       if (recording.isActive) void recording.stop().catch(() => {});
     }
     wasSignedIn = signedIn;
     broadcast();
   });
-  helper.on("status", broadcast);
+  let loggedPermissions = "";
+  helper.on("status", (h) => {
+    const key = JSON.stringify(h.permissions ?? null);
+    if (h.permissions && key !== loggedPermissions) {
+      loggedPermissions = key;
+      const p = probe.snapshot(h.permissions);
+      log(`permissions: mic ${p.mic}, systemAudio ${p.systemAudio} (helper: ${h.permissions.systemAudio}), notifications ${p.notifications}`);
+    }
+    broadcast();
+  });
+  probe.on("change", broadcast);
+  settings.on("change", (value, changed) => {
+    log(`settings changed: ${Object.keys(changed).join(", ")}`);
+    if (changed.theme !== undefined) applyTheme(value.theme);
+    if (changed.callDetection !== undefined) syncDetection();
+    if (changed.reminderLeadMinutes !== undefined) calendar.replan();
+    if (changed.launchAtLogin !== undefined) loginItem = applyLoginItem(value.launchAtLogin, log);
+    broadcast();
+  });
   recording.on("change", broadcast);
   calendar.on("change", broadcast);
   helper.on("event", (event) => {
+    probe.observe(event);
     window.send("helper", event);
     if (event.event === "call.started") calendar.callStarted(event.bundleId, event.appName);
     if (event.event === "call.ended") calendar.callEnded(event.bundleId);
@@ -181,6 +228,31 @@ async function main(): Promise<void> {
     "helper:requestPermission": async (kind) => {
       await helper.requestPermission(kind);
     },
+    "permissions:get": async () => {
+      if (helper.state.status === "ready") await helper.refreshPermissions().catch((e) => log(`permissions.status failed: ${errorMessage(e)}`));
+      return probe.snapshot(helper.state.permissions);
+    },
+    "permissions:request": async (kind: PermissionKind) => {
+      if (kind === "notifications") {
+        const shown = await requestNotificationPermission();
+        if (shown !== undefined) probe.notificationResult(shown);
+      } else {
+        await helper.requestPermission(kind);
+      }
+      return probe.snapshot(helper.state.permissions);
+    },
+    "permissions:openSettings": async (pane) => {
+      await shell.openExternal(settingsPaneUrl(pane, isDevFlavor() ? "com.everyapp.talk.dev" : "com.everyapp.talk"));
+    },
+    "settings:get": () => settings.value,
+    "settings:set": (patch) => {
+      settings.set(patch);
+      // The login item may need approval or may fail: report what macOS says.
+      if (patch.launchAtLogin !== undefined && loginItem.status === "disabled" && settings.value.launchAtLogin) {
+        settings.set({ launchAtLogin: false });
+      }
+      return settings.value;
+    },
     "calendar:refresh": () => calendar.refresh(),
     "calendar:connect": async () => {
       const url = calendar.state.connectUrl ?? auth.user?.connectUrl;
@@ -196,7 +268,7 @@ async function main(): Promise<void> {
       if (!base) return;
       await shell.openExternal(meetingId ? `${base}/meetings/${encodeURIComponent(meetingId)}` : base);
     },
-  });
+  }, origin);
 
   // talk://record links (from the web app). Any page can open one: start at once only for an
   // event in our own upcoming list, otherwise ask.

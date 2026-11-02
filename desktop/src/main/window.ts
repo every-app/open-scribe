@@ -1,7 +1,7 @@
 // The main window: hidden-inset title bar, vibrancy, remembers its size and place. Closing it
 // hides it (the app stays in the tray); the Dock icon shows only while it's open.
 
-import { app, BrowserWindow, screen, shell } from "electron";
+import { app, BrowserWindow, screen } from "electron";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -97,11 +97,7 @@ export class MainWindow {
     w.on("closed", () => {
       this.window = undefined;
     });
-    // Links that try to open a window go to the browser (https only); nothing navigates in-app.
-    w.webContents.setWindowOpenHandler(({ url }) => {
-      if (url.startsWith("https://")) void shell.openExternal(url);
-      return { action: "deny" };
-    });
+    // Navigation and window.open are guarded for every webContents in index.ts (navigation.ts).
     if (process.env.ELECTRON_RENDERER_URL && !app.isPackaged) {
       void w.loadURL(process.env.ELECTRON_RENDERER_URL);
     } else {

@@ -5,8 +5,9 @@
 // 1. Builds the app as "Talk Dev" (com.everyapp.talk.dev, talk-dev://), so it never collides with
 //    the SwiftUI ~/Applications/Talk.app (com.everyapp.talk) in TCC, Launch Services or the Keychain.
 // 2. Bundles Contents/MacOS/talk-helper: TALK_HELPER_PATH if set (a built talk-helper binary);
-//    else with TALK_HELPER=real, builds it first with mac/scripts/build-helper.sh (this Mac's arch
-//    only unless TALK_HELPER_ARCHS says otherwise); else a wrapper that runs scripts/fake-helper.mjs.
+//    else, by default, the real one, built first with mac/scripts/build-helper.sh (this Mac's arch
+//    only unless TALK_HELPER_ARCHS says otherwise). The fake helper (a wrapper that runs
+//    scripts/fake-helper.mjs) only on request: TALK_FAKE_HELPER=1 or TALK_HELPER=fake.
 // 3. Signs helper and app with a stable identity: TALK_SIGN_ID, else the self-signed "Scrawl Dev"
 //    if this Mac has it, else ad hoc. A stable identity keeps mic/system-audio grants across
 //    rebuilds. No notarization.
@@ -32,7 +33,9 @@ const HELPER_ID = "com.everyapp.talk.helper";
 // 1–2. Build, with the helper.
 const builderEnv = { TALK_FLAVOR: "dev" };
 let realHelper = false;
-if (!env.TALK_HELPER_PATH && env.TALK_HELPER === "real") {
+const wantFake = env.TALK_FAKE_HELPER === "1" || env.TALK_HELPER === "fake";
+if (!env.TALK_HELPER_PATH && !wantFake) {
+  if (process.platform !== "darwin") throw new Error("The real helper builds only on macOS; set TALK_FAKE_HELPER=1 for the fake one.");
   step("building talk-helper (mac/scripts/build-helper.sh)");
   const script = resolve(root, "..", "mac", "scripts", "build-helper.sh");
   const archs = env.TALK_HELPER_ARCHS ?? (process.arch === "arm64" ? "arm64" : "x86_64");
@@ -58,7 +61,7 @@ if (env.TALK_HELPER_PATH) {
   chmodSync(wrapper, 0o755);
   builderEnv.TALK_HELPER_BINARY = wrapper;
   builderEnv.TALK_FAKE_HELPER = "1";
-  step("bundling the fake helper (set TALK_HELPER_PATH to bundle the real one)");
+  step("bundling the fake helper (TALK_FAKE_HELPER=1 / TALK_HELPER=fake)");
 }
 
 step("electron-vite build");
@@ -131,7 +134,7 @@ if (env.TALK_NO_LAUNCH === "1") {
 } else {
   // `open` hands its environment to the app; keep build-time variables out of it.
   const launchEnv = { ...env };
-  for (const k of ["TALK_HELPER_PATH", "TALK_HELPER", "TALK_HELPER_ARCHS", "TALK_DEV_TOKEN", "TALK_DEV_APP_URL"]) delete launchEnv[k];
+  for (const k of ["TALK_HELPER_PATH", "TALK_HELPER", "TALK_FAKE_HELPER", "TALK_HELPER_ARCHS", "TALK_DEV_TOKEN", "TALK_DEV_APP_URL"]) delete launchEnv[k];
   run("open", [target], { env: launchEnv });
   console.log(`\nLaunched ${target}.`);
 }

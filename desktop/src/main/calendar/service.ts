@@ -19,6 +19,10 @@ export interface PromptHandlers {
   recordCall(appName: string): void;
   isRecording(): boolean;
   recordingEventId(): string | undefined;
+  /** How long before a meeting its reminder comes (the setting). Default one minute. */
+  reminderLeadMs?(): number;
+  /** A notification was shown (true) or macOS refused it (false). */
+  notificationResult?(shown: boolean): void;
 }
 
 const formatTime = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -105,10 +109,18 @@ export class CalendarService extends EventEmitter<{ change: [CalendarSnapshot] }
     }
   }
 
+  /** The lead time changed: drop the scheduled prompts and plan again. Prompts already delivered
+   * stay delivered. */
+  replan(): void {
+    for (const t of this.scheduled.values()) clearTimeout(t);
+    this.scheduled.clear();
+    if (this.running) this.reconcile();
+  }
+
   /** Makes the scheduled prompts match the upcoming events. */
   private reconcile(): void {
     const events = this.snapshot.connected ? this.snapshot.events : [];
-    const plan = planReminders(events, Date.now(), this.delivered, this.handlers.recordingEventId());
+    const plan = planReminders(events, Date.now(), this.delivered, this.handlers.recordingEventId(), this.handlers.reminderLeadMs?.());
     const wanted = new Set(plan.map((r) => r.id));
     for (const [id, timer] of this.scheduled) {
       if (!wanted.has(id)) {
@@ -182,6 +194,8 @@ export class CalendarService extends EventEmitter<{ change: [CalendarSnapshot] }
       actions: o.actions.map((text) => ({ type: "button" as const, text })),
     });
     n.on("click", () => o.onAction(0));
+    n.on("show", () => this.handlers.notificationResult?.(true));
+    n.on("failed", () => this.handlers.notificationResult?.(false));
     n.on("action", (details) => o.onAction(details.actionIndex));
     n.on("close", () => {
       if (this.shown.get(id) === n) this.shown.delete(id);

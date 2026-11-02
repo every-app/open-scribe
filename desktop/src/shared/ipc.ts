@@ -6,6 +6,50 @@ import type { CalendarEvent, Me, MeetingDetail, MeetingPatch, MeetingSummary } f
 
 export type TrayState = "idle" | "recording" | "attention";
 
+export type ThemePreference = "system" | "light" | "dark";
+
+/** The app's settings, kept by main in userData/settings.json. */
+export interface Settings {
+  /** Open Talk when you log in (a macOS login item). */
+  launchAtLogin: boolean;
+  /** Ask "Record this call?" when a call app starts using the mic (the helper's `detect.set`). */
+  callDetection: boolean;
+  /** How many minutes before a meeting the reminder comes, 0–30. */
+  reminderLeadMinutes: number;
+  /** Applied as nativeTheme.themeSource, so prefers-color-scheme follows it. */
+  theme: ThemePreference;
+}
+
+export type SettingsPatch = Partial<Settings>;
+
+export const DEFAULT_SETTINGS: Settings = {
+  launchAtLogin: false,
+  callDetection: true,
+  reminderLeadMinutes: 1,
+  theme: "system",
+};
+
+export const MAX_REMINDER_LEAD_MINUTES = 30;
+
+/** "verified": a system-audio tap has delivered sound at least once. macOS has no API to read this
+ * permission, so the helper answers "unknown" until then. */
+export type SystemAudioStatus = "granted" | "denied" | "undetermined" | "verified" | "unknown";
+
+export interface PermissionsSnapshot {
+  mic: PermissionStatus;
+  systemAudio: SystemAudioStatus;
+  /** "granted" or "denied" once a notification has been shown or refused; "unknown" before. */
+  notifications: PermissionStatus;
+}
+
+export type PermissionKind = "mic" | "systemAudio" | "notifications";
+
+export interface LoginItemSnapshot {
+  /** "requiresApproval": macOS wants the person to allow it in System Settings → General → Login
+   * Items. "unsupported": an unpackaged dev run, which macOS won't register. */
+  status: "enabled" | "disabled" | "requiresApproval" | "unsupported";
+}
+
 export interface AuthSnapshot {
   status: "signedOut" | "signingIn" | "signedIn";
   method?: "oauth" | "token";
@@ -36,6 +80,9 @@ export interface RecordingSnapshot {
   mode?: "realtime" | "fallback";
   mic?: ChannelHealth;
   system?: ChannelHealth;
+  /** Something the person should know that doesn't stop the recording (e.g. the fallback upload
+   * fell behind and dropped some audio: helper error `fallback_backlog`). */
+  warning?: string;
   /** The live transcript's last finished line. */
   lastLine?: string;
   error?: string;
@@ -57,6 +104,9 @@ export interface AppSnapshot {
   calendar: CalendarSnapshot;
   tray: TrayState;
   updater: { enabled: boolean; status?: string };
+  settings: Settings;
+  permissions: PermissionsSnapshot;
+  loginItem: LoginItemSnapshot;
 }
 
 export interface StartRecordingRequest {
@@ -75,7 +125,13 @@ export interface InvokeMap {
   "auth:signOut": [[], void];
   "recording:start": [[request: StartRecordingRequest], void];
   "recording:stop": [[], void];
+  /** @deprecated use "permissions:request". */
   "helper:requestPermission": [[kind: "mic" | "systemAudio"], void];
+  "permissions:get": [[], PermissionsSnapshot];
+  "permissions:request": [[kind: PermissionKind], PermissionsSnapshot];
+  "permissions:openSettings": [[pane: PermissionKind], void];
+  "settings:get": [[], Settings];
+  "settings:set": [[patch: SettingsPatch], Settings];
   "calendar:refresh": [[], void];
   "calendar:connect": [[], void];
   "api:me": [[], Me];
@@ -119,6 +175,11 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   "recording:start",
   "recording:stop",
   "helper:requestPermission",
+  "permissions:get",
+  "permissions:request",
+  "permissions:openSettings",
+  "settings:get",
+  "settings:set",
   "calendar:refresh",
   "calendar:connect",
   "api:me",

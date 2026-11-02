@@ -161,6 +161,42 @@ describe("recording against the fake helper and fake server", () => {
     expect(recording.state.state).toBe("idle");
   });
 
+  it("treats a stop during start as cancelled: no error, no /finish", async () => {
+    const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
+    await auth.signInWithToken(fake.origin, "epat_good");
+    const { s } = make({ FAKE_HELPER_START_DELAY_MS: "1000" });
+    const logs: string[] = [];
+    const recording = new RecordingController(auth, s, (...p) => logs.push(p.join(" ")));
+    s.start();
+    await ready(s);
+    const starting = recording.start({ title: "Quick" });
+    await until(() => (recording.state.meetingId && fake.requests.some((r) => r.path.endsWith("/meetings")) ? true : undefined));
+    await new Promise((r) => setTimeout(r, 100));
+    await recording.stop();
+    await expect(starting).resolves.toBeUndefined();
+    expect(recording.state).toEqual({ state: "idle" });
+    expect(logs.join("\n")).toMatch(/cancelled/);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(fake.finished).toEqual([]);
+    expect(s.state.status).toBe("ready");
+  });
+
+  it("surfaces fallback_backlog as a warning and keeps recording", async () => {
+    const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
+    await auth.signInWithToken(fake.origin, "epat_good");
+    const { s } = make();
+    const recording = new RecordingController(auth, s);
+    s.start();
+    await ready(s);
+    await recording.start({ title: "Slow network" });
+    await s.request("debug.emit" as never, { event: "error", code: "fallback_backlog", message: "Dropped 40 s of audio.", fatal: false } as never);
+    await until(() => recording.state.warning);
+    expect(recording.state).toMatchObject({ state: "recording", warning: "Dropped 40 s of audio." });
+    expect(recording.state.error).toBeUndefined();
+    await recording.stop();
+    expect(recording.state.warning).toBeUndefined();
+  });
+
   it("finishes the meeting when the helper crashes mid-recording", async () => {
     const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
     await auth.signInWithToken(fake.origin, "epat_good");

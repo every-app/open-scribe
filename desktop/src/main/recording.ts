@@ -72,6 +72,13 @@ export class RecordingController extends EventEmitter<{ change: [RecordingSnapsh
       this.set({ state: "recording", startedAt });
       this.log(`recording ${meetingId}`);
     } catch (error) {
+      // Stopped while still starting: a normal outcome. Nothing was captured; the helper doesn't
+      // /finish, and neither do we.
+      if (error instanceof HelperRequestError && error.code === "cancelled") {
+        this.log(`start of ${meetingId ?? "a meeting"} cancelled by a stop`);
+        this.set({ state: "idle" }, true);
+        return;
+      }
       this.auth.handleError(error);
       this.set({ state: "idle", error: errorMessage(error) }, true);
       // A meeting with no recording behind it: finish it so it doesn't stay "recording".
@@ -84,8 +91,8 @@ export class RecordingController extends EventEmitter<{ change: [RecordingSnapsh
     if (this.snapshot.state !== "recording" && this.snapshot.state !== "starting") return;
     this.set({ state: "stopping" });
     try {
-      const { segments } = await this.helper.request("record.stop");
-      this.log(`stopped; ${segments} segments`);
+      const { segments, cancelled } = await this.helper.request("record.stop");
+      this.log(cancelled ? "stopped before the recording started (cancelled)" : `stopped; ${segments} segments`);
       this.set({ state: "idle", error: undefined }, true);
     } catch (error) {
       // Already stopped on its own: nothing to do.
@@ -119,6 +126,8 @@ export class RecordingController extends EventEmitter<{ change: [RecordingSnapsh
       case "error":
         // save_failed: segments didn't reach the Worker (the helper retries); say so.
         if (event.fatal || event.code === "save_failed") this.set({ error: event.message });
+        // fallback_backlog: the chunked fallback fell behind and dropped some audio; keep going.
+        else if (event.code === "fallback_backlog") this.set({ warning: event.message });
         break;
     }
   }

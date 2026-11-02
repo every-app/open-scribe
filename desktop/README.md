@@ -1,14 +1,15 @@
 # Talk for Mac (Electron)
 
-The desktop app from [docs/desktop-plan.md](../docs/desktop-plan.md): an Electron shell (tray, window, sign-in, calendar prompts, updates) that runs the Swift `talk-helper` for audio and transcription. Electron 45, electron-vite, React 19, Tailwind 4, TanStack Query, electron-builder. This package stands on its own (`pnpm install` here); it doesn't touch `web/`.
+The desktop app from [docs/desktop-plan.md](../docs/desktop-plan.md): an Electron shell (tray, window, sign-in, calendar prompts, updates) that runs the Swift `talk-helper` for audio and transcription. Electron 45, electron-vite, React 19, Tailwind 4, TanStack Query, electron-builder. It's part of the root pnpm workspace (with `packages/ui`); `web/` keeps its own lockfile for now.
 
 ```sh
 pnpm install
 pnpm dev              # electron-vite dev, with the fake helper unless TALK_HELPER_PATH is set
-pnpm test             # vitest: PKCE, discovery, redirect parser, refresh/rotation, Access, supervisor…
+pnpm test             # vitest: PKCE, discovery, redirect parser, refresh/rotation, Access, supervisor, settings, navigation guard, permission probe…
 pnpm typecheck
-pnpm package          # an unsigned (ad hoc) release-flavor .app in dist/release/, to prove it packages
-pnpm package:local    # "Talk Dev": build, sign with a stable local identity, install, launch (below)
+pnpm package          # an unsigned (ad hoc) release-flavor .app in dist/release/, with the universal helper
+pnpm icons            # redraws the app icon (build/icon.icns) and tray icons (macOS: sips, iconutil)
+pnpm package:local    # "Talk Dev" with the real helper: build, sign locally, install, launch (below)
 pnpm dist             # release DMG + zip (universal), signed and notarized from env (below)
 ```
 
@@ -28,12 +29,15 @@ main (Node) ──────────────────────�
   tray, window, updater, ipc (validated), log (~/Library/Logs/<app>/main.log)
 ```
 
-- The **renderer** gets data only through `window.talk` (`src/shared/ipc.ts`): one typed function per channel, plus `on("state" | "helper")`. Main checks that every call comes from our own page and validates its arguments. Context isolation, the sandbox and `default-src 'none'` CSP are on; navigation, new windows, webviews and device permissions are refused. `src/renderer/src/App.tsx` is a placeholder that proves the bridge; Lane UI builds the real screens (TanStack Router goes in `main.tsx` beside the QueryClient already there).
+- The **renderer** gets data only through `window.talk` (`src/shared/ipc.ts`): one typed function per channel, plus `on("state" | "helper")`. Main checks that every call comes from our own page and validates its arguments. Context isolation, the sandbox and `default-src 'none'` CSP are on; webviews and device permissions are refused. `src/main/navigation.ts` guards every webContents: `will-navigate` and `will-redirect` allow only our own page (the bundled `index.html`, or the dev server's origin unpackaged), an https link the page navigates to or `window.open`s goes to the browser, and nothing else is opened. IPC calls are accepted only from that same page, and each channel's arguments are checked in `src/main/ipcValidation.ts`. `src/renderer/src/App.tsx` is a placeholder that proves the bridge; Lane UI builds the real screens (TanStack Router goes in `main.tsx` beside the QueryClient already there).
 - **The helper** speaks [helper protocol v1](../docs/desktop-plan.md#helper-protocol-v1), typed in `src/shared/protocol.ts`. The supervisor says `hello` and refuses another protocol number. It restarts a crashed helper with backoff (1 s, doubling, up to 30 s, reset after 60 s up), answers `token.needed` with `token.update` and a freshly refreshed token, re-sends `detect.set` after a restart, and forwards every event to the renderer. On quit it stops a recording first, then closes the helper's stdin and gives it 10 s (SIGTERM), then SIGKILL after 60 s.
   - Where it is: always the bundled `Contents/MacOS/talk-helper` when packaged (the signature and TCC cover that copy). Unpackaged (`pnpm dev`) it's `TALK_HELPER_PATH`, else `scripts/fake-helper.mjs`. A `.js`/`.mjs` path runs with Electron as Node.
   - `scripts/fake-helper.mjs` implements the protocol without audio. It fakes a transcript, and like the real helper it posts segments to `{apiBase}/api/v1/meetings/:id/segments` and calls `/finish` on stop, so a fake recording against `everyapp dev` leaves a real meeting behind. Its `FAKE_HELPER_*` knobs (crash, call detection, token.needed, mic denied, protocol number) are listed at the top of the file.
 - **Sign-in** is a port of `mac/Sources/TalkCore`: RFC 9728 discovery on the app, then RFC 8414 on the Gateway (`issuer` must match), dynamic registration once per install (re-registered on `invalid_client` or after 50 days unused), PKCE S256, the system browser, a loopback listener on `127.0.0.1:<ephemeral>/callback` that checks `state` and `iss`, and `resource` on authorize/token/refresh with no `scope`. A rotated refresh token is stored before the new access token is used, and concurrent refreshes share one request. `invalid_grant` means signed out. Sign-out revokes the refresh token. The fallback is the app URL plus a personal access token, checked with `/me` before it's kept. If Cloudflare Access answers instead of the app, the app says "Gateway requires Sign in with Every App" and doesn't sign you out.
-- **Reminders**: the app polls `/api/v1/calendar/upcoming` every 5 minutes and on wake. One minute before each event that has other attendees or a call link, it shows a notification with "Join & take notes" (when there's a link) and "Take notes". A meeting that started without notes gets one nudge in its first 5 minutes. The helper's `call.started` brings up "Record this call?". Nothing ever records without a click.
+- **Settings** (`src/main/settings.ts`, `userData/settings.json`): launch at login (`app.setLoginItemSettings`, the SMAppService main-app item; what macOS reports wins at launch, and `loginItem.status` on the snapshot says `requiresApproval` when it wants approval in System Settings, `unsupported` unpackaged), call detection (sends `detect.set` while signed in), the reminder lead time (0–30 min, default 1) and the theme (`nativeTheme.themeSource`). The renderer uses `settings:get` / `settings:set`; every patch is validated in main.
+- **Permissions**: `permissions:get` / `permissions:request` / `permissions:openSettings` for `mic`, `systemAudio` and `notifications`. Mic and system audio go through the helper (`permissions.status`, `permissions.request`). macOS can't report the system-audio grant, so `src/main/permissions.ts` watches the helper's `levels`: the first sound on the system channel marks it **verified** (remembered in `userData/permissions.json`); until then it's `unknown`. Notifications: asking shows one notification (macOS prompts the first time); Electron's `show` / `failed` events, from that and from every reminder, record `granted` / `denied`. Statuses are logged to main.log whenever they change.
+- **Recording outcomes**: a stop while `record.start` is still starting is a normal cancel: the helper answers stop with `{ segments: 0, cancelled: true }` and start with error `cancelled`; the app goes back to idle with no error and doesn't `/finish`. The non-fatal helper error `fallback_backlog` (the fallback upload fell behind and dropped audio) shows as `recording.warning` (and in the tray menu) while the recording goes on.
+- **Reminders**: the app polls `/api/v1/calendar/upcoming` every 5 minutes and on wake. The lead time (default one minute) before each event that has other attendees or a call link, it shows a notification with "Join & take notes" (when there's a link) and "Take notes". A meeting that started without notes gets one nudge in its first 5 minutes. The helper's `call.started` brings up "Record this call?". Nothing ever records without a click.
 - **`talk://record?event=…&title=…&start=…&join=1`** (`talk-dev://` in dev builds): it starts at once only for an event in the app's own upcoming list. Anything else asks first, and the app never opens a link taken from the URL.
 
 ## Where tokens live
@@ -54,7 +58,7 @@ The cost: a build signed without a Team ID (ad hoc, or a self-signed cert like "
 `pnpm package:local` makes **Talk Dev**, a real packaged app (not `electron .`) for clicking through by hand or with a computer-use agent:
 
 - Bundle id `com.everyapp.talk.dev`, product name "Talk Dev", URL scheme `talk-dev://`, its own userData, logs and Keychain item. It never collides with the SwiftUI `~/Applications/Talk.app` (`com.everyapp.talk`) in TCC, Launch Services or the Keychain. Release builds keep `com.everyapp.talk` and `talk://`.
-- Helper: **`TALK_HELPER=real`** builds the real one with `mac/scripts/build-helper.sh` (this Mac's arch only, unless `TALK_HELPER_ARCHS` says otherwise) and bundles it. `TALK_HELPER_PATH=<binary>` bundles one you already built (e.g. `../mac/.build/helper/talk-helper`). Neither set: a small wrapper runs the fake helper with Electron as Node. The bundled helper is re-signed with the app's identity, keeping its own entitlements and identifier (`com.everyapp.talk.helper`).
+- Helper: **the real one by default**, built with `mac/scripts/build-helper.sh` for this Mac's arch only (`TALK_HELPER_ARCHS` overrides it). `TALK_HELPER_PATH=<binary>` bundles one you already built (e.g. `../mac/.build/helper/talk-helper`). The fake helper only on request: `TALK_FAKE_HELPER=1` (or `TALK_HELPER=fake`) bundles a small wrapper that runs it with Electron as Node. The bundled helper is re-signed with the app's identity, keeping its own entitlements and identifier (`com.everyapp.talk.helper`).
 - Signing: `TALK_SIGN_ID`, else the self-signed **"Scrawl Dev"** cert if this Mac has it (`security find-identity -v -p codesigning`), else ad hoc. Hardened runtime and `entitlements.dev.plist`. The helper keeps identifier `com.everyapp.talk.helper`. No notarization.
 - It installs to `~/Applications/Talk Dev.app` (quitting a running copy first) and launches it. `TALK_NO_LAUNCH=1` skips the launch.
 
@@ -67,8 +71,8 @@ The cost: a build signed without a Team ID (ad hoc, or a self-signed cert like "
 ```sh
 # in web/: everyapp dev  (seed it as you like), then here:
 TALK_DEV_APP_URL=http://talk.localhost:8787 TALK_DEV_TOKEN=dev pnpm package:local
-# the same with the real Swift helper:
-TALK_HELPER=real TALK_DEV_APP_URL=http://talk.localhost:8787 TALK_DEV_TOKEN=dev pnpm package:local
+# the same with the fake helper (no audio, a made-up transcript):
+TALK_FAKE_HELPER=1 TALK_DEV_APP_URL=http://talk.localhost:8787 TALK_DEV_TOKEN=dev pnpm package:local
 # or, unpackaged:
 TALK_DEV_APP_URL=http://talk.localhost:8787 TALK_DEV_TOKEN=dev pnpm dev
 ```
@@ -83,19 +87,19 @@ TALK_DEV_APP_URL=http://talk.localhost:8787 TALK_DEV_TOKEN=dev pnpm dev
 | --- | --- |
 | Signing identity | `CSC_NAME` (a Keychain identity, e.g. "Developer ID Application: …") or `CSC_LINK` + `CSC_KEY_PASSWORD` (a .p12). None set: ad hoc. |
 | Notarization | `APPLE_API_KEY` + `APPLE_API_KEY_ID` + `APPLE_API_ISSUER`, or `APPLE_ID` + `APPLE_APP_SPECIFIC_PASSWORD` + `APPLE_TEAM_ID`. Only with a signing identity. None set: skipped. |
-| Helper | `TALK_HELPER_BINARY`, else `../mac/.build/helper/talk-helper` if it exists. electron-builder re-signs it with the app's identity. |
+| Helper | Always the real, universal one: `scripts/release-helper.mjs` checks `TALK_HELPER_BINARY` or builds `../mac/.build/helper/talk-helper` for arm64 + x86_64, and the builder config refuses a release with a missing or single-arch helper. electron-builder re-signs it with the app's identity. |
 | Update feed | `TALK_UPDATE_URL` (generic provider). Unset: no `app-update.yml` is written and electron-updater stays off. |
 
-The DMG and zip are universal (arm64 + x64), with the hardened runtime and `build/entitlements.mac.plist` (JIT, unsigned executable memory, `com.apple.security.device.audio-input`). Info.plist carries `NSMicrophoneUsageDescription` and `NSAudioCaptureUsageDescription` (TCC charges the helper's capture to Talk.app), `talk://` and macOS 15 as the minimum. Release fuses turn off RunAsNode, `NODE_OPTIONS` and the inspector flags, and turn on asar integrity and asar-only loading. There's no app icon yet (the default Electron icon is used).
+The DMG and zip are universal (arm64 + x64), with the hardened runtime and `build/entitlements.mac.plist` (JIT, unsigned executable memory, `com.apple.security.device.audio-input`). Info.plist carries `NSMicrophoneUsageDescription` and `NSAudioCaptureUsageDescription` (TCC charges the helper's capture to Talk.app), `talk://` and macOS 15 as the minimum. Release fuses turn off RunAsNode, `NODE_OPTIONS` and the inspector flags, and turn on asar integrity and asar-only loading. The app icon is `build/icon.icns`, drawn from `build/icon.svg` by `pnpm icons`.
 
 ## Files
 
 | Path | What |
 | --- | --- |
 | `src/shared/` | `protocol.ts` (helper protocol v1), `ipc.ts` (the bridge's types), `api.ts` (API shapes + lenient decoders) |
-| `src/main/` | `index.ts` (wiring), `auth/`, `api/`, `helper/`, `calendar/`, `recording.ts`, `tray.ts`, `window.ts`, `updater.ts`, `ipc.ts`, `config.ts`, `log.ts` |
+| `src/main/` | `index.ts` (wiring), `auth/`, `api/`, `helper/`, `calendar/`, `recording.ts`, `tray.ts`, `window.ts`, `updater.ts`, `ipc.ts` + `ipcValidation.ts`, `navigation.ts`, `settings.ts`, `permissions.ts`, `system.ts` (login item, theme, System Settings links, notification permission), `config.ts`, `log.ts` |
 | `src/preload/` | the `window.talk` bridge |
 | `src/renderer/` | the placeholder UI |
-| `scripts/` | `fake-helper.mjs`, `package-local.mjs`, `make-tray-icons.mjs` (draws `resources/tray/*.png`) |
-| `build/` | entitlements |
+| `scripts/` | `fake-helper.mjs`, `package-local.mjs`, `release-helper.mjs` (the universal helper for releases), `make-icons.mjs` (draws `build/icon.{svg,icns}` and `resources/tray/*Template.png`) |
+| `build/` | entitlements, the app icon |
 | `test/` | vitest suites and `fakeServer.ts` (a fake Talk app + Gateway) |

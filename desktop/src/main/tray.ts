@@ -1,4 +1,5 @@
-// The menu-bar icon: idle (waveform), recording (red dot), needs attention (orange dot), and a
+// The menu-bar icon: idle (waveform), recording (filled square with the waveform cut out), needs
+// attention (waveform with a dot), all template images drawn by scripts/make-icons.mjs, and a
 // menu with Open Talk, Start recording, Stop, Quit.
 
 import { app, Menu, nativeImage, Tray, type NativeImage } from "electron";
@@ -34,7 +35,7 @@ export class TrayController {
   constructor(private readonly actions: TrayActions) {}
 
   create(): void {
-    this.icons = { idle: icon("idleTemplate"), recording: icon("recording"), attention: icon("attention") };
+    this.icons = { idle: icon("idleTemplate"), recording: icon("recordingTemplate"), attention: icon("attentionTemplate") };
     this.tray = new Tray(this.icons.idle);
     this.tray.setToolTip("Talk");
   }
@@ -42,7 +43,7 @@ export class TrayController {
   update(s: AppSnapshot): void {
     const tray = this.tray;
     if (!tray || !this.icons) return;
-    const key = JSON.stringify([s.tray, s.auth.status, s.auth.email, s.recording.state, s.recording.title, s.recording.lastLine, s.recording.error, s.helper.status]);
+    const key = JSON.stringify([s.tray, s.auth.status, s.auth.email, s.recording.state, s.recording.title, s.recording.lastLine, s.recording.warning, s.recording.error, s.helper.status]);
     if (key === this.lastKey) return;
     this.lastKey = key;
     tray.setImage(this.icons[s.tray]);
@@ -52,6 +53,7 @@ export class TrayController {
     const items: Electron.MenuItemConstructorOptions[] = [];
     if (busy) {
       items.push({ label: r.state === "recording" ? `● Recording: ${r.title ?? ""}` : r.state === "starting" ? "Starting…" : "Saving…", enabled: false });
+      if (r.warning) items.push({ label: `⚠ ${truncate(r.warning, 58)}`, enabled: false });
       if (r.lastLine) items.push({ label: truncate(r.lastLine, 60), enabled: false });
     } else if (r.error) {
       items.push({ label: truncate(r.error, 60), enabled: false });

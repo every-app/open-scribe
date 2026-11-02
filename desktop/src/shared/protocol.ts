@@ -22,7 +22,9 @@ export interface HelperCommands {
     params: { meetingId: string; apiBase: string; accessToken: string; language?: string };
     result: { startedAt: string };
   };
-  "record.stop": { params: undefined; result: { segments: number } };
+  /** `cancelled`: the stop came while record.start was still starting; nothing was captured and
+   * the start answers error `cancelled`. */
+  "record.stop": { params: undefined; result: { segments: number; cancelled?: boolean } };
   "token.update": { params: { accessToken: string }; result: Record<string, never> };
   "detect.set": { params: { enabled: boolean }; result: Record<string, never> };
 }

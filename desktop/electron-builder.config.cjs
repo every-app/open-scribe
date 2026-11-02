@@ -24,6 +24,14 @@ const defaultHelper = resolve(__dirname, "..", "mac", ".build", "helper", "talk-
 const helper = env.TALK_HELPER_BINARY || (existsSync(defaultHelper) ? defaultHelper : undefined);
 if (helper && !existsSync(helper)) throw new Error(`TALK_HELPER_BINARY not found: ${helper}`);
 if (!helper) console.warn("electron-builder: no talk-helper to bundle; the app will say the recorder isn't installed.");
+// A release ships the real universal helper (scripts/release-helper.mjs builds it). Refuse anything else.
+if (!dev && process.platform === "darwin") {
+  if (!helper) throw new Error("A release build needs the real talk-helper: run it through `pnpm package` / `pnpm dist`.");
+  const archs = require("node:child_process").execFileSync("lipo", ["-archs", helper], { encoding: "utf8" }).trim().split(/\s+/);
+  if (!archs.includes("arm64") || !archs.includes("x86_64")) {
+    throw new Error(`The release talk-helper must be universal (arm64 + x86_64); ${helper} has ${archs.join(", ")}.`);
+  }
+}
 
 const hasSigningIdentity = !!(env.CSC_NAME || env.CSC_LINK);
 const canNotarize = !!(
@@ -58,6 +66,7 @@ module.exports = {
       },
   mac: {
     category: "public.app-category.productivity",
+    icon: join("build", "icon.icns"),
     minimumSystemVersion: "15.0",
     target: dev
       ? [{ target: "dir" }]

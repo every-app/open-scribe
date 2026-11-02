@@ -14,6 +14,8 @@
 //   FAKE_HELPER_LINE_MS=n         a transcript line every n ms (default 4000)
 //   FAKE_HELPER_NO_POST=1         don't call the API
 //   FAKE_HELPER_MIC=granted|denied|undetermined (default granted)
+//   FAKE_HELPER_START_DELAY_MS=n  record.start takes n ms; a record.stop meanwhile cancels it (stop
+//                                 answers { segments: 0, cancelled: true }, start errors `cancelled`)
 // Non-protocol extra, for tests only: {"id", "cmd": "debug.emit", "params": {event...}} echoes an event.
 
 import { createInterface } from "node:readline";
@@ -31,6 +33,7 @@ const event = (name, fields = {}) => send({ event: name, ...fields });
 const permissions = { mic: env.FAKE_HELPER_MIC ?? "granted", systemAudio: "unknown" };
 let rec; // { meetingId, apiBase, token, startedAt, seq, pending: [], timers: [] }
 let detectTimers = [];
+let starting; // { cancel() } while record.start waits out FAKE_HELPER_START_DELAY_MS
 
 const LINES = {
   me: ["Thanks everyone for joining.", "Let's go through the launch plan.", "I'll send the notes after this.", "Any blockers on your side?"],
@@ -126,13 +129,28 @@ const handlers = {
     if (p?.kind === "mic" && permissions.mic === "undetermined") permissions.mic = "granted";
     return { ...permissions };
   },
-  "record.start": (p) => {
-    if (rec) throw { code: "already_recording", message: "Already recording." };
+  "record.start": async (p) => {
+    if (rec || starting) throw { code: "already_recording", message: "Already recording." };
     if (!p?.meetingId || !p?.apiBase || !p?.accessToken) throw { code: "bad_params", message: "meetingId, apiBase and accessToken are required." };
     if (permissions.mic === "denied") throw { code: "mic_denied", message: "Microphone access is off for Talk." };
+    const delay = num("FAKE_HELPER_START_DELAY_MS", 0);
+    if (delay > 0) {
+      const cancelled = await new Promise((resolve) => {
+        const timer = setTimeout(() => resolve(false), delay);
+        starting = { cancel: () => (clearTimeout(timer), resolve(true)) };
+      });
+      starting = undefined;
+      if (cancelled) throw { code: "cancelled", message: "Stopped before the recording started." };
+    }
     return startRecording(p);
   },
-  "record.stop": () => stopRecording(),
+  "record.stop": () => {
+    if (starting) {
+      starting.cancel();
+      return { segments: 0, cancelled: true };
+    }
+    return stopRecording();
+  },
   "token.update": (p) => {
     if (rec && p?.accessToken) rec.token = p.accessToken;
     return {};

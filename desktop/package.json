@@ -13,10 +13,10 @@
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
-    "package": "electron-vite build && electron-builder --config electron-builder.config.cjs --mac --dir",
+    "package": "node scripts/release-helper.mjs && electron-vite build && electron-builder --config electron-builder.config.cjs --mac --dir",
     "package:local": "node scripts/package-local.mjs",
-    "dist": "electron-vite build && electron-builder --config electron-builder.config.cjs --mac",
-    "icons:tray": "node scripts/make-tray-icons.mjs"
+    "dist": "node scripts/release-helper.mjs && electron-vite build && electron-builder --config electron-builder.config.cjs --mac",
+    "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {
     "electron-updater": "^6.8.11"
