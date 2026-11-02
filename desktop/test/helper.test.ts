@@ -291,6 +291,48 @@ describe("recording against the fake helper and fake server", () => {
     expect(recording.state.state).toBe("idle");
   });
 
+  it("keeps the turn still being spoken on stop: its text so far, posted before /finish, counted", async () => {
+    const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
+    await auth.signInWithToken(fake.origin, "epat_good");
+    // The first line starts after 1.5 s and its words arrive 300 ms apart, so it's open from 1.5
+    // to 2.7 s, and no second line starts before the stop.
+    const { s, logs } = make({ FAKE_HELPER_LINE_MS: "1500", FAKE_HELPER_WORD_MS: "300" });
+    const events: HelperEvent[] = [];
+    s.on("event", (e) => events.push(e));
+    const recording = new RecordingController(auth, s, (...p) => logs.push(p.join(" ")));
+    s.start();
+    await ready(s);
+    await recording.start({ title: "Cut mid-sentence" });
+    const meetingId = recording.state.meetingId!;
+    await until(() => events.some((e) => e.event === "transcript.delta" && e.text.split(" ").length >= 2) || undefined);
+    expect(events.some((e) => e.event === "transcript.segment")).toBe(false); // the turn is still open
+    await recording.stop();
+    const lastDelta = events.filter((e): e is Extract<HelperEvent, { event: "transcript.delta" }> => e.event === "transcript.delta").at(-1)!;
+    const segments = events.filter((e): e is Extract<HelperEvent, { event: "transcript.segment" }> => e.event === "transcript.segment");
+    expect(segments).toHaveLength(1);
+    expect(segments[0]!.text).toBe(lastDelta.text); // the text so far, not the whole scripted line
+    expect(segments[0]!.text).not.toBe("Thanks everyone for joining.");
+    // Posted, then /finish, and counted in the stop's result.
+    expect((fake.segments.get(meetingId) ?? []).map((x) => (x as { text: string }).text)).toEqual([lastDelta.text]);
+    const paths = fake.requests.map((r) => r.path);
+    expect(paths.lastIndexOf(`/api/v1/meetings/${meetingId}/finish`)).toBeGreaterThan(paths.lastIndexOf(`/api/v1/meetings/${meetingId}/segments`));
+    expect(logs.join("\n")).toMatch(/stopped; 1 segments/);
+  });
+
+  it("a turn with no words yet leaves nothing behind on stop", async () => {
+    const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
+    await auth.signInWithToken(fake.origin, "epat_good");
+    const { s } = make({ FAKE_HELPER_LINE_MS: "60000" });
+    const events: HelperEvent[] = [];
+    s.on("event", (e) => events.push(e));
+    const recording = new RecordingController(auth, s);
+    s.start();
+    await ready(s);
+    await recording.start({ title: "Silent" });
+    await recording.stop();
+    expect(events.some((e) => e.event === "transcript.segment")).toBe(false);
+  });
+
   it("surfaces fallback_backlog as a warning and keeps recording", async () => {
     const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
     await auth.signInWithToken(fake.origin, "epat_good");

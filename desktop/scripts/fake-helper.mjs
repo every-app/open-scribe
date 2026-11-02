@@ -7,7 +7,9 @@
 // and on stop) with the bearer it was given and calls `/finish` on stop. A failed post keeps the
 // segments for the next try. A stop that still can't post them hands them back as `unsaved`
 // (`finished: false`, no /finish), as the real helper does. So against `everyapp dev` a fake
-// recording leaves a real meeting behind.
+// recording leaves a real meeting behind. On stop, a turn still being spoken is kept like the
+// real helper does (#54): its text so far becomes one last transcript.segment, posted before
+// /finish and counted in `segments`.
 //
 // Knobs (env):
 //   FAKE_HELPER_PROTOCOL=n        answer hello with another protocol number
@@ -15,6 +17,8 @@
 //   FAKE_HELPER_CALL_AFTER_MS=n   with detection on, emit call.started after n ms (call.ended 2n)
 //   FAKE_HELPER_TOKEN_NEEDED_MS=n while recording, emit token.needed every n ms
 //   FAKE_HELPER_LINE_MS=n         a transcript line every n ms (default 4000)
+//   FAKE_HELPER_WORD_MS=n         each word of a line arrives as a delta n ms apart (default 60);
+//                                 the finished segment follows the last word
 //   FAKE_HELPER_BURST_FILE=path   while this file exists, a line every 20 ms (a rate switch a
 //                                 test can flip mid-recording to pile up a backlog quickly)
 //   FAKE_HELPER_NO_POST=1         don't call the API
@@ -36,6 +40,7 @@ const env = process.env;
 const num = (name, fallback) => (env[name] ? Number(env[name]) : fallback);
 const PROTOCOL = num("FAKE_HELPER_PROTOCOL", 1);
 const LINE_MS = num("FAKE_HELPER_LINE_MS", 4000);
+const WORD_MS = num("FAKE_HELPER_WORD_MS", 60);
 const POST = env.FAKE_HELPER_NO_POST !== "1";
 /** The most segments in one POST: the Worker binds each segment's fields as SQL variables. */
 const SEGMENT_BATCH = 50;
@@ -97,7 +102,7 @@ function flush() {
 
 function startRecording(params) {
   const startedAt = new Date().toISOString();
-  rec = { ...params, token: params.accessToken, startedAt, t0: Date.now(), seq: 0, pending: [], timers: [], n: 0, saved: 0 };
+  rec = { ...params, token: params.accessToken, startedAt, t0: Date.now(), seq: 0, pending: [], timers: [], n: 0, saved: 0, open: new Map() };
   const state = () => ({ recording: !!rec, meetingId: rec?.meetingId, mode: "realtime", mic: "ok", system: "ok" });
   event("state", state());
   rec.timers.push(
@@ -128,14 +133,28 @@ function startRecording(params) {
         rec.pending.push(segment);
         return;
       }
-      // Like the real helper: each delta carries the whole turn so far.
-      words.forEach((_, i) => setTimeout(() => rec && event("transcript.delta", { speaker, text: words.slice(0, i + 1).join(" "), itemId }), i * 60));
+      // Like the real helper: each delta carries the whole turn so far. The turn stays open (and
+      // is kept on stop with its text so far) until its finished segment.
       const r = rec;
-      setTimeout(() => {
-        if (rec !== r) return;
-        event("transcript.segment", segment);
-        r.pending.push(segment);
-      }, words.length * 60);
+      const open = { segment, text: "", timers: [] };
+      r.open.set(itemId, open);
+      words.forEach((_, i) =>
+        open.timers.push(
+          setTimeout(() => {
+            if (rec !== r) return;
+            open.text = words.slice(0, i + 1).join(" ");
+            event("transcript.delta", { speaker, text: open.text, itemId });
+          }, i * WORD_MS),
+        ),
+      );
+      open.timers.push(
+        setTimeout(() => {
+          if (rec !== r) return;
+          r.open.delete(itemId);
+          event("transcript.segment", segment);
+          r.pending.push(segment);
+        }, words.length * WORD_MS),
+      );
   };
   nextLine();
   rec.timers.push(setInterval(() => void flush(), 10_000));
@@ -144,10 +163,25 @@ function startRecording(params) {
   return { startedAt };
 }
 
+/** Stop keeps the turns still being spoken: each becomes a final segment with its text so far
+ * (one with no words yet has nothing to keep). */
+function closeOpenTurns(r) {
+  const turns = [...r.open.values()].sort((a, b) => a.segment.seq - b.segment.seq);
+  r.open.clear();
+  for (const turn of turns) {
+    turn.timers.forEach(clearTimeout);
+    if (!turn.text) continue;
+    const segment = { ...turn.segment, text: turn.text, endedMs: Math.max(turn.segment.endedMs, Date.now() - r.t0) };
+    event("transcript.segment", segment);
+    r.pending.push(segment);
+  }
+}
+
 async function stopRecording() {
   if (!rec) throw { code: "not_recording", message: "Not recording." };
   rec.timers.forEach(clearInterval);
   clearTimeout(rec.lineTimer);
+  closeOpenTurns(rec);
   const stopDelay = num("FAKE_HELPER_STOP_DELAY_MS", 0);
   if (stopDelay > 0) await new Promise((r) => setTimeout(r, stopDelay));
   if (env.FAKE_HELPER_STOP_UNSAVED === "1") {
