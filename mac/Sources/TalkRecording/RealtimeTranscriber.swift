@@ -1,6 +1,40 @@
 import Foundation
 import TalkCore
 
+/// The WebSocket under a `RealtimeSession`, behind a protocol so the session's protocol handling
+/// is tested without the network.
+public protocol RealtimeSocket: AnyObject, Sendable {
+  /// Sends in call order; `completion` gets an error if the connection failed.
+  func send(_ text: String, completion: @escaping @Sendable (Error?) -> Void)
+  func receive() async throws -> String
+  func close()
+  /// The handshake's HTTP status, when it failed with one.
+  var httpStatus: Int? { get }
+}
+
+public final class URLSessionRealtimeSocket: RealtimeSocket, @unchecked Sendable {
+  private let task: URLSessionWebSocketTask
+
+  public init(_ request: URLRequest) {
+    task = URLSession.shared.webSocketTask(with: request)
+    task.maximumMessageSize = 4 << 20
+    task.resume()
+  }
+
+  public func send(_ text: String, completion: @escaping @Sendable (Error?) -> Void) { task.send(.string(text), completionHandler: completion) }
+
+  public func receive() async throws -> String {
+    switch try await task.receive() {
+    case .string(let text): return text
+    case .data(let data): return String(decoding: data, as: UTF8.self)
+    @unknown default: return ""
+    }
+  }
+
+  public func close() { task.cancel(with: .normalClosure, reason: nil) }
+  public var httpStatus: Int? { (task.response as? HTTPURLResponse)?.statusCode }
+}
+
 /// One OpenAI Realtime transcription WebSocket, opened with an ephemeral key the Worker minted
 /// (docs/SPEC.md "Live transcription"). Adapted from Scrawl's `openai-stream`: audio is queued
 /// until `session.updated`, every commit's time range is remembered in order, the `committed`
@@ -9,7 +43,8 @@ actor RealtimeSession {
   static let endpoint = URL(string: "wss://api.openai.com/v1/realtime?intent=transcription")!
   static let model = "gpt-live-transcribe"
   static let connectTimeout: TimeInterval = 15
-  static let finishTimeout: TimeInterval = 25
+  /// On stop, how long to wait for the last turn's `completed` before saving its text so far.
+  static let finalWait: TimeInterval = 3
   /// About a minute of 24 kHz PCM16 waits for the session; past that the session has failed.
   static let maxQueuedBytes = 3 << 20
 
@@ -18,6 +53,7 @@ actor RealtimeSession {
     var text = ""
     var done = false
     var emitted = false
+    var order = 0
   }
 
   enum Event: Sendable {
@@ -31,7 +67,10 @@ actor RealtimeSession {
   let model: String
   let language: String?
   let onEvent: @Sendable (Event) -> Void
-  private var task: URLSessionWebSocketTask?
+  private var socket: (any RealtimeSocket)?
+  private let makeSocket: @Sendable (URLRequest) -> any RealtimeSocket
+  private let finalWait: TimeInterval
+  private var nextOrder = 0
   private var ready = false
   private var closed = false
   private var queued: [[String: Any]] = []
@@ -41,7 +80,13 @@ actor RealtimeSession {
   private var finishing: CheckedContinuation<Void, Never>?
   private var watchdog: Task<Void, Never>?
 
-  init(key: String, model: String?, language: String?, onEvent: @escaping @Sendable (Event) -> Void) {
+  init(
+    key: String, model: String?, language: String?, finalWait: TimeInterval = RealtimeSession.finalWait,
+    makeSocket: @escaping @Sendable (URLRequest) -> any RealtimeSocket = { URLSessionRealtimeSocket($0) },
+    onEvent: @escaping @Sendable (Event) -> Void
+  ) {
+    self.makeSocket = makeSocket
+    self.finalWait = finalWait
     self.key = key
     self.model = model ?? Self.model
     self.language = language
@@ -51,10 +96,8 @@ actor RealtimeSession {
   func connect() {
     var request = URLRequest(url: Self.endpoint)
     request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-    let task = URLSession.shared.webSocketTask(with: request)
-    task.maximumMessageSize = 4 << 20
-    self.task = task
-    task.resume()
+    let socket = makeSocket(request)
+    self.socket = socket
     arm(Self.connectTimeout, "OpenAI didn't answer in time")
     // Scrawl's session shape, known to work with gpt-live-transcribe. The Worker configured the
     // session when it minted the key; this restates it, and its answer is the ready signal.
@@ -73,7 +116,7 @@ actor RealtimeSession {
         ],
       ],
     ])
-    Task { await self.receiveLoop(task) }
+    Task { await self.receiveLoop(socket) }
   }
 
   func append(_ pcm: Data) {
@@ -94,19 +137,38 @@ actor RealtimeSession {
     send(["type": "input_audio_buffer.clear"], bytes: 0)
   }
 
-  /// Waits for every committed turn's text (or the timeout), then closes.
+  /// Waits for every committed turn's `completed` (at most `finalWait`), then closes. A turn
+  /// still unfinished then is saved with its text so far, never dropped.
   func finish() async {
     guard !closed else { return }
     if isDrained { return close() }
     await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
       finishing = continuation
-      arm(Self.finishTimeout, nil)
+      arm(finalWait, nil)
     }
+  }
+
+  /// The final wait ran out: emit each unfinished turn's text so far, in order, then close.
+  private func finishWithPartials() {
+    var commits = pendingCommits
+    for (id, item) in items.sorted(by: { $0.value.order < $1.value.order }) where !item.emitted {
+      // A turn whose `committed` hasn't come back yet takes the next commit's range.
+      let range = item.range ?? (commits.isEmpty ? nil : commits.removeFirst())
+      let text = item.text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+      if let range, !text.isEmpty { onEvent(.segment(t0: range.0, t1: range.1, text: text)) }
+      items[id]?.emitted = true
+    }
+    close()
   }
 
   func cancel() { close() }
 
   // MARK: Private
+
+  private func newItem() -> Item {
+    nextOrder += 1
+    return Item(order: nextOrder)
+  }
 
   private var isDrained: Bool { pendingCommits.isEmpty && items.values.allSatisfy(\.done) }
 
@@ -121,26 +183,21 @@ actor RealtimeSession {
   }
 
   private func write(_ object: [String: Any]) {
-    guard let task, let data = try? JSONSerialization.data(withJSONObject: object),
+    guard let socket, let data = try? JSONSerialization.data(withJSONObject: object),
       let text = String(data: data, encoding: .utf8)
     else { return }
-    task.send(.string(text)) { [weak self] error in
+    socket.send(text) { [weak self] error in
       guard error != nil, let self else { return }
       Task { await self.fail("The connection to OpenAI dropped") }
     }
   }
 
-  private func receiveLoop(_ task: URLSessionWebSocketTask) async {
+  private func receiveLoop(_ socket: any RealtimeSocket) async {
     while !closed {
       do {
-        switch try await task.receive() {
-        case .string(let text): handle(Data(text.utf8))
-        case .data(let data): handle(data)
-        @unknown default: break
-        }
+        handle(Data(try await socket.receive().utf8))
       } catch {
-        let status = (task.response as? HTTPURLResponse)?.statusCode
-        fail(Self.describe(code: nil, status: status))
+        fail(Self.describe(code: nil, status: socket.httpStatus))
         return
       }
     }
@@ -162,20 +219,20 @@ actor RealtimeSession {
     case "input_audio_buffer.committed":
       guard let id = event["item_id"] as? String, !pendingCommits.isEmpty else { return }
       let range = pendingCommits.removeFirst()
-      var item = items[id] ?? Item()
+      var item = items[id] ?? newItem()
       item.range = range
       items[id] = item
       emitIfReady(id)
     case "conversation.item.input_audio_transcription.delta":
       guard let id = event["item_id"] as? String, let delta = event["delta"] as? String else { return }
-      var item = items[id] ?? Item()
+      var item = items[id] ?? newItem()
       guard !item.done else { return }
       item.text += delta
       items[id] = item
       onEvent(.delta(item.text, itemID: id))
     case "conversation.item.input_audio_transcription.completed":
       guard let id = event["item_id"] as? String else { return }
-      var item = items[id] ?? Item()
+      var item = items[id] ?? newItem()
       item.text = event["transcript"] as? String ?? item.text
       item.done = true
       items[id] = item
@@ -183,7 +240,7 @@ actor RealtimeSession {
     case "conversation.item.input_audio_transcription.failed":
       // One turn failed; the session goes on.
       guard let id = event["item_id"] as? String else { return }
-      var item = items[id] ?? Item()
+      var item = items[id] ?? newItem()
       item.done = true
       item.emitted = true
       items[id] = item
@@ -232,7 +289,7 @@ actor RealtimeSession {
     guard !closed else { return }
     closed = true
     watchdog?.cancel()
-    task?.cancel(with: .normalClosure, reason: nil)
+    socket?.close()
     queued.removeAll()
     finishing?.resume()
     finishing = nil
@@ -243,7 +300,7 @@ actor RealtimeSession {
     watchdog = Task { [weak self] in
       try? await Task.sleep(for: .seconds(seconds))
       guard !Task.isCancelled, let self else { return }
-      if let reason { await self.fail(reason) } else { await self.cancel() }
+      if let reason { await self.fail(reason) } else { await self.finishWithPartials() }
     }
   }
 
@@ -315,6 +372,8 @@ public actor TranscriptionChannel: SpeakerChannel {
   let speaker: Speaker
   let fetchToken: @Sendable () async throws -> TranscriptionToken
   let callbacks: ChannelCallbacks
+  let finalWait: TimeInterval
+  let makeSocket: @Sendable (URLRequest) -> any RealtimeSocket
   let language: String?
 
   private var detector = TurnDetector()
@@ -330,8 +389,11 @@ public actor TranscriptionChannel: SpeakerChannel {
 
   public init(
     speaker: Speaker, language: String?, fetchToken: @escaping @Sendable () async throws -> TranscriptionToken,
-    callbacks: ChannelCallbacks
+    callbacks: ChannelCallbacks, finalWait: TimeInterval = 3,
+    makeSocket: @escaping @Sendable (URLRequest) -> any RealtimeSocket = { URLSessionRealtimeSocket($0) }
   ) {
+    self.finalWait = finalWait
+    self.makeSocket = makeSocket
     self.speaker = speaker
     self.language = language
     self.fetchToken = fetchToken
@@ -399,7 +461,9 @@ public actor TranscriptionChannel: SpeakerChannel {
     generation += 1
     let current = generation
     let speaker = self.speaker
-    let session = RealtimeSession(key: token.value, model: token.model, language: language) { [weak self] event in
+    let session = RealtimeSession(
+      key: token.value, model: token.model, language: language, finalWait: finalWait, makeSocket: makeSocket
+    ) { [weak self] event in
       Task { await self?.handle(event, generation: current, speaker: speaker) }
     }
     self.session = session
