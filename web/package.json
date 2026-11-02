@@ -13,6 +13,7 @@
     "format:check": "prettier --check .",
     "format:write": "prettier . --write",
     "db:generate": "drizzle-kit generate",
+    "seed": "node scripts/seed.mjs",
     "knip": "knip"
   },
   "dependencies": {

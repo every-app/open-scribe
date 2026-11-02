@@ -19,13 +19,22 @@ import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as AppFoldersIdRouteImport } from './routes/_app/folders/$id'
 import { Route as AppMeetingsIdRouteImport } from './routes/_app/meetings/$id'
 import { Route as ApiV1MeRouteImport } from './routes/api/v1/me'
+import { Route as ApiV1SettingsRouteImport } from './routes/api/v1/settings'
 import { Route as ApiV1CalendarUpcomingRouteImport } from './routes/api/v1/calendar.upcoming'
+import { Route as ApiV1FoldersIndexRouteImport } from './routes/api/v1/folders.index'
 import { Route as ApiV1MeetingsIndexRouteImport } from './routes/api/v1/meetings.index'
+import { Route as ApiV1TemplatesIndexRouteImport } from './routes/api/v1/templates.index'
+import { Route as ApiV1FoldersIdIndexRouteImport } from './routes/api/v1/folders.$id.index'
 import { Route as ApiV1MeetingsIdIndexRouteImport } from './routes/api/v1/meetings.$id.index'
 import { Route as ApiV1MeetingsIdAudioChunkRouteImport } from './routes/api/v1/meetings.$id.audio-chunk'
 import { Route as ApiV1MeetingsIdFinishRouteImport } from './routes/api/v1/meetings.$id.finish'
+import { Route as ApiV1MeetingsIdJottingsRouteImport } from './routes/api/v1/meetings.$id.jottings'
+import { Route as ApiV1MeetingsIdNotesRouteImport } from './routes/api/v1/meetings.$id.notes'
 import { Route as ApiV1MeetingsIdSegmentsRouteImport } from './routes/api/v1/meetings.$id.segments'
 import { Route as ApiV1MeetingsIdTranscriptionTokenRouteImport } from './routes/api/v1/meetings.$id.transcription-token'
+import { Route as ApiV1TemplatesIdIndexRouteImport } from './routes/api/v1/templates.$id.index'
+import { Route as ApiV1TemplatesIdDuplicateRouteImport } from './routes/api/v1/templates.$id.duplicate'
+import { Route as ApiV1FoldersIdMeetingsMeetingIdRouteImport } from './routes/api/v1/folders.$id.meetings.$meetingId'
 import { Route as ApiV1MeetingsIdShareIndexRouteImport } from './routes/api/v1/meetings.$id.share.index'
 import { Route as ApiV1MeetingsIdShareLinkIdRouteImport } from './routes/api/v1/meetings.$id.share.$linkId'
 
@@ -78,14 +87,34 @@ const ApiV1MeRoute = ApiV1MeRouteImport.update({
   path: '/api/v1/me',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1SettingsRoute = ApiV1SettingsRouteImport.update({
+  id: '/api/v1/settings',
+  path: '/api/v1/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1CalendarUpcomingRoute = ApiV1CalendarUpcomingRouteImport.update({
   id: '/api/v1/calendar/upcoming',
   path: '/api/v1/calendar/upcoming',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1FoldersIndexRoute = ApiV1FoldersIndexRouteImport.update({
+  id: '/api/v1/folders/',
+  path: '/api/v1/folders/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1MeetingsIndexRoute = ApiV1MeetingsIndexRouteImport.update({
   id: '/api/v1/meetings/',
   path: '/api/v1/meetings/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1TemplatesIndexRoute = ApiV1TemplatesIndexRouteImport.update({
+  id: '/api/v1/templates/',
+  path: '/api/v1/templates/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1FoldersIdIndexRoute = ApiV1FoldersIdIndexRouteImport.update({
+  id: '/api/v1/folders/$id/',
+  path: '/api/v1/folders/$id/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1MeetingsIdIndexRoute = ApiV1MeetingsIdIndexRouteImport.update({
@@ -104,6 +133,16 @@ const ApiV1MeetingsIdFinishRoute = ApiV1MeetingsIdFinishRouteImport.update({
   path: '/api/v1/meetings/$id/finish',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1MeetingsIdJottingsRoute = ApiV1MeetingsIdJottingsRouteImport.update({
+  id: '/api/v1/meetings/$id/jottings',
+  path: '/api/v1/meetings/$id/jottings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1MeetingsIdNotesRoute = ApiV1MeetingsIdNotesRouteImport.update({
+  id: '/api/v1/meetings/$id/notes',
+  path: '/api/v1/meetings/$id/notes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1MeetingsIdSegmentsRoute = ApiV1MeetingsIdSegmentsRouteImport.update({
   id: '/api/v1/meetings/$id/segments',
   path: '/api/v1/meetings/$id/segments',
@@ -113,6 +152,23 @@ const ApiV1MeetingsIdTranscriptionTokenRoute =
   ApiV1MeetingsIdTranscriptionTokenRouteImport.update({
     id: '/api/v1/meetings/$id/transcription-token',
     path: '/api/v1/meetings/$id/transcription-token',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1TemplatesIdIndexRoute = ApiV1TemplatesIdIndexRouteImport.update({
+  id: '/api/v1/templates/$id/',
+  path: '/api/v1/templates/$id/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1TemplatesIdDuplicateRoute =
+  ApiV1TemplatesIdDuplicateRouteImport.update({
+    id: '/api/v1/templates/$id/duplicate',
+    path: '/api/v1/templates/$id/duplicate',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiV1FoldersIdMeetingsMeetingIdRoute =
+  ApiV1FoldersIdMeetingsMeetingIdRouteImport.update({
+    id: '/api/v1/folders/$id/meetings/$meetingId',
+    path: '/api/v1/folders/$id/meetings/$meetingId',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiV1MeetingsIdShareIndexRoute =
@@ -138,13 +194,22 @@ export interface FileRoutesByFullPath {
   '/folders/$id': typeof AppFoldersIdRoute
   '/meetings/$id': typeof AppMeetingsIdRoute
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/settings': typeof ApiV1SettingsRoute
   '/api/v1/calendar/upcoming': typeof ApiV1CalendarUpcomingRoute
+  '/api/v1/folders/': typeof ApiV1FoldersIndexRoute
   '/api/v1/meetings/': typeof ApiV1MeetingsIndexRoute
+  '/api/v1/templates/': typeof ApiV1TemplatesIndexRoute
   '/api/v1/meetings/$id/audio-chunk': typeof ApiV1MeetingsIdAudioChunkRoute
   '/api/v1/meetings/$id/finish': typeof ApiV1MeetingsIdFinishRoute
+  '/api/v1/meetings/$id/jottings': typeof ApiV1MeetingsIdJottingsRoute
+  '/api/v1/meetings/$id/notes': typeof ApiV1MeetingsIdNotesRoute
   '/api/v1/meetings/$id/segments': typeof ApiV1MeetingsIdSegmentsRoute
   '/api/v1/meetings/$id/transcription-token': typeof ApiV1MeetingsIdTranscriptionTokenRoute
+  '/api/v1/templates/$id/duplicate': typeof ApiV1TemplatesIdDuplicateRoute
+  '/api/v1/folders/$id/': typeof ApiV1FoldersIdIndexRoute
   '/api/v1/meetings/$id/': typeof ApiV1MeetingsIdIndexRoute
+  '/api/v1/templates/$id/': typeof ApiV1TemplatesIdIndexRoute
+  '/api/v1/folders/$id/meetings/$meetingId': typeof ApiV1FoldersIdMeetingsMeetingIdRoute
   '/api/v1/meetings/$id/share/$linkId': typeof ApiV1MeetingsIdShareLinkIdRoute
   '/api/v1/meetings/$id/share/': typeof ApiV1MeetingsIdShareIndexRoute
 }
@@ -158,13 +223,22 @@ export interface FileRoutesByTo {
   '/folders/$id': typeof AppFoldersIdRoute
   '/meetings/$id': typeof AppMeetingsIdRoute
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/settings': typeof ApiV1SettingsRoute
   '/api/v1/calendar/upcoming': typeof ApiV1CalendarUpcomingRoute
+  '/api/v1/folders': typeof ApiV1FoldersIndexRoute
   '/api/v1/meetings': typeof ApiV1MeetingsIndexRoute
+  '/api/v1/templates': typeof ApiV1TemplatesIndexRoute
   '/api/v1/meetings/$id/audio-chunk': typeof ApiV1MeetingsIdAudioChunkRoute
   '/api/v1/meetings/$id/finish': typeof ApiV1MeetingsIdFinishRoute
+  '/api/v1/meetings/$id/jottings': typeof ApiV1MeetingsIdJottingsRoute
+  '/api/v1/meetings/$id/notes': typeof ApiV1MeetingsIdNotesRoute
   '/api/v1/meetings/$id/segments': typeof ApiV1MeetingsIdSegmentsRoute
   '/api/v1/meetings/$id/transcription-token': typeof ApiV1MeetingsIdTranscriptionTokenRoute
+  '/api/v1/templates/$id/duplicate': typeof ApiV1TemplatesIdDuplicateRoute
+  '/api/v1/folders/$id': typeof ApiV1FoldersIdIndexRoute
   '/api/v1/meetings/$id': typeof ApiV1MeetingsIdIndexRoute
+  '/api/v1/templates/$id': typeof ApiV1TemplatesIdIndexRoute
+  '/api/v1/folders/$id/meetings/$meetingId': typeof ApiV1FoldersIdMeetingsMeetingIdRoute
   '/api/v1/meetings/$id/share/$linkId': typeof ApiV1MeetingsIdShareLinkIdRoute
   '/api/v1/meetings/$id/share': typeof ApiV1MeetingsIdShareIndexRoute
 }
@@ -180,13 +254,22 @@ export interface FileRoutesById {
   '/_app/folders/$id': typeof AppFoldersIdRoute
   '/_app/meetings/$id': typeof AppMeetingsIdRoute
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/settings': typeof ApiV1SettingsRoute
   '/api/v1/calendar/upcoming': typeof ApiV1CalendarUpcomingRoute
+  '/api/v1/folders/': typeof ApiV1FoldersIndexRoute
   '/api/v1/meetings/': typeof ApiV1MeetingsIndexRoute
+  '/api/v1/templates/': typeof ApiV1TemplatesIndexRoute
   '/api/v1/meetings/$id/audio-chunk': typeof ApiV1MeetingsIdAudioChunkRoute
   '/api/v1/meetings/$id/finish': typeof ApiV1MeetingsIdFinishRoute
+  '/api/v1/meetings/$id/jottings': typeof ApiV1MeetingsIdJottingsRoute
+  '/api/v1/meetings/$id/notes': typeof ApiV1MeetingsIdNotesRoute
   '/api/v1/meetings/$id/segments': typeof ApiV1MeetingsIdSegmentsRoute
   '/api/v1/meetings/$id/transcription-token': typeof ApiV1MeetingsIdTranscriptionTokenRoute
+  '/api/v1/templates/$id/duplicate': typeof ApiV1TemplatesIdDuplicateRoute
+  '/api/v1/folders/$id/': typeof ApiV1FoldersIdIndexRoute
   '/api/v1/meetings/$id/': typeof ApiV1MeetingsIdIndexRoute
+  '/api/v1/templates/$id/': typeof ApiV1TemplatesIdIndexRoute
+  '/api/v1/folders/$id/meetings/$meetingId': typeof ApiV1FoldersIdMeetingsMeetingIdRoute
   '/api/v1/meetings/$id/share/$linkId': typeof ApiV1MeetingsIdShareLinkIdRoute
   '/api/v1/meetings/$id/share/': typeof ApiV1MeetingsIdShareIndexRoute
 }
@@ -202,13 +285,22 @@ export interface FileRouteTypes {
     | '/folders/$id'
     | '/meetings/$id'
     | '/api/v1/me'
+    | '/api/v1/settings'
     | '/api/v1/calendar/upcoming'
+    | '/api/v1/folders/'
     | '/api/v1/meetings/'
+    | '/api/v1/templates/'
     | '/api/v1/meetings/$id/audio-chunk'
     | '/api/v1/meetings/$id/finish'
+    | '/api/v1/meetings/$id/jottings'
+    | '/api/v1/meetings/$id/notes'
     | '/api/v1/meetings/$id/segments'
     | '/api/v1/meetings/$id/transcription-token'
+    | '/api/v1/templates/$id/duplicate'
+    | '/api/v1/folders/$id/'
     | '/api/v1/meetings/$id/'
+    | '/api/v1/templates/$id/'
+    | '/api/v1/folders/$id/meetings/$meetingId'
     | '/api/v1/meetings/$id/share/$linkId'
     | '/api/v1/meetings/$id/share/'
   fileRoutesByTo: FileRoutesByTo
@@ -222,13 +314,22 @@ export interface FileRouteTypes {
     | '/folders/$id'
     | '/meetings/$id'
     | '/api/v1/me'
+    | '/api/v1/settings'
     | '/api/v1/calendar/upcoming'
+    | '/api/v1/folders'
     | '/api/v1/meetings'
+    | '/api/v1/templates'
     | '/api/v1/meetings/$id/audio-chunk'
     | '/api/v1/meetings/$id/finish'
+    | '/api/v1/meetings/$id/jottings'
+    | '/api/v1/meetings/$id/notes'
     | '/api/v1/meetings/$id/segments'
     | '/api/v1/meetings/$id/transcription-token'
+    | '/api/v1/templates/$id/duplicate'
+    | '/api/v1/folders/$id'
     | '/api/v1/meetings/$id'
+    | '/api/v1/templates/$id'
+    | '/api/v1/folders/$id/meetings/$meetingId'
     | '/api/v1/meetings/$id/share/$linkId'
     | '/api/v1/meetings/$id/share'
   id:
@@ -243,13 +344,22 @@ export interface FileRouteTypes {
     | '/_app/folders/$id'
     | '/_app/meetings/$id'
     | '/api/v1/me'
+    | '/api/v1/settings'
     | '/api/v1/calendar/upcoming'
+    | '/api/v1/folders/'
     | '/api/v1/meetings/'
+    | '/api/v1/templates/'
     | '/api/v1/meetings/$id/audio-chunk'
     | '/api/v1/meetings/$id/finish'
+    | '/api/v1/meetings/$id/jottings'
+    | '/api/v1/meetings/$id/notes'
     | '/api/v1/meetings/$id/segments'
     | '/api/v1/meetings/$id/transcription-token'
+    | '/api/v1/templates/$id/duplicate'
+    | '/api/v1/folders/$id/'
     | '/api/v1/meetings/$id/'
+    | '/api/v1/templates/$id/'
+    | '/api/v1/folders/$id/meetings/$meetingId'
     | '/api/v1/meetings/$id/share/$linkId'
     | '/api/v1/meetings/$id/share/'
   fileRoutesById: FileRoutesById
@@ -259,13 +369,22 @@ export interface RootRouteChildren {
   HealthRoute: typeof HealthRoute
   STokenRoute: typeof STokenRoute
   ApiV1MeRoute: typeof ApiV1MeRoute
+  ApiV1SettingsRoute: typeof ApiV1SettingsRoute
   ApiV1CalendarUpcomingRoute: typeof ApiV1CalendarUpcomingRoute
+  ApiV1FoldersIndexRoute: typeof ApiV1FoldersIndexRoute
   ApiV1MeetingsIndexRoute: typeof ApiV1MeetingsIndexRoute
+  ApiV1TemplatesIndexRoute: typeof ApiV1TemplatesIndexRoute
   ApiV1MeetingsIdAudioChunkRoute: typeof ApiV1MeetingsIdAudioChunkRoute
   ApiV1MeetingsIdFinishRoute: typeof ApiV1MeetingsIdFinishRoute
+  ApiV1MeetingsIdJottingsRoute: typeof ApiV1MeetingsIdJottingsRoute
+  ApiV1MeetingsIdNotesRoute: typeof ApiV1MeetingsIdNotesRoute
   ApiV1MeetingsIdSegmentsRoute: typeof ApiV1MeetingsIdSegmentsRoute
   ApiV1MeetingsIdTranscriptionTokenRoute: typeof ApiV1MeetingsIdTranscriptionTokenRoute
+  ApiV1TemplatesIdDuplicateRoute: typeof ApiV1TemplatesIdDuplicateRoute
+  ApiV1FoldersIdIndexRoute: typeof ApiV1FoldersIdIndexRoute
   ApiV1MeetingsIdIndexRoute: typeof ApiV1MeetingsIdIndexRoute
+  ApiV1TemplatesIdIndexRoute: typeof ApiV1TemplatesIdIndexRoute
+  ApiV1FoldersIdMeetingsMeetingIdRoute: typeof ApiV1FoldersIdMeetingsMeetingIdRoute
   ApiV1MeetingsIdShareLinkIdRoute: typeof ApiV1MeetingsIdShareLinkIdRoute
   ApiV1MeetingsIdShareIndexRoute: typeof ApiV1MeetingsIdShareIndexRoute
 }
@@ -342,6 +461,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/settings': {
+      id: '/api/v1/settings'
+      path: '/api/v1/settings'
+      fullPath: '/api/v1/settings'
+      preLoaderRoute: typeof ApiV1SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/calendar/upcoming': {
       id: '/api/v1/calendar/upcoming'
       path: '/api/v1/calendar/upcoming'
@@ -349,11 +475,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1CalendarUpcomingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/folders/': {
+      id: '/api/v1/folders/'
+      path: '/api/v1/folders'
+      fullPath: '/api/v1/folders/'
+      preLoaderRoute: typeof ApiV1FoldersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/meetings/': {
       id: '/api/v1/meetings/'
       path: '/api/v1/meetings'
       fullPath: '/api/v1/meetings/'
       preLoaderRoute: typeof ApiV1MeetingsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/templates/': {
+      id: '/api/v1/templates/'
+      path: '/api/v1/templates'
+      fullPath: '/api/v1/templates/'
+      preLoaderRoute: typeof ApiV1TemplatesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/folders/$id/': {
+      id: '/api/v1/folders/$id/'
+      path: '/api/v1/folders/$id'
+      fullPath: '/api/v1/folders/$id/'
+      preLoaderRoute: typeof ApiV1FoldersIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/meetings/$id/': {
@@ -377,6 +524,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1MeetingsIdFinishRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/meetings/$id/jottings': {
+      id: '/api/v1/meetings/$id/jottings'
+      path: '/api/v1/meetings/$id/jottings'
+      fullPath: '/api/v1/meetings/$id/jottings'
+      preLoaderRoute: typeof ApiV1MeetingsIdJottingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/meetings/$id/notes': {
+      id: '/api/v1/meetings/$id/notes'
+      path: '/api/v1/meetings/$id/notes'
+      fullPath: '/api/v1/meetings/$id/notes'
+      preLoaderRoute: typeof ApiV1MeetingsIdNotesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/meetings/$id/segments': {
       id: '/api/v1/meetings/$id/segments'
       path: '/api/v1/meetings/$id/segments'
@@ -389,6 +550,27 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/meetings/$id/transcription-token'
       fullPath: '/api/v1/meetings/$id/transcription-token'
       preLoaderRoute: typeof ApiV1MeetingsIdTranscriptionTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/templates/$id/': {
+      id: '/api/v1/templates/$id/'
+      path: '/api/v1/templates/$id'
+      fullPath: '/api/v1/templates/$id/'
+      preLoaderRoute: typeof ApiV1TemplatesIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/templates/$id/duplicate': {
+      id: '/api/v1/templates/$id/duplicate'
+      path: '/api/v1/templates/$id/duplicate'
+      fullPath: '/api/v1/templates/$id/duplicate'
+      preLoaderRoute: typeof ApiV1TemplatesIdDuplicateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/folders/$id/meetings/$meetingId': {
+      id: '/api/v1/folders/$id/meetings/$meetingId'
+      path: '/api/v1/folders/$id/meetings/$meetingId'
+      fullPath: '/api/v1/folders/$id/meetings/$meetingId'
+      preLoaderRoute: typeof ApiV1FoldersIdMeetingsMeetingIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/meetings/$id/share/': {
@@ -433,14 +615,23 @@ const rootRouteChildren: RootRouteChildren = {
   HealthRoute: HealthRoute,
   STokenRoute: STokenRoute,
   ApiV1MeRoute: ApiV1MeRoute,
+  ApiV1SettingsRoute: ApiV1SettingsRoute,
   ApiV1CalendarUpcomingRoute: ApiV1CalendarUpcomingRoute,
+  ApiV1FoldersIndexRoute: ApiV1FoldersIndexRoute,
   ApiV1MeetingsIndexRoute: ApiV1MeetingsIndexRoute,
+  ApiV1TemplatesIndexRoute: ApiV1TemplatesIndexRoute,
   ApiV1MeetingsIdAudioChunkRoute: ApiV1MeetingsIdAudioChunkRoute,
   ApiV1MeetingsIdFinishRoute: ApiV1MeetingsIdFinishRoute,
+  ApiV1MeetingsIdJottingsRoute: ApiV1MeetingsIdJottingsRoute,
+  ApiV1MeetingsIdNotesRoute: ApiV1MeetingsIdNotesRoute,
   ApiV1MeetingsIdSegmentsRoute: ApiV1MeetingsIdSegmentsRoute,
   ApiV1MeetingsIdTranscriptionTokenRoute:
     ApiV1MeetingsIdTranscriptionTokenRoute,
+  ApiV1TemplatesIdDuplicateRoute: ApiV1TemplatesIdDuplicateRoute,
+  ApiV1FoldersIdIndexRoute: ApiV1FoldersIdIndexRoute,
   ApiV1MeetingsIdIndexRoute: ApiV1MeetingsIdIndexRoute,
+  ApiV1TemplatesIdIndexRoute: ApiV1TemplatesIdIndexRoute,
+  ApiV1FoldersIdMeetingsMeetingIdRoute: ApiV1FoldersIdMeetingsMeetingIdRoute,
   ApiV1MeetingsIdShareLinkIdRoute: ApiV1MeetingsIdShareLinkIdRoute,
   ApiV1MeetingsIdShareIndexRoute: ApiV1MeetingsIdShareIndexRoute,
 }

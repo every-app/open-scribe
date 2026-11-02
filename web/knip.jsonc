@@ -5,6 +5,8 @@
     "src/entry.worker.ts",
     "src/router.tsx",
     "src/routes/**/*.{ts,tsx}",
+    // The /api/v1 response types, for clients (the desktop app) to mirror.
+    "src/server/apiContract.ts",
     // shadcn components are copied in whole; pages use only some exports
     "src/client/components/ui/**",
   ],

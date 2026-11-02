@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { folders, meetingFolders, meetings } from "@/db/schema";
@@ -41,6 +41,33 @@ export async function listFolders(viewer: Viewer): Promise<Folder[]> {
     .from(folders)
     .where(folderVisibleTo(viewer))
     .orderBy(asc(folders.name));
+}
+
+/** listFolders, each with how many of its meetings the viewer can read. */
+export async function listFoldersWithCounts(
+  viewer: Viewer,
+): Promise<(Folder & { meetingCount: number })[]> {
+  const list = await listFolders(viewer);
+  if (list.length === 0) return [];
+  const counts = await db
+    .select({ folderId: meetingFolders.folderId, n: count() })
+    .from(meetingFolders)
+    .innerJoin(meetings, eq(meetings.id, meetingFolders.meetingId))
+    .where(
+      and(
+        inArray(
+          meetingFolders.folderId,
+          list.map((folder) => folder.id),
+        ),
+        meetingVisibleTo(viewer),
+      ),
+    )
+    .groupBy(meetingFolders.folderId);
+  const byFolder = new Map(counts.map((row) => [row.folderId, row.n]));
+  return list.map((folder) => ({
+    ...folder,
+    meetingCount: byFolder.get(folder.id) ?? 0,
+  }));
 }
 
 export async function getFolder(

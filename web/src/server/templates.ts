@@ -177,6 +177,40 @@ export async function updateTemplate(
   return row ? toTemplate(viewer, row) : null;
 }
 
+export const updateTemplateInput = saveTemplateInput.partial();
+
+/** A partial edit, merged over the owner's template; null when not theirs. */
+export async function patchTemplate(
+  viewer: Viewer,
+  id: string,
+  change: z.infer<typeof updateTemplateInput>,
+): Promise<Template | null> {
+  const current = await getTemplate(viewer, id);
+  if (!current || current.builtIn || !current.mine) return null;
+  return updateTemplate(viewer, id, {
+    name: change.name ?? current.name,
+    instructions: change.instructions ?? current.instructions,
+    visibility: change.visibility ?? current.visibility,
+  });
+}
+
+/**
+ * A private copy, "<name> (copy)", of any template the viewer may use
+ * (a built-in, their own or the team's). Null when they may not use it.
+ */
+export async function duplicateTemplate(
+  viewer: Viewer,
+  id: string,
+): Promise<Template | null> {
+  const source = await getTemplate(viewer, id);
+  if (!source) return null;
+  return createTemplate(viewer, {
+    name: `${source.name.slice(0, 73)} (copy)`,
+    instructions: source.instructions,
+    visibility: "private",
+  });
+}
+
 /**
  * Delete one of the viewer's templates. Folders and meetings that named it
  * fall back to the next choice in resolveTemplate.

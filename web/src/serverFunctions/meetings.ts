@@ -1,10 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 import { ensureUserMiddleware } from "@every-app/sdk/tanstack-start";
-import { waitUntil } from "cloudflare:workers";
 import { z } from "zod";
 import * as meetings from "@/server/meetings";
-import { generateNotes } from "@/server/notes";
+import { applyTemplate } from "@/server/notes";
 import { templateIdInput } from "@/server/templates";
 
 const idInput = z.object({ id: z.string().uuid() }).strict();
@@ -45,21 +44,14 @@ export const setMeetingTemplate = createServerFn({ method: "POST" })
     idInput.extend({ templateId: templateIdInput }).parse(data),
   )
   .handler(async ({ data, context: { user } }) => {
-    const meeting = await meetings.rewriteWithTemplate(
+    const applied = await applyTemplate(
+      getRequest(),
       user,
       data.id,
       data.templateId,
     );
-    if (meeting) {
-      waitUntil(
-        generateNotes(getRequest(), meeting.id, meeting.title, data.templateId),
-      );
-      return { rewriting: true };
-    }
-    if (await meetings.chooseTemplate(user, data.id, data.templateId)) {
-      return { rewriting: false };
-    }
-    throw new Error("You can't change this meeting's template.");
+    if (!applied) throw new Error("You can't change this meeting's template.");
+    return applied;
   });
 
 export const createShareLink = createServerFn({ method: "POST" })

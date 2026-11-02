@@ -14,6 +14,17 @@ export async function requireApiUser(request: Request): Promise<EveryAppUser> {
   return user;
 }
 
+/** The one error shape: `{ error, message? }` (400s may add `issues`). */
+export function apiError(
+  status: number,
+  error: string,
+  message?: string,
+): Response {
+  return json(message ? { error, message } : { error }, status);
+}
+
+export const notFound = () => apiError(404, "not_found");
+
 export function json(data: unknown, status = 200): Response {
   return Response.json(data, {
     status,
@@ -30,11 +41,20 @@ export async function readJson<T>(
   try {
     raw = await request.json();
   } catch {
-    throw json({ error: "invalid_json" }, 400);
+    throw apiError(400, "invalid_json", "The body isn't JSON.");
   }
   const parsed = schema.safeParse(raw);
   if (!parsed.success) {
-    throw json({ error: "invalid_body", issues: parsed.error.issues }, 400);
+    throw json(
+      {
+        error: "invalid_body",
+        message: parsed.error.issues
+          .map((issue) => `${issue.path.join(".") || "body"}: ${issue.message}`)
+          .join("; "),
+        issues: parsed.error.issues,
+      },
+      400,
+    );
   }
   return parsed.data;
 }
@@ -55,4 +75,23 @@ export function api(handler: Handler): Handler {
       return json({ error: "internal_error" }, 500);
     }
   };
+}
+
+/** The query string, checked like a body; a bad one is a 400. */
+export function readQuery<T>(request: Request, schema: z.ZodType<T>): T {
+  const raw = Object.fromEntries(new URL(request.url).searchParams);
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    throw json(
+      {
+        error: "invalid_query",
+        message: parsed.error.issues
+          .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+          .join("; "),
+        issues: parsed.error.issues,
+      },
+      400,
+    );
+  }
+  return parsed.data;
 }

@@ -81,6 +81,20 @@ export const notes = sqliteTable("notes", {
   editedAt: text("edited_at"),
 });
 
+/**
+ * The owner's notepad: what they type during the meeting. The notes are
+ * written from it (the outline) and the transcript (the detail).
+ * `updated_at` is when the person typed it, as the client says, so a late,
+ * older save never overwrites a newer one.
+ */
+export const jottings = sqliteTable("jottings", {
+  meetingId: text("meeting_id")
+    .primaryKey()
+    .references(() => meetings.id, { onDelete: "cascade" }),
+  markdown: text("markdown").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 /** A public link: `id` is the unguessable token in the URL. */
 export const shareLinks = sqliteTable("share_links", {
   id: text("id").primaryKey(),

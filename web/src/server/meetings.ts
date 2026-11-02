@@ -1,9 +1,22 @@
-import { and, asc, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNull,
+  lt,
+  ne,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
   type Attendee,
   folders,
+  jottings,
   meetingFolders,
   meetings,
   notes,
@@ -53,7 +66,7 @@ export const appendSegmentsInput = z
   .union([segmentList, z.object({ segments: segmentList }).strict()])
   .transform((input) => (Array.isArray(input) ? { segments: input } : input));
 
-interface MeetingRow {
+export interface MeetingRow {
   id: string;
   title: string;
   startsAt: string;
@@ -74,14 +87,26 @@ export interface Segment {
   text: string;
 }
 
-interface MeetingDetail extends MeetingRow {
+export interface MeetingDetail extends MeetingRow {
   attendees: Attendee[];
   folders: { id: string; name: string; space: "private" | "team" }[];
   /** The template the notes use, and whether it was chosen on the meeting. */
   template: { id: string; name: string; chosen: boolean };
   segments: Segment[];
-  notes: { markdown: string; model: string; generatedAt: string } | null;
+  notes: {
+    markdown: string;
+    model: string;
+    generatedAt: string;
+    editedAt: string | null;
+  } | null;
+  /** The owner's notepad; null for anyone else, or before they type. */
+  jottings: Jottings | null;
   shareLinks: { id: string; createdAt: string }[];
+}
+
+export interface Jottings {
+  markdown: string;
+  updatedAt: string;
 }
 
 const shown = {
@@ -121,20 +146,67 @@ export const listMeetingsInput = z
     folderId: z.string().uuid().optional(),
     /** Only team meetings other people own. */
     shared: z.boolean().optional(),
+    /** Only the viewer's own meetings. */
+    mine: z.boolean().optional(),
+    /** Only meetings whose title contains this (case-insensitive). */
+    q: z.string().trim().min(1).max(200).optional(),
+    /** Where the previous page ended (its `nextCursor`). */
+    cursor: z.string().max(400).optional(),
+    /** How many at most; all of them when absent. */
+    limit: z.number().int().min(1).max(200).optional(),
   })
   .strict();
 
-/** The meetings a viewer may read, newest first. */
-export async function listMeetings(
+type ListFilter = z.infer<typeof listMeetingsInput>;
+
+/** A page boundary: the last row's start and id, opaque to the client. */
+function encodeCursor(row: { startsAt: string; id: string }): string {
+  return btoa(JSON.stringify([row.startsAt, row.id]))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replace(/=+$/, "");
+}
+
+function decodeCursor(cursor: string): { startsAt: string; id: string } | null {
+  try {
+    const parsed: unknown = JSON.parse(
+      atob(cursor.replaceAll("-", "+").replaceAll("_", "/")),
+    );
+    if (
+      Array.isArray(parsed) &&
+      parsed.length === 2 &&
+      typeof parsed[0] === "string" &&
+      typeof parsed[1] === "string"
+    ) {
+      return { startsAt: parsed[0], id: parsed[1] };
+    }
+  } catch {
+    // fall through
+  }
+  return null;
+}
+
+export class InvalidCursor extends Error {}
+
+/**
+ * The meetings a viewer may read, newest first, filtered. With `limit`,
+ * `nextCursor` names where the next page starts (null on the last page).
+ */
+export async function listMeetingsPage(
   viewer: Viewer,
-  filter: z.infer<typeof listMeetingsInput> = {},
-): Promise<MeetingRow[]> {
-  const where = [visibleTo(viewer)];
+  filter: ListFilter = {},
+): Promise<{ meetings: MeetingRow[]; nextCursor: string | null }> {
+  const where: (SQL | undefined)[] = [visibleTo(viewer)];
   if (filter.shared) {
     where.push(
       eq(meetings.visibility, "team"),
       ne(meetings.ownerUserId, viewer.id),
     );
+  }
+  if (filter.mine) where.push(eq(meetings.ownerUserId, viewer.id));
+  if (filter.q) {
+    const pattern = `%${filter.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    where.push(sql`${meetings.title} like ${pattern} escape '\\'`);
   }
   if (filter.folderId) {
     const inFolder = db
@@ -149,12 +221,36 @@ export async function listMeetings(
       );
     where.push(inArray(meetings.id, inFolder));
   }
-  const rows = await db
+  if (filter.cursor) {
+    const after = decodeCursor(filter.cursor);
+    if (!after) throw new InvalidCursor();
+    where.push(
+      or(
+        lt(meetings.startsAt, after.startsAt),
+        and(eq(meetings.startsAt, after.startsAt), lt(meetings.id, after.id)),
+      ),
+    );
+  }
+  const query = db
     .select(shown)
     .from(meetings)
     .where(and(...where))
-    .orderBy(desc(meetings.startsAt));
-  return rows.map((row) => withMine(viewer, row));
+    .orderBy(desc(meetings.startsAt), desc(meetings.id));
+  const rows = filter.limit ? await query.limit(filter.limit + 1) : await query;
+  const more = filter.limit !== undefined && rows.length > filter.limit;
+  const page = more ? rows.slice(0, filter.limit) : rows;
+  return {
+    meetings: page.map((row) => withMine(viewer, row)),
+    nextCursor: more ? encodeCursor(page[page.length - 1]!) : null,
+  };
+}
+
+/** The meetings a viewer may read, newest first. */
+export async function listMeetings(
+  viewer: Viewer,
+  filter: ListFilter = {},
+): Promise<MeetingRow[]> {
+  return (await listMeetingsPage(viewer, filter)).meetings;
 }
 
 export async function createMeeting(
@@ -217,6 +313,7 @@ export async function getMeeting(
             chosen: chosenId === template.id,
           },
     ...detail,
+    jottings: row.ownerUserId === viewer.id ? await getJottings(row.id) : null,
     shareLinks:
       row.ownerUserId === viewer.id
         ? await db
@@ -249,6 +346,7 @@ async function loadDetail(meetingId: string) {
       markdown: notes.markdown,
       model: notes.model,
       generatedAt: notes.generatedAt,
+      editedAt: notes.editedAt,
     })
     .from(notes)
     .where(eq(notes.meetingId, meetingId));
@@ -414,7 +512,13 @@ export async function saveNotes(
     .values({ meetingId, markdown, model })
     .onConflictDoUpdate({
       target: notes.meetingId,
-      set: { markdown, model, generatedAt: sql`(current_timestamp)` },
+      // Written afresh, so no longer the person's edit.
+      set: {
+        markdown,
+        model,
+        generatedAt: sql`(current_timestamp)`,
+        editedAt: null,
+      },
     });
   await db
     .update(meetings)
@@ -525,4 +629,97 @@ export async function meetingsForEvents(
     )
     .orderBy(asc(meetings.startsAt));
   return Object.fromEntries(rows.map((row) => [row.eventId!, row.id]));
+}
+
+async function getJottings(meetingId: string): Promise<Jottings | null> {
+  const [row] = await db
+    .select({ markdown: jottings.markdown, updatedAt: jottings.updatedAt })
+    .from(jottings)
+    .where(eq(jottings.meetingId, meetingId));
+  return row ?? null;
+}
+
+/** The jottings as one text for the notes prompt; empty when none. */
+export async function jottingsText(meetingId: string): Promise<string> {
+  return (await getJottings(meetingId))?.markdown ?? "";
+}
+
+export const saveJottingsInput = z
+  .object({
+    markdown: z.string().max(100_000),
+    /**
+     * When the person typed this (ISO 8601). A save older than the one
+     * stored is ignored, so out-of-order debounced saves can't undo newer
+     * text. Defaults to now; a time in the future counts as now.
+     */
+    updatedAt: z.string().datetime({ offset: true }).optional(),
+  })
+  .strict();
+
+/**
+ * Save the owner's notepad, last write wins by `updatedAt`. Returns what is
+ * stored afterwards and whether this save is it; null when the viewer owns
+ * no such meeting.
+ */
+export async function saveJottings(
+  viewer: Viewer,
+  meetingId: string,
+  input: z.infer<typeof saveJottingsInput>,
+): Promise<{ jottings: Jottings; applied: boolean } | null> {
+  const [row] = await db
+    .select({ id: meetings.id })
+    .from(meetings)
+    .where(owned(viewer, meetingId));
+  if (!row) return null;
+  const now = Date.now();
+  const typedAt = input.updatedAt ? Date.parse(input.updatedAt) : now;
+  const updatedAt = new Date(Math.min(typedAt, now)).toISOString();
+  await db
+    .insert(jottings)
+    .values({ meetingId, markdown: input.markdown, updatedAt })
+    .onConflictDoUpdate({
+      target: jottings.meetingId,
+      set: { markdown: input.markdown, updatedAt },
+      setWhere: sql`${jottings.updatedAt} <= ${updatedAt}`,
+    });
+  const stored = (await getJottings(meetingId))!;
+  return {
+    jottings: stored,
+    applied:
+      stored.updatedAt === updatedAt && stored.markdown === input.markdown,
+  };
+}
+
+export const editNotesInput = z
+  .object({ markdown: z.string().max(200_000) })
+  .strict();
+
+/**
+ * The owner's edit of the notes; sets `editedAt`. Null when the viewer owns
+ * no such meeting; "busy" while it records or its notes are being written,
+ * since those notes are about to be replaced (jot in the notepad instead).
+ */
+export async function editNotes(
+  viewer: Viewer,
+  meetingId: string,
+  markdown: string,
+): Promise<MeetingDetail["notes"] | "busy" | null> {
+  const [row] = await db
+    .select({ status: meetings.status })
+    .from(meetings)
+    .where(owned(viewer, meetingId));
+  if (!row) return null;
+  if (row.status === "recording" || row.status === "processing") {
+    return "busy";
+  }
+  const editedAt = new Date().toISOString();
+  await db
+    .insert(notes)
+    .values({ meetingId, markdown, model: "manual", editedAt })
+    .onConflictDoUpdate({
+      target: notes.meetingId,
+      set: { markdown, editedAt },
+    });
+  const { notes: saved } = await loadDetail(meetingId);
+  return saved;
 }
