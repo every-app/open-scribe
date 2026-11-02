@@ -3,8 +3,11 @@
 // touching audio. For the unit tests and for running the app without the Swift build.
 //
 // It fakes a transcript (a line every few seconds per speaker) and, like the real helper, posts
-// the segments to `{apiBase}/api/v1/meetings/:id/segments` with the bearer it was given and calls
-// `/finish` on stop. So against `everyapp dev` a fake recording leaves a real meeting behind.
+// the segments to `{apiBase}/api/v1/meetings/:id/segments` (in batches of at most 50, every 10 s
+// and on stop) with the bearer it was given and calls `/finish` on stop. A failed post keeps the
+// segments for the next try. A stop that still can't post them hands them back as `unsaved`
+// (`finished: false`, no /finish), as the real helper does. So against `everyapp dev` a fake
+// recording leaves a real meeting behind.
 //
 // Knobs (env):
 //   FAKE_HELPER_PROTOCOL=n        answer hello with another protocol number
@@ -12,10 +15,12 @@
 //   FAKE_HELPER_CALL_AFTER_MS=n   with detection on, emit call.started after n ms (call.ended 2n)
 //   FAKE_HELPER_TOKEN_NEEDED_MS=n while recording, emit token.needed every n ms
 //   FAKE_HELPER_LINE_MS=n         a transcript line every n ms (default 4000)
+//   FAKE_HELPER_BURST_FILE=path   while this file exists, a line every 20 ms (a rate switch a
+//                                 test can flip mid-recording to pile up a backlog quickly)
 //   FAKE_HELPER_NO_POST=1         don't call the API
 //   FAKE_HELPER_MIC=granted|denied|undetermined (default granted)
-//   FAKE_HELPER_STOP_UNSAVED=1    record.stop hands back the unposted segments as `unsaved`, with
-//                                 `finished: false` (as if the app was unreachable at stop)
+//   FAKE_HELPER_STOP_UNSAVED=1    record.stop hands back the unposted segments as `unsaved` without
+//                                 trying to post them (as if the app was unreachable at stop)
 //   FAKE_HELPER_STOP_DELAY_MS=n   record.stop takes n ms (a stop that waits on an outage replay)
 //   FAKE_HELPER_SELFTEST_SYSTEM=ok|denied  selftest.run's system side (default ok); a self-test
 //                                 lasts its `seconds` × 100 ms (fast for tests)
@@ -24,6 +29,7 @@
 //                                 answers { segments: 0, cancelled: true }, start errors `cancelled`)
 // Non-protocol extra, for tests only: {"id", "cmd": "debug.emit", "params": {event...}} echoes an event.
 
+import { existsSync } from "node:fs";
 import { createInterface } from "node:readline";
 
 const env = process.env;
@@ -31,6 +37,9 @@ const num = (name, fallback) => (env[name] ? Number(env[name]) : fallback);
 const PROTOCOL = num("FAKE_HELPER_PROTOCOL", 1);
 const LINE_MS = num("FAKE_HELPER_LINE_MS", 4000);
 const POST = env.FAKE_HELPER_NO_POST !== "1";
+/** The most segments in one POST: the Worker binds each segment's fields as SQL variables. */
+const SEGMENT_BATCH = 50;
+const bursting = () => !!env.FAKE_HELPER_BURST_FILE && existsSync(env.FAKE_HELPER_BURST_FILE);
 
 const send = (obj) => process.stdout.write(`${JSON.stringify(obj)}\n`);
 const log = (...args) => process.stderr.write(`fake-helper: ${args.join(" ")}\n`);
@@ -47,12 +56,13 @@ const LINES = {
   them: ["Sounds good to me.", "The beta build is ready for review.", "We still need the signing certificate.", "Let's meet again on Thursday."],
 };
 
-async function api(path, body) {
-  if (!POST || !rec) return;
-  const url = new URL(path, rec.apiBase.endsWith("/") ? rec.apiBase : `${rec.apiBase}/`);
+/** POSTs for recording `r` (the current one by default). */
+async function api(path, body, r = rec) {
+  if (!POST || !r) return;
+  const url = new URL(path, r.apiBase.endsWith("/") ? r.apiBase : `${r.apiBase}/`);
   const res = await fetch(url, {
     method: "POST",
-    headers: { authorization: `Bearer ${rec.token}`, "content-type": "application/json", accept: "application/json" },
+    headers: { authorization: `Bearer ${r.token}`, "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify(body),
   });
   if (res.status === 401) {
@@ -62,15 +72,27 @@ async function api(path, body) {
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${url.pathname}`);
 }
 
-async function flush() {
-  if (!rec || rec.pending.length === 0) return;
-  const batch = rec.pending.splice(0);
-  try {
-    await api(`api/v1/meetings/${encodeURIComponent(rec.meetingId)}/segments`, { segments: batch });
-  } catch (e) {
-    rec?.pending.unshift(...batch);
-    event("error", { code: "save_failed", message: String(e.message ?? e), fatal: false });
-  }
+let flushing = Promise.resolve(true);
+
+/** Posts the pending segments, oldest first, at most SEGMENT_BATCH per request. Resolves true
+ * when nothing is left. One flush at a time: a second call waits for the running one. */
+function flush() {
+  flushing = flushing.then(async () => {
+    while (rec && rec.pending.length > 0) {
+      const r = rec;
+      const batch = r.pending.slice(0, SEGMENT_BATCH);
+      try {
+        await api(`api/v1/meetings/${encodeURIComponent(r.meetingId)}/segments`, { segments: batch }, r);
+        r.pending.splice(0, batch.length);
+        r.saved += batch.length;
+      } catch (e) {
+        event("error", { code: "save_failed", message: String(e.message ?? e), fatal: false });
+        return false;
+      }
+    }
+    return true;
+  });
+  return flushing;
 }
 
 function startRecording(params) {
@@ -80,25 +102,43 @@ function startRecording(params) {
   event("state", state());
   rec.timers.push(
     setInterval(() => event("levels", { mic: Math.random() * 0.6, system: Math.random() * 0.4 }), 100),
-    setInterval(() => {
+  );
+  // A line every LINE_MS, or every 20 ms while the burst file exists.
+  const nextLine = () => {
+    if (!rec) return;
+    const r = rec;
+    r.lineTimer = setTimeout(() => {
+      if (rec !== r) return;
+      line(bursting());
+      nextLine();
+    }, bursting() ? 20 : LINE_MS);
+  };
+  const line = (fast) => {
       if (!rec) return;
       const speaker = rec.n % 2 === 0 ? "me" : "them";
       const text = LINES[speaker][Math.floor(rec.n / 2) % LINES[speaker].length];
       const itemId = `item_${rec.n}`;
       const words = text.split(" ");
-      // Like the real helper: each delta carries the whole turn so far.
-      words.forEach((_, i) => setTimeout(() => rec && event("transcript.delta", { speaker, text: words.slice(0, i + 1).join(" "), itemId }), i * 60));
       const endedMs = Date.now() - rec.t0;
       const segment = { seq: rec.seq++, speaker, text, startedMs: Math.max(0, endedMs - 2500), endedMs };
-      setTimeout(() => {
-        if (!rec) return;
+      rec.n++;
+      if (fast) {
+        // Burst: the finished line at once, no deltas.
         event("transcript.segment", segment);
         rec.pending.push(segment);
+        return;
+      }
+      // Like the real helper: each delta carries the whole turn so far.
+      words.forEach((_, i) => setTimeout(() => rec && event("transcript.delta", { speaker, text: words.slice(0, i + 1).join(" "), itemId }), i * 60));
+      const r = rec;
+      setTimeout(() => {
+        if (rec !== r) return;
+        event("transcript.segment", segment);
+        r.pending.push(segment);
       }, words.length * 60);
-      rec.n++;
-    }, LINE_MS),
-    setInterval(() => void flush(), 10_000),
-  );
+  };
+  nextLine();
+  rec.timers.push(setInterval(() => void flush(), 10_000));
   const tokenEvery = num("FAKE_HELPER_TOKEN_NEEDED_MS", 0);
   if (tokenEvery > 0) rec.timers.push(setInterval(() => event("token.needed"), tokenEvery));
   return { startedAt };
@@ -107,6 +147,7 @@ function startRecording(params) {
 async function stopRecording() {
   if (!rec) throw { code: "not_recording", message: "Not recording." };
   rec.timers.forEach(clearInterval);
+  clearTimeout(rec.lineTimer);
   const stopDelay = num("FAKE_HELPER_STOP_DELAY_MS", 0);
   if (stopDelay > 0) await new Promise((r) => setTimeout(r, stopDelay));
   if (env.FAKE_HELPER_STOP_UNSAVED === "1") {
@@ -116,16 +157,22 @@ async function stopRecording() {
     event("state", { recording: false, mode: "realtime", mic: "ok", system: "ok" });
     return { segments: total - unsaved.length, finished: false, unsaved };
   }
-  await flush();
-  const total = rec.seq;
-  try {
-    await api(`api/v1/meetings/${encodeURIComponent(rec.meetingId)}/finish`, {});
-  } catch (e) {
-    event("error", { code: "finish_failed", message: String(e.message ?? e), fatal: false });
-  }
+  const drained = await flush();
+  const r = rec;
   rec = undefined;
   event("state", { recording: false, mode: "realtime", mic: "ok", system: "ok" });
-  return { segments: total };
+  if (!drained) {
+    // Still unreachable: hand them back (main keeps and replays them, then calls /finish).
+    return { segments: r.saved, finished: false, unsaved: r.pending.splice(0) };
+  }
+  let finished = true;
+  try {
+    await api(`api/v1/meetings/${encodeURIComponent(r.meetingId)}/finish`, {}, r);
+  } catch (e) {
+    finished = false;
+    event("error", { code: "finish_failed", message: String(e.message ?? e), fatal: false });
+  }
+  return { segments: r.saved, finished };
 }
 
 function setDetection(enabled) {

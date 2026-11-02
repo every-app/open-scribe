@@ -2,7 +2,7 @@
 // (and `finished: false` when /finish failed) when the app was unreachable or the sign-in had
 // expired. They're kept as text only, one 0600 JSON file per meeting in userData/pending, and
 // replayed once the app is reachable again (now, on reconnect, or next launch): segments in
-// batches of ≤ 200 first, then /finish, so the notes include them. Re-posting is safe: the Worker
+// batches of ≤ 50 first, then /finish, so the notes include them. Re-posting is safe: the Worker
 // ignores a seq it already has. No Electron import.
 
 import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
@@ -10,9 +10,18 @@ import { join } from "node:path";
 import type { TranscriptSegment } from "@shared/protocol";
 import { ApiError } from "./api/client";
 
-export const REPLAY_BATCH = 200;
+/** Segments per replay POST. Small enough that the Worker's insert stays under D1's limit on SQL
+ * variables (Codex V4: a 2-minute backlog in one POST failed with "too many SQL variables"). */
+export const REPLAY_BATCH = 50;
 /** Leftovers older than this are dropped rather than replayed into a long-gone meeting. */
 const MAX_AGE_MS = 14 * 24 * 60 * 60_000;
+
+/** A 4xx the Worker won't change its mind about (not 401, 404, 408, 409 or 429): the batch is
+ * dropped instead of retried forever. 404 is handled apart: the meeting itself is gone. */
+export function isPermanentRefusal(error: unknown): boolean {
+  if (!(error instanceof ApiError) || error.kind !== "server" || error.status === undefined) return false;
+  return error.status >= 400 && error.status < 500 && ![401, 404, 408, 409, 429].includes(error.status);
+}
 
 export interface PendingMeeting {
   meetingId: string;
@@ -90,12 +99,22 @@ export class PendingUploads {
         if (p.appUrl !== api.appUrl) continue;
         try {
           let left = p.segments;
+          let refused = 0;
           while (left.length) {
-            await api.appendSegments(p.meetingId, left.slice(0, REPLAY_BATCH));
+            const batch = left.slice(0, REPLAY_BATCH);
+            try {
+              await api.appendSegments(p.meetingId, batch);
+            } catch (error) {
+              if (!isPermanentRefusal(error)) throw error;
+              // Refused for good: retrying won't help. Drop it, say so, and go on.
+              refused += batch.length;
+              this.log(`pending: the app refused ${batch.length} segments for ${p.meetingId} (${error instanceof Error ? error.message : String(error)}); dropped them`);
+            }
             left = left.slice(REPLAY_BATCH);
             // Keep progress, so a failure halfway doesn't resend what landed.
             this.write({ ...p, segments: left });
           }
+          if (refused) this.log(`pending: ${refused} of ${p.segments.length} segments for ${p.meetingId} were refused`);
           if (p.needsFinish) await api.finish(p.meetingId);
           this.remove(p.meetingId);
           this.log(`pending: replayed ${p.segments.length} segments for ${p.meetingId}${p.needsFinish ? " and finished it" : ""}`);

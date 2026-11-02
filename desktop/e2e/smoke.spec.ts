@@ -5,7 +5,7 @@
 // (test-results/e2e, uploaded by CI).
 
 import { _electron as electron, expect, test, type ElectronApplication, type Page } from "@playwright/test";
-import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -37,7 +37,18 @@ class Mock {
   }
 
   async requests(): Promise<string[]> {
-    return ((await (await fetch(`${this.url}/__mock/requests`)).json()) as { requests: string[] }).requests;
+    return (await this.log()).requests;
+  }
+
+  async log(): Promise<{ requests: string[]; segmentBatches: { meetingId: string; count: number; seqs: number[]; refused: boolean }[] }> {
+    return (await (await fetch(`${this.url}/__mock/requests`)).json()) as never;
+  }
+
+  /** The seqs of the segments the mock holds for a meeting. */
+  async segmentSeqs(meetingId: string): Promise<number[]> {
+    const res = await fetch(`${this.url}/api/v1/meetings/${encodeURIComponent(meetingId)}`, { headers: { authorization: "Bearer e2e" } });
+    const body = (await res.json()) as { meeting: { segments: { seq: number }[] } };
+    return body.meeting.segments.map((s) => s.seq).sort((a, b) => a - b);
   }
 
   close(): void {
@@ -46,6 +57,15 @@ class Mock {
 }
 
 let mock: Mock;
+let burstFile: string;
+
+/** Main's connection state: "online", "offline" or "signin-needed". */
+async function connectionState(): Promise<string> {
+  return page.evaluate(async () => {
+    const talk = (window as unknown as { talk: { "state:get"(): Promise<{ connection: string }> } }).talk;
+    return (await talk["state:get"]()).connection;
+  });
+}
 
 /** Main's view of the recording (the window's own state:get), e.g. "recording", "stopping", "idle". */
 async function recordingState(): Promise<string> {
@@ -63,6 +83,7 @@ test.describe.configure({ mode: "serial" });
 test.beforeAll(async () => {
   mock = await Mock.start();
   userData = realpathSync(mkdtempSync(join(tmpdir(), "talk-e2e-")));
+  burstFile = join(userData, "burst");
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v;
   delete env.ELECTRON_RUN_AS_NODE;
@@ -72,6 +93,8 @@ test.beforeAll(async () => {
     FAKE_HELPER_LINE_MS: "600",
     // A fake updater that finds and "downloads" this version at launch (dev builds only).
     TALK_E2E_FAKE_UPDATE: "9.9.9",
+    // While this file exists, the fake helper makes a transcript line every 20 ms.
+    FAKE_HELPER_BURST_FILE: burstFile,
     // No real recorder, ever: the unpackaged app runs scripts/fake-helper.mjs unless this is set.
     TALK_HELPER_PATH: "",
   });
@@ -187,6 +210,69 @@ test("Settings → Test microphone & system audio runs and reports both sides", 
   await expect(results).toContainText("Your microphone works (Fake).");
   await expect(results).toContainText("Talk hears your Mac's sound.");
   await expect(page.getByRole("button", { name: "Test again" })).toBeEnabled();
+});
+
+/** Records a backlog of more than 60 segments while the app can't be reached. Returns the
+ * meeting's id and every seq the helper produced. */
+async function recordOfflineBacklog(): Promise<{ meetingId: string; seqs: () => Promise<number[]> }> {
+  await page.evaluate(() => (location.hash = "#/"));
+  await expect(page.getByText("Coming up")).toBeVisible();
+  await page.evaluate(() => {
+    const w = window as unknown as { __segs: number[]; talk: { on(c: string, f: (e: { event: string; seq?: number }) => void): () => void } };
+    w.__segs = [];
+    w.talk.on("helper", (e) => {
+      if (e.event === "transcript.segment" && typeof e.seq === "number") w.__segs.push(e.seq);
+    });
+  });
+  await page.keyboard.press("Meta+n");
+  await page.waitForURL(/#\/meetings\//);
+  await expect.poll(recordingState).toBe("recording");
+  const meetingId = decodeURIComponent((await page.evaluate(() => location.hash)).split("/").pop() ?? "");
+  const seqs = () => page.evaluate(() => [...(window as unknown as { __segs: number[] }).__segs]);
+  await mock.setMode("offline");
+  writeFileSync(burstFile, "");
+  await expect.poll(async () => (await seqs()).length, { timeout: 15_000 }).toBeGreaterThan(60);
+  rmSync(burstFile, { force: true });
+  // Main noticed (the meeting page's own calls fail), so it will replay once the app is back.
+  await expect.poll(connectionState, { timeout: 20_000 }).toBe("offline");
+  return { meetingId, seqs };
+}
+
+/** Every segment POST (refused ones too) was ≤ 50, and /finish came after the last one. */
+async function expectSavedInBatchesThenFinished(meetingId: string, produced: number[]) {
+  await expect.poll(() => mock.segmentSeqs(meetingId), { timeout: 30_000 }).toEqual([...new Set(produced)].sort((a, b) => a - b));
+  const log = await mock.log();
+  const batches = log.segmentBatches.filter((b) => b.meetingId === meetingId);
+  expect(batches.length).toBeGreaterThan(1);
+  for (const b of batches) {
+    expect(b.count, `a POST of ${b.count} segments`).toBeLessThanOrEqual(50);
+    expect(b.refused).toBe(false);
+  }
+  await expect.poll(async () => (await mock.requests()).lastIndexOf(`POST /api/v1/meetings/${meetingId}/finish`), { timeout: 30_000 }).toBeGreaterThan(-1);
+  const requests = await mock.requests();
+  const lastSegments = requests.lastIndexOf(`POST /api/v1/meetings/${meetingId}/segments`);
+  expect(requests.lastIndexOf(`POST /api/v1/meetings/${meetingId}/finish`)).toBeGreaterThan(lastSegments);
+}
+
+test("a backlog from an outage is saved in batches of ≤ 50 once the app is back, then finished", async () => {
+  const { meetingId, seqs } = await recordOfflineBacklog();
+  await mock.setMode("online");
+  await expect.poll(connectionState, { timeout: 20_000 }).toBe("online");
+  await page.getByRole("button", { name: /^Stop$/ }).click();
+  await expect.poll(recordingState, { timeout: 30_000 }).toBe("idle");
+  await expectSavedInBatchesThenFinished(meetingId, await seqs());
+});
+
+test("a stop while still offline hands the backlog to main, which replays it in batches when back", async () => {
+  const { meetingId, seqs } = await recordOfflineBacklog();
+  await page.getByRole("button", { name: /^Stop$/ }).click(); // still offline
+  await expect.poll(recordingState, { timeout: 30_000 }).toBe("idle");
+  const produced = await seqs();
+  // Main kept the hand-back on disk, in the temp profile.
+  expect(readdirSync(join(userData, "pending")).length).toBe(1);
+  await mock.setMode("online");
+  await expectSavedInBatchesThenFinished(meetingId, produced);
+  await expect.poll(() => readdirSync(join(userData, "pending")).length, { timeout: 10_000 }).toBe(0);
 });
 
 test("shows the offline banner when the app can't be reached, and clears it after", async () => {

@@ -3,7 +3,7 @@ import { mkdtempSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ApiError } from "../src/main/api/client";
-import { PendingUploads, REPLAY_BATCH, type ReplayApi } from "../src/main/pending";
+import { isPermanentRefusal, PendingUploads, REPLAY_BATCH, type ReplayApi } from "../src/main/pending";
 import { feedUrlFrom, sameOrigin, updateRequest } from "../src/main/updateAuth";
 import type { TranscriptSegment } from "@shared/protocol";
 
@@ -35,8 +35,10 @@ describe("pending uploads", () => {
     expect(statSync(join(dir, readdirSync(dir)[0]!)).mode & 0o777).toBe(0o600);
     const { api, calls } = fakeApi();
     expect(await p.replay(api)).toBe(0);
-    expect(calls).toEqual(["segments m1 0-199", "segments m1 200-399", "segments m1 400-449", "finish m1"]);
-    expect(REPLAY_BATCH).toBe(200);
+    expect(REPLAY_BATCH).toBe(50);
+    expect(calls).toHaveLength(10); // 9 batches of ≤ 50, then /finish
+    expect(calls.slice(0, 2)).toEqual(["segments m1 0-49", "segments m1 50-99"]);
+    expect(calls.slice(-2)).toEqual(["segments m1 400-449", "finish m1"]);
   });
 
   it("merges a second stop's leftovers by seq", () => {
@@ -51,13 +53,13 @@ describe("pending uploads", () => {
   it("stops at a network failure, keeps what didn't land, and resumes later without resending", async () => {
     const p = new PendingUploads(join(mkdtempSync(join(tmpdir(), "talk-pending-")), "pending"));
     p.add("m1", "https://talk.example.com", segs(0, 300), true);
-    const first = fakeApi("https://talk.example.com", 1);
+    const first = fakeApi("https://talk.example.com", 4);
     expect(await p.replay(first.api)).toBe(1);
-    expect(first.calls).toEqual(["segments m1 0-199"]);
+    expect(first.calls).toEqual(["segments m1 0-49", "segments m1 50-99", "segments m1 100-149", "segments m1 150-199"]);
     expect(p.list()[0]!.segments.map((s) => s.seq)[0]).toBe(200);
     const second = fakeApi();
     expect(await p.replay(second.api)).toBe(0);
-    expect(second.calls).toEqual(["segments m1 200-299", "finish m1"]);
+    expect(second.calls).toEqual(["segments m1 200-249", "segments m1 250-299", "finish m1"]);
   });
 
   it("only replays to the app the meeting lives on, drops a deleted meeting and old leftovers", async () => {
@@ -90,6 +92,36 @@ describe("pending uploads", () => {
     const { api, calls } = fakeApi();
     await p.replay(api);
     expect(calls).toEqual(["segments m1 4000-48002", "finish m1"]);
+  });
+
+  it("drops a batch the app refuses for good, keeps going, and still finishes", async () => {
+    const p = new PendingUploads(join(mkdtempSync(join(tmpdir(), "talk-pending-")), "pending"));
+    p.add("m1", "https://talk.example.com", segs(0, 120), true);
+    const { api, calls } = fakeApi();
+    const append = api.appendSegments;
+    let n = 0;
+    api.appendSegments = async (id, s) => {
+      if (n++ === 1) throw new ApiError("server", "invalid segment", 422);
+      return append(id, s);
+    };
+    expect(await p.replay(api)).toBe(0);
+    expect(calls).toEqual(["segments m1 0-49", "segments m1 100-119", "finish m1"]);
+  });
+
+  it("retries later (doesn't drop) on 401, 408, 409, 429 and server errors", async () => {
+    for (const status of [408, 409, 429, 500, 503]) {
+      const p = new PendingUploads(join(mkdtempSync(join(tmpdir(), "talk-pending-")), "pending"));
+      p.add("m1", "https://talk.example.com", segs(0, 10), true);
+      const { api } = fakeApi();
+      api.appendSegments = async () => {
+        throw new ApiError("server", "try later", status);
+      };
+      expect(await p.replay(api), String(status)).toBe(1);
+      expect(p.list()[0]!.segments).toHaveLength(10);
+    }
+    expect(isPermanentRefusal(ApiError.signedOut())).toBe(false);
+    expect(isPermanentRefusal(new ApiError("server", "bad", 400))).toBe(true);
+    expect(isPermanentRefusal(new ApiError("server", "gone", 404))).toBe(false);
   });
 
   it("ignores an empty hand-back", () => {

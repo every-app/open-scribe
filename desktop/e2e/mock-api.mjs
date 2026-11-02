@@ -18,6 +18,11 @@ import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import * as mock from "../../packages/ui/playground/mocks.ts";
 
+/** Every segment POST as it arrived, refused ones included: meeting, size, seqs (GET /__mock/requests). */
+const segmentBatches = [];
+/** Bigger segment batches fail with a 500, as on the real Worker before its insert was chunked. */
+const MAX_SEGMENTS_PER_POST = Number(process.env.MOCK_MAX_SEGMENTS_PER_POST ?? 50);
+
 const now = () => new Date().toISOString();
 
 const db = {
@@ -192,6 +197,12 @@ const routes = [
     return [200, { ok: true }];
   }],
   ["POST", /^\/api\/v1\/meetings\/([^/]+)\/segments$/, ([id], b) => {
+    const list = Array.isArray(b.segments ?? b) ? (b.segments ?? b) : [];
+    // Like the Worker: one insert binds every segment's fields; D1 refuses more than ~100 SQL
+    // variables per statement, so a big batch fails the way it did in Codex V4.
+    const refused = list.length > MAX_SEGMENTS_PER_POST;
+    segmentBatches.push({ meetingId: id, count: list.length, seqs: list.map((s) => s.seq), refused });
+    if (refused) return [500, { error: "internal_error", message: "D1_ERROR: too many SQL variables" }];
     const d = detail(id);
     if (d) for (const s of b.segments ?? b) if (!d.segments.some((x) => x.seq === s.seq)) d.segments.push({ ...s, speaker: s.speaker ?? null });
     return [200, { ok: true }];
@@ -280,7 +291,7 @@ export function startMockApi({ port = 0, log = () => {} } = {}) {
       mode = b.mode;
       return json(res, 200, { mode });
     }
-    if (url.pathname === "/__mock/requests" && req.method === "GET") return json(res, 200, { requests });
+    if (url.pathname === "/__mock/requests" && req.method === "GET") return json(res, 200, { requests, segmentBatches });
     requests.push(`${req.method} ${url.pathname}`);
     if (mode === "offline") return req.socket.destroy();
     if (mode === "unauthorized" || !/^Bearer \S+/.test(req.headers.authorization ?? "")) return json(res, 401, { error: "unauthenticated" });
