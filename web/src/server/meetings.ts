@@ -35,6 +35,7 @@ import {
   transcriptSegments,
 } from "@/db/schema";
 import { folderVisibleTo, meetingOwnedBy, meetingVisibleTo } from "./access";
+import { chunk, rowsPerStatement } from "./d1";
 import { getTemplate, resolveTemplate } from "./templates";
 import type { Viewer } from "./viewer";
 
@@ -376,20 +377,27 @@ export async function appendSegments(
     .from(meetings)
     .where(owned(viewer, id));
   if (!row) return false;
-  await db
-    .insert(transcriptSegments)
-    .values(
-      input.segments.map((segment) => ({
-        id: crypto.randomUUID(),
-        meetingId: id,
-        seq: segment.seq,
-        startedMs: segment.startedMs,
-        endedMs: segment.endedMs,
-        speaker: segment.speaker ?? null,
-        text: segment.text,
-      })),
-    )
-    .onConflictDoNothing();
+  const rows = input.segments.map((segment) => ({
+    id: crypto.randomUUID(),
+    meetingId: id,
+    seq: segment.seq,
+    startedMs: segment.startedMs,
+    endedMs: segment.endedMs,
+    speaker: segment.speaker ?? null,
+    text: segment.text,
+  }));
+  // One bound value per column per row, so a backlog after an outage
+  // overflows D1's limit in one statement: split it, and run the parts in
+  // one batch (a single transaction) so a post lands whole or not at all.
+  // A seq already stored is skipped (the unique (meeting, seq) index), and
+  // the search triggers fire per inserted row as before.
+  const [first, ...rest] = chunk(
+    rows,
+    rowsPerStatement(Object.keys(rows[0]!).length),
+  ).map((part) =>
+    db.insert(transcriptSegments).values(part).onConflictDoNothing(),
+  );
+  await db.batch([first!, ...rest]);
   return true;
 }
 
@@ -571,17 +579,30 @@ export async function meetingsForEvents(
   eventIds: string[],
 ): Promise<Record<string, string>> {
   if (eventIds.length === 0) return {};
-  const rows = await db
-    .select({ id: meetings.id, eventId: meetings.calendarEventId })
-    .from(meetings)
-    .where(
-      and(
-        eq(meetings.orgId, viewer.orgId),
-        eq(meetings.ownerUserId, viewer.id),
-        inArray(meetings.calendarEventId, eventIds),
-      ),
-    )
-    .orderBy(asc(meetings.startsAt));
+  // A calendar page holds up to 100 events: more ids than D1 binds in one
+  // statement beside the org and owner, so ask in parts.
+  const parts = await Promise.all(
+    chunk([...new Set(eventIds)], rowsPerStatement(1, 2)).map((ids) =>
+      db
+        .select({
+          id: meetings.id,
+          eventId: meetings.calendarEventId,
+          startsAt: meetings.startsAt,
+        })
+        .from(meetings)
+        .where(
+          and(
+            eq(meetings.orgId, viewer.orgId),
+            eq(meetings.ownerUserId, viewer.id),
+            inArray(meetings.calendarEventId, ids),
+          ),
+        ),
+    ),
+  );
+  // The latest recording of an event wins, as when this was one query.
+  const rows = parts
+    .flat()
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
   return Object.fromEntries(rows.map((row) => [row.eventId!, row.id]));
 }
 

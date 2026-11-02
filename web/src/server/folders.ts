@@ -1,4 +1,4 @@
-import { and, asc, count, eq, inArray } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import type { z } from "zod";
 import type {
   createFolderInput,
@@ -37,15 +37,10 @@ export async function listFoldersWithCounts(
     .select({ folderId: meetingFolders.folderId, n: count() })
     .from(meetingFolders)
     .innerJoin(meetings, eq(meetings.id, meetingFolders.meetingId))
-    .where(
-      and(
-        inArray(
-          meetingFolders.folderId,
-          list.map((folder) => folder.id),
-        ),
-        meetingVisibleTo(viewer),
-      ),
-    )
+    // The folders by the same rule as listFolders, not as an id list: an
+    // organization's folders can outnumber D1's 100 bound parameters.
+    .innerJoin(folders, eq(folders.id, meetingFolders.folderId))
+    .where(and(folderVisibleTo(viewer), meetingVisibleTo(viewer)))
     .groupBy(meetingFolders.folderId);
   const byFolder = new Map(counts.map((row) => [row.folderId, row.n]));
   return list.map((folder) => ({

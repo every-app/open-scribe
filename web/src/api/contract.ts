@@ -277,11 +277,24 @@ const segmentInput = z
     text: z.string().max(10_000),
   })
   .strict();
-const segmentList = z.array(segmentInput).min(1).max(500);
-/** POST /meetings/:id/segments: a bare array, or `{ segments: [...] }`. */
-export const appendSegmentsInput = z
-  .union([segmentList, z.object({ segments: segmentList }).strict()])
-  .transform((input) => (Array.isArray(input) ? { segments: input } : input));
+/** The most segments one post takes; a longer backlog goes in several. */
+export const MAX_SEGMENTS_PER_POST = 500;
+const segmentList = z
+  .array(segmentInput)
+  .min(1)
+  .max(
+    MAX_SEGMENTS_PER_POST,
+    `At most ${MAX_SEGMENTS_PER_POST} segments per request; send the rest in another.`,
+  );
+/**
+ * POST /meetings/:id/segments: a bare array, or `{ segments: [...] }`. The
+ * bare array is wrapped first, so a refusal names its reason (a union would
+ * only say "Invalid input").
+ */
+export const appendSegmentsInput = z.preprocess(
+  (raw) => (Array.isArray(raw) ? { segments: raw } : raw),
+  z.object({ segments: segmentList }).strict(),
+);
 
 /** POST /meetings/:id/finish → `{ meeting: MeetingRow }`; notes follow. */
 export interface FinishMeetingResponse {
@@ -462,7 +475,9 @@ export type ListMeetingsQuery = z.input<typeof listMeetingsQuery>;
 export type SearchQuery = z.input<typeof searchQuery>;
 export type SaveJottingsInput = z.input<typeof saveJottingsInput>;
 export type EditNotesInput = z.input<typeof editNotesInput>;
-export type AppendSegmentsInput = z.input<typeof appendSegmentsInput>;
+export type AppendSegmentsInput =
+  | z.input<typeof segmentList>
+  | { segments: z.input<typeof segmentList> };
 export type TranscriptionTokenInput = z.input<typeof transcriptionTokenInput>;
 export type CreateFolderInput = z.input<typeof createFolderInput>;
 export type UpdateFolderInput = z.input<typeof updateFolderInput>;
