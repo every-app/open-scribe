@@ -87,7 +87,14 @@ At most 4 child threads run at once. Each has its own worktree and branch, opens
 | 1 | **H: Swift helper** | `mac/` | `talk-helper` speaking the protocol, with recording moved out of the SwiftUI app, call detection (Core Audio process input state, plus a list of known call apps), permissions, tests, and a build step that hands Lane A a signed binary. |
 | 2 | **API** (after W) | `web/` | Bearer `/api/v1` for folders, templates, jottings (meeting notepad text, used when notes are generated), note editing, a meeting list with filters, and calendar for the window. |
 | 2 | **UI** (after A, and API in parallel) | `desktop/src/renderer`, `packages/ui` | Extract `packages/ui`. Build the screens: Home (Coming up + recent), the meeting page (notepad during the call, then notes, with a transcript tab, folder/template chips and share), folders, templates, settings, onboarding (sign-in and permissions). |
+| 2–3 | **V: computer-use verification** (Codex) | nothing (reports; fixes go back to the owning lane) | After each phase merges: install `~/Applications/Talk Dev.app` with `pnpm package:local`, sign in against a seeded local `everyapp dev`, click through every screen and flow with Codex computer use, take screenshots in light and dark mode, and report bugs and visual problems. |
 | 3 | **Integrate** | everything | Bundle the helper into the app, run an end-to-end recording on the signed build, test an update, and work through the alpha checklist. |
+
+## Local testing and signing
+
+- **No Apple Developer ID is needed to run Talk locally.** Local builds are "Talk Dev" (`com.everyapp.talk.dev`, `~/Applications/Talk Dev.app`), signed with the self-signed "Scrawl Dev" cert (or `TALK_SIGN_ID`). The stable identity keeps mic and system-audio grants across rebuilds.
+- **Without a Team ID, the Keychain sign-in is lost on every rebuild.** For local runs, re-paste a token, or use any bearer against local `everyapp dev`.
+- **The Developer ID and notarization are only for builds that run on other Macs** and for testing that an update keeps the sign-in.
 
 ## Alpha checklist
 
