@@ -3,6 +3,16 @@ import { LayoutTemplate, MoreHorizontal, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Page, PageTitle } from "@/client/components/Page";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/client/components/ui/alert-dialog";
 import { Badge } from "@/client/components/ui/badge";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -53,6 +63,7 @@ function Templates() {
   const { templates, defaultTemplateId } = Route.useLoaderData();
   const router = useRouter();
   const [editing, setEditing] = useState<Editing | null>(null);
+  const [deleting, setDeleting] = useState<Template | null>(null);
 
   async function run(work: () => Promise<unknown>, failed: string) {
     try {
@@ -168,12 +179,7 @@ function Templates() {
                 {template.mine && (
                   <DropdownMenuItem
                     variant="destructive"
-                    onClick={() =>
-                      run(
-                        () => deleteTemplate({ data: { id: template.id } }),
-                        "Couldn't delete it.",
-                      )
-                    }
+                    onClick={() => setDeleting(template)}
                   >
                     Delete
                   </DropdownMenuItem>
@@ -183,6 +189,41 @@ function Templates() {
           </li>
         ))}
       </ul>
+
+      <AlertDialog
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{deleting?.name}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleting?.visibility === "team"
+                ? "No one on the team can pick it anymore. "
+                : ""}
+              Notes already written stay as they are; folders and meetings that
+              used it fall back to the next template.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={async () => {
+                if (!deleting) return;
+                const { id } = deleting;
+                setDeleting(null);
+                await run(
+                  () => deleteTemplate({ data: { id } }),
+                  "Couldn't delete it.",
+                );
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <TemplateEditor
         editing={editing}
