@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Embedded in talk-helper's __TEXT,__info_plist by scripts/build-helper.sh. It gives the
+       bare executable a bundle id (call detection skips com.everyapp.talk.*) and a version for
+       `hello`. TCC charges capture to the parent app, whose Info.plist has the usage strings;
+       they're repeated here for a helper launched from a terminal. -->
+  <key>CFBundleIdentifier</key>
+  <string>com.everyapp.talk.helper</string>
+  <key>CFBundleName</key>
+  <string>talk-helper</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.1.0</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Talk transcribes your side of a meeting while you record it. Audio is never saved.</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>Talk transcribes the other side of a meeting from your Mac's sound while you record it. Audio is never saved.</string>
+</dict>
+</plist>

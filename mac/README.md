@@ -1,6 +1,6 @@
 # Talk for Mac
 
-The menu-bar recorder (docs/SPEC.md). SwiftUI `MenuBarExtra`, `LSUIElement`, macOS 15+, SwiftPM only (no Xcode project).
+The menu-bar recorder (docs/SPEC.md). SwiftUI `MenuBarExtra`, `LSUIElement`, macOS 15+, SwiftPM only (no Xcode project). Also `talk-helper`, the headless capture and transcription process the Electron desktop app spawns (docs/desktop-plan.md); see [talk-helper](#talk-helper) below.
 
 ```sh
 ./scripts/build-app.sh      # build, sign, install ~/Applications/Talk.app, restart it
@@ -32,7 +32,10 @@ The app logs sign-in and calendar changes (hosts and counts, never tokens): `log
 | Path | What |
 | --- | --- |
 | `Sources/TalkCore` | No hardware, no UI, all tested: PKCE, the loopback redirect parser, the OAuth client, `AuthProvider`, `SignInFlow`, the API client and its lenient decoders, `SegmentBatcher`, `ChunkCutter`, `Resampler` (windowed sinc) and PCM16, `TurnDetector`, `ReminderPlanner` and `StartedNudge`, `TalkURL`, WAV, the Keychain store |
-| `Sources/Talk` | The app: menu, Settings (sign-in, permissions), `OAuthSignIn` (the loopback listener), `MicCapture` (AVAudioEngine), `SystemAudioCapture` (Core Audio process tap), `RealtimeSession`/`TranscriptionChannel`, `ChunkChannel` (fallback), `Recorder`, `Reminders`, the talk:// handler (`AppDelegate`, `AppModel.handle`) |
+| `Sources/TalkRecording` | Recording without UI or Keychain, shared by the app and the helper: `MicCapture` (AVAudioEngine), `SystemAudioCapture` (Core Audio process tap), `RealtimeSession`/`TranscriptionChannel`, `ChunkChannel` (fallback), `RecordingPipeline` (channels, capture, 10 s posting, `/finish`, levels), `CallDetection`, `AudioDevices`, and the helper protocol (`Helper/`: codec, `HelperAuth`, `HelperServer`) |
+| `Sources/talk-helper` | The helper's `main`: stdin/stdout, signals, device-change watcher |
+| `Sources/Talk` | The app: menu, Settings (sign-in, permissions), `OAuthSignIn` (the loopback listener), `Recorder` (creates the meeting, runs `RecordingPipeline`), `Reminders`, the talk:// handler (`AppDelegate`, `AppModel.handle`) |
+| `Tests/TalkRecordingTests` | The protocol codec, the dispatcher driven with fake capture, channels and Worker (401 → `token.needed` → retry, fallback, shutdown), the call detector with a fake process source |
 | `Resources` | Info.plist and entitlements, copied by the build script |
 
 ## Sign-in
@@ -78,3 +81,30 @@ TCC ties microphone, system audio and notification grants to the bundle's path a
 - It is signed with a stable certificate (`TALK_SIGN_ID`, else a self-signed "Talk Dev" code-signing cert, else "Scrawl Dev" if present), with the hardened runtime and `com.apple.security.device.audio-input`. Ad-hoc signing works but makes macOS ask again after every rebuild.
 - **The Keychain is stricter than TCC.** A login-keychain item is bound to its creator's partition: `teamid:<TEAM>` under a Developer ID, but the binary's cdhash under a signature without a Team ID (any self-signed cert, "Scrawl Dev" included). So every dev rebuild loses the saved sign-in: the new build can't read it (`talk-smoke status` and Settings say so) and you sign in again. Releases must be signed with a Developer ID so updates keep the sign-in. `TALK_KEYCHAIN_SERVICE` moves the app's items to another service name for experiments.
 - Permissions are asked from Settings or right before a recording starts, never from inside capture code. System audio has no ask/check API: macOS prompts the first time a process tap starts (Settings → "Allow…" starts a one-second tap to bring the prompt up).
+
+## talk-helper
+
+A headless executable (no UI, no Keychain, no sign-in) that the Electron app's main process spawns and drives over stdin/stdout with newline-delimited JSON: **protocol v1, as specified in docs/desktop-plan.md "Helper protocol (v1)"**. stdout carries protocol lines only; logs go to stderr and os_log (subsystem `com.everyapp.talk`, category `helper`; never tokens). It exits cleanly (stopping a recording properly: last segments posted, `/finish` called) when stdin closes or on SIGTERM/SIGINT, within 45 s at most.
+
+```sh
+./scripts/build-helper.sh        # release, universal (arm64 + x86_64), signed → .build/helper/talk-helper
+printf '{"id":1,"cmd":"hello","params":{"protocol":1}}\n{"id":2,"cmd":"permissions.status"}\n' | .build/helper/talk-helper
+```
+
+**For packaging (Lane A):** copy `mac/.build/helper/talk-helper` to `Talk.app/Contents/MacOS/talk-helper`. The script prints that path as its last stdout line. It signs with `TALK_SIGN_ID` if set (use the app's Developer ID; then a secure timestamp is added), else the self-signed "Scrawl Dev" cert if the keychain has it (a stable identity, so TCC grants survive rebuilds), else ad hoc. Always hardened runtime, entitlement `com.apple.security.device.audio-input`, identifier `com.everyapp.talk.helper`, with `Resources/helper-Info.plist` embedded in `__TEXT,__info_plist`. No notarization here: the app is notarized as a whole (re-sign the helper with the app's identity if electron-builder doesn't). `TALK_HELPER_ARCHS=arm64` builds one slice.
+
+**TCC charges capture to the parent app.** macOS attributes the helper's mic and system-audio use to the responsible process, the Talk.app that launched it, so `NSMicrophoneUsageDescription` and `NSAudioCaptureUsageDescription` must be in **Talk.app's** Info.plist, and grants belong to Talk.app's identity (run from a terminal, they're Terminal's). The helper's embedded plist repeats the strings only for that terminal case.
+
+How the helper reads the protocol where the table leaves room:
+
+- `record.start` takes the meeting the app already created. Mic permission is asked there if never asked (`mic_denied` if refused). On failure nothing is left running, and the helper doesn't `/finish` the meeting (the app owns its lifecycle). Error codes: the Worker's `error` code when it gives one (e.g. `ai_provider_not_configured`), else `http_<status>`, `signed_out`, `access_login`, `capture_failed`, `start_failed`; also `busy`, `bad_params`, `shutting_down`.
+- `record.stop` answers `{ segments }`: segments saved for the meeting during the recording. If some couldn't be saved or `/finish` failed, an `error` event (`save_failed`) comes first; `not_recording` when idle.
+- `permissions.request` answers the same `{ mic, systemAudio }` shape as `permissions.status`. `systemAudio` is always `unknown`: there's no API to read it, and `request` starts a 1 s tap so macOS shows its prompt.
+- `transcript.delta.text` is the **whole text so far** of that `itemId` (replace, don't append). Fallback mode sends no deltas, only segments.
+- `transcript.segment.seq` is the seq posted to the Worker (realtime), or the one the Worker stored (fallback).
+- `state` is sent on start, stop, mode changes and health changes. `mic`/`system`: `error` when capture failed or couldn't restart, `silent` after 5 s of digital silence (a denied tap, a muted device, or simply nothing playing), else `ok`.
+- `levels` at 10 Hz while recording: peak RMS per 100 ms on a −60…0 dBFS scale.
+- `token.needed`: on a 401 from the Worker. The request waits up to 60 s for `token.update`, then is retried once; segments that still fail are kept and retried on the next 10 s tick (asking again).
+- `error.fatal` is `false` for everything today (`transcription`, `capture`, `save_failed`); the recording goes on.
+- `device.changed` fires whenever the default input or output changes, recording or not, with the new device's name.
+- `call.started`/`call.ended`: with `detect.set {enabled:true}` the helper polls Core Audio's process objects once a second (`kAudioHardwarePropertyProcessObjectList`, `kAudioProcessPropertyIsRunningInput`, bundle id). An app must hold the mic 3 s to start and release it 3 s to end. Known apps (helpers map to their app): Zoom (`us.zoom.xos`), Microsoft Teams, Slack, FaceTime (incl. `avconferenced`), Webex, Discord, and the browsers Chrome, Arc, Safari (incl. `com.apple.WebKit.GPU`), Edge, Firefox, Brave: for a browser the app decides whether it's a Meet call. Talk's own processes (`com.everyapp.talk*`, and the helper's pid) are ignored. Turning detection off doesn't send `call.ended`.

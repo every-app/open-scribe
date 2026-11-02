@@ -22,7 +22,7 @@ actor RealtimeSession {
 
   enum Event: Sendable {
     case ready
-    case delta(String)
+    case delta(String, itemID: String)
     case segment(t0: Int, t1: Int, text: String)
     case failed(String)
   }
@@ -172,7 +172,7 @@ actor RealtimeSession {
       guard !item.done else { return }
       item.text += delta
       items[id] = item
-      onEvent(.delta(item.text))
+      onEvent(.delta(item.text, itemID: id))
     case "conversation.item.input_audio_transcription.completed":
       guard let id = event["item_id"] as? String else { return }
       var item = items[id] ?? Item()
@@ -262,10 +262,32 @@ actor RealtimeSession {
   }
 }
 
-/// One speaker's transcription for a whole meeting: audio in, turns detected on the Mac, text
-/// out. Renews the ephemeral key before it expires (2 h at most) and reconnects after a drop.
+/// What a speaker channel reports. Called from the channel's actor; hop to your own.
+public struct ChannelCallbacks: Sendable {
+  /// A finished turn the recorder still has to post: speaker, startedMs, endedMs, text.
+  public var segment: @Sendable (Speaker, Int, Int, String) -> Void
+  /// A segment the Worker already stored (the fallback's chunks).
+  public var stored: @Sendable (Segment) -> Void
+  /// The text so far of a turn still being transcribed: speaker, text, item id.
+  public var delta: @Sendable (Speaker, String, String) -> Void
+  /// A sentence when transcription is in trouble, nil when it's fine again.
+  public var problem: @Sendable (Speaker, String?) -> Void
+
+  public init(
+    segment: @escaping @Sendable (Speaker, Int, Int, String) -> Void,
+    stored: @escaping @Sendable (Segment) -> Void,
+    delta: @escaping @Sendable (Speaker, String, String) -> Void,
+    problem: @escaping @Sendable (Speaker, String?) -> Void
+  ) {
+    self.segment = segment
+    self.stored = stored
+    self.delta = delta
+    self.problem = problem
+  }
+}
+
 /// One speaker's way to text for a whole meeting.
-protocol SpeakerChannel: Actor {
+public protocol SpeakerChannel: Actor {
   func start() async throws
   /// PCM16 24 kHz mono, in capture order.
   func feed(_ pcm: Data) async
@@ -274,15 +296,15 @@ protocol SpeakerChannel: Actor {
   func cancel() async
 }
 
-actor TranscriptionChannel: SpeakerChannel {
+/// One speaker's transcription for a whole meeting: audio in, turns detected on the Mac, text
+/// out. Renews the ephemeral key before it expires (2 h at most) and reconnects after a drop.
+public actor TranscriptionChannel: SpeakerChannel {
   static let renewLead: TimeInterval = 90
   static let retryDelays: [Double] = [1, 3, 10, 30]
 
   let speaker: Speaker
   let fetchToken: @Sendable () async throws -> TranscriptionToken
-  let onSegment: @Sendable (Speaker, Int, Int, String) -> Void
-  let onLive: @Sendable (Speaker, String) -> Void
-  let onProblem: @Sendable (Speaker, String?) -> Void
+  let callbacks: ChannelCallbacks
   let language: String?
 
   private var detector = TurnDetector()
@@ -293,27 +315,23 @@ actor TranscriptionChannel: SpeakerChannel {
   private var renewTask: Task<Void, Never>?
   private var retiring: [Task<Void, Never>] = []
 
-  init(
+  public init(
     speaker: Speaker, language: String?, fetchToken: @escaping @Sendable () async throws -> TranscriptionToken,
-    onSegment: @escaping @Sendable (Speaker, Int, Int, String) -> Void,
-    onLive: @escaping @Sendable (Speaker, String) -> Void,
-    onProblem: @escaping @Sendable (Speaker, String?) -> Void
+    callbacks: ChannelCallbacks
   ) {
     self.speaker = speaker
     self.language = language
     self.fetchToken = fetchToken
-    self.onSegment = onSegment
-    self.onLive = onLive
-    self.onProblem = onProblem
+    self.callbacks = callbacks
   }
 
-  func start() async throws {
+  public func start() async throws {
     let token = try await fetchToken()
     open(with: token)
   }
 
   /// PCM16 24 kHz mono, in capture order.
-  func feed(_ pcm: Data) async {
+  public func feed(_ pcm: Data) async {
     guard !stopped else { return }
     let actions = detector.feed(PCM16.decode(pcm))
     guard let session else { return }  // reconnecting: this audio is lost, the clock goes on
@@ -327,7 +345,7 @@ actor TranscriptionChannel: SpeakerChannel {
   }
 
   /// Commits the last turn and waits for its text.
-  func finish() async {
+  public func finish() async {
     guard !stopped else { return }
     stopped = true
     renewTask?.cancel()
@@ -340,7 +358,7 @@ actor TranscriptionChannel: SpeakerChannel {
     for task in retiring { await task.value }
   }
 
-  func cancel() async {
+  public func cancel() async {
     stopped = true
     renewTask?.cancel()
     await session?.cancel()
@@ -372,16 +390,15 @@ actor TranscriptionChannel: SpeakerChannel {
     case .ready:
       guard generation == self.generation else { return }
       failures = 0
-      onProblem(speaker, nil)
-    case .delta(let text):
-      onLive(speaker, text)
+      callbacks.problem(speaker, nil)
+    case .delta(let text, let itemID):
+      callbacks.delta(speaker, text, itemID)
     case .segment(let t0, let t1, let text):
-      onSegment(speaker, t0, t1, text)
-      onLive(speaker, text)
+      callbacks.segment(speaker, t0, t1, text)
     case .failed(let reason):
       guard generation == self.generation, !stopped else { return }
       session = nil
-      onProblem(speaker, reason)
+      callbacks.problem(speaker, reason)
       await reconnect()
     }
   }
@@ -418,7 +435,7 @@ actor TranscriptionChannel: SpeakerChannel {
         open(with: token)
         return
       } catch {
-        onProblem(speaker, "Can't reach transcription: \(error.localizedDescription)")
+        callbacks.problem(speaker, "Can't reach transcription: \(error.localizedDescription)")
       }
     }
   }

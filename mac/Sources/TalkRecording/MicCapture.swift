@@ -4,7 +4,7 @@ import TalkCore
 /// The microphone through AVAudioEngine, delivered as PCM16 24 kHz mono chunks. Never asks for
 /// permission itself: the caller checks first (a prompt from inside capture code is the kind
 /// that gets lost).
-final class MicCapture: @unchecked Sendable {
+public final class MicCapture: AudioSource, @unchecked Sendable {
   private let engine = AVAudioEngine()
   private var converter: AudioConverter24k?
   private let onAudio: @Sendable (Data) -> Void
@@ -12,12 +12,12 @@ final class MicCapture: @unchecked Sendable {
   private let onInterrupted: @Sendable (String?) -> Void
 
   /// `onInterrupted` gets a sentence when the mic stops and can't be restarted, nil when it's back.
-  init(onAudio: @escaping @Sendable (Data) -> Void, onInterrupted: @escaping @Sendable (String?) -> Void = { _ in }) {
+  public init(onAudio: @escaping @Sendable (Data) -> Void, onInterrupted: @escaping @Sendable (String?) -> Void = { _ in }) {
     self.onAudio = onAudio
     self.onInterrupted = onInterrupted
   }
 
-  func start() throws {
+  public func start() throws {
     try startEngine()
     // The engine stops itself when the input device changes (AirPods plugged in, the default mic
     // switched mid-meeting). Start again on the new device, in its format.
@@ -51,7 +51,7 @@ final class MicCapture: @unchecked Sendable {
     try engine.start()
   }
 
-  func stop() {
+  public func stop() {
     if let configObserver { NotificationCenter.default.removeObserver(configObserver) }
     configObserver = nil
     engine.inputNode.removeTap(onBus: 0)
@@ -80,8 +80,8 @@ final class MicCapture: @unchecked Sendable {
   }
 }
 
-struct CaptureError: Error, LocalizedError {
-  let message: String
-  init(_ message: String) { self.message = message }
-  var errorDescription: String? { message }
+public struct CaptureError: Error, LocalizedError {
+  public let message: String
+  public init(_ message: String) { self.message = message }
+  public var errorDescription: String? { message }
 }

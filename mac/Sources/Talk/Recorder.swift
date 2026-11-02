@@ -1,9 +1,9 @@
-@preconcurrency import AVFoundation
 import Foundation
 import TalkCore
+import TalkRecording
 
-/// One meeting being recorded: creates it on the server, captures mic and system audio, streams
-/// each to its own transcription session, and posts finished segments every ten seconds.
+/// One meeting being recorded from the menu: creates it on the server, then runs the shared
+/// `RecordingPipeline` (TalkRecording) and turns its events into the menu's live line and warning.
 /// Audio only ever goes to OpenAI and is never written anywhere.
 @MainActor
 final class Recorder: ObservableObject {
@@ -29,17 +29,8 @@ final class Recorder: ObservableObject {
   /// The calendar event being recorded, if any.
   private(set) var calendarEventID: String?
 
-  private var api: APIClient?
-  private var mic: MicCapture?
-  private var system: SystemAudioCapture?
-  private var channels: [Speaker: any SpeakerChannel] = [:]
-  private var pumps: [Task<Void, Never>] = []
-  private var continuations: [Speaker: AsyncStream<Data>.Continuation] = [:]
-  private var batcher = SegmentBatcher()
-  private var flushTask: Task<Void, Never>?
-  private var flushing = false
+  private var pipeline: RecordingPipeline?
   private var problems: [Speaker: String] = [:]
-  private var systemWarning: String?
   private var fallbackNotice: String?
   private var captureProblems: [Speaker: String] = [:]
 
@@ -53,32 +44,27 @@ final class Recorder: ObservableObject {
     warning = nil
     liveLine = nil
     problems = [:]
-    systemWarning = nil
     fallbackNotice = nil
     captureProblems = [:]
-    guard await Permissions.ensureMicrophone() else {
+    guard await CapturePermission.ensureMicrophone() else {
       lastError = "Talk needs the microphone. Allow it in System Settings → Privacy & Security → Microphone."
       return
     }
     state = .starting(title: title)
     self.calendarEventID = calendarEventID
-    self.api = api
-    batcher = SegmentBatcher()
     var createdID: String?
     do {
       let meeting = try await api.createMeeting(
         title: title, startsAt: startsAt, calendarEventId: calendarEventID, attendees: attendees)
       createdID = meeting.id
-      try await startCapture(meetingID: meeting.id, api: api)
+      let pipeline = RecordingPipeline(
+        meetingID: meeting.id, api: api, language: Locale.current.language.languageCode?.identifier
+      ) { [weak self] event in self?.handle(event) }
+      self.pipeline = pipeline
+      try await pipeline.start()
       state = .recording(meetingID: meeting.id, title: title, since: Date())
-      flushTask = Task { [weak self] in
-        while !Task.isCancelled {
-          try? await Task.sleep(for: .seconds(SegmentBatcher.interval))
-          await self?.flush(meetingID: meeting.id)
-        }
-      }
     } catch {
-      await teardown()
+      pipeline = nil
       // Don't leave the meeting "recording" on the server; best effort.
       if let createdID { try? await api.finish(meetingID: createdID) }
       state = .idle
@@ -88,28 +74,15 @@ final class Recorder: ObservableObject {
   }
 
   func stop() async {
-    guard case .recording(let meetingID, let title, _) = state else { return }
+    guard case .recording(let meetingID, let title, _) = state, let pipeline else { return }
     state = .stopping(title: title)
-    flushTask?.cancel()
-    flushTask = nil
-    // Stop the audio first, then let each session finish the turns it has.
-    mic?.stop()
-    system?.stop()
-    for continuation in continuations.values { continuation.finish() }
-    for pump in pumps { await pump.value }
-    await withTaskGroup(of: Void.self) { group in
-      for channel in channels.values { group.addTask { await channel.finish() } }
-    }
-    // Segments reach the batcher through main-actor tasks; let the last ones land.
-    try? await Task.sleep(for: .milliseconds(300))
-    await flush(meetingID: meetingID, final: true)
-    do {
-      try await api?.finish(meetingID: meetingID)
+    let result = await pipeline.stop()
+    self.pipeline = nil
+    if let problem = result.problem {
+      lastError = problem
+    } else {
       lastMeetingID = meetingID
-    } catch {
-      lastError = "The recording stopped, but Talk couldn't be told to write notes: \(error.localizedDescription)"
     }
-    await teardown()
     state = .idle
     calendarEventID = nil
     liveLine = nil
@@ -118,129 +91,32 @@ final class Recorder: ObservableObject {
 
   // MARK: Private
 
-  private func startCapture(meetingID: String, api: APIClient) async throws {
-    let language = Locale.current.language.languageCode?.identifier
-    let onLive: @Sendable (Speaker, String) -> Void = { [weak self] speaker, text in
-      Task { @MainActor in self?.liveLine = "\(speaker == .me ? "Me" : "Them"): \(Self.tail(text))" }
-    }
-    let onProblem: @Sendable (Speaker, String?) -> Void = { [weak self] speaker, problem in
-      Task { @MainActor in self?.setProblem(speaker, problem) }
-    }
-    for speaker in [Speaker.me, .them] {
-      channels[speaker] = TranscriptionChannel(
-        speaker: speaker, language: language,
-        fetchToken: { try await api.transcriptionToken(meetingID: meetingID, source: speaker == .me ? "mic" : "system", language: language) },
-        onSegment: { [weak self] speaker, t0, t1, text in
-          Task { @MainActor in self?.batcher.add(speaker: speaker, startedMs: t0, endedMs: t1, text: text) }
-        },
-        onLive: onLive, onProblem: onProblem)
-    }
-    // Both keys first: if the Worker can't mint them, decide before touching audio.
-    do {
-      try await startChannels()
-    } catch let error as APIError where error.isRealtimeUnavailable {
-      // No live keys: send 30 s chunks to the Worker instead (SPEC "Fallback").
-      for channel in channels.values { await channel.cancel() }
-      let seq = SeqCounter()
-      for speaker in [Speaker.me, .them] {
-        channels[speaker] = ChunkChannel(
-          speaker: speaker, language: language, seq: seq,
-          upload: { wav, number, t0, t1 in
-            try await api.appendAudioChunk(
-              meetingID: meetingID, wav: wav, seq: number, startedMs: t0, endedMs: t1, speaker: speaker, language: language)
-          },
-          onLive: onLive, onProblem: onProblem)
-      }
-      try await startChannels()
-      fallbackNotice = "Near-live transcription: live keys aren't available, so audio goes in 30-second chunks"
+  private func handle(_ event: RecordingEvent) {
+    switch event {
+    case .mode(let mode):
+      fallbackNotice = mode == .fallback ? "Near-live transcription: live keys aren't available, so audio goes in 30-second chunks" : nil
       updateWarning()
-    }
-    for speaker in [Speaker.me, .them] {
-      let channel = channels[speaker]!
-      // Ordered delivery from the audio thread to the channel.
-      let (stream, continuation) = AsyncStream<Data>.makeStream(bufferingPolicy: .bufferingNewest(600))
-      continuations[speaker] = continuation
-      pumps.append(Task.detached { for await chunk in stream { await channel.feed(chunk) } })
-    }
-
-    let micSink = continuations[.me]!
-    let mic = MicCapture(onAudio: { micSink.yield($0) }, onInterrupted: { [weak self] problem in
-      Task { @MainActor in self?.setCaptureProblem(.me, problem) }
-    })
-    try mic.start()
-    self.mic = mic
-
-    let systemSink = continuations[.them]!
-    let system = SystemAudioCapture(onAudio: { systemSink.yield($0) }, onInterrupted: { [weak self] problem in
-      Task { @MainActor in self?.setCaptureProblem(.them, problem) }
-    })
-    do {
-      try system.start()
-      self.system = system
-    } catch {
-      // The meeting still records your side.
-      systemWarning = "Not hearing the other side: \(error.localizedDescription)"
+    case .delta(let speaker, let text, _):
+      liveLine = "\(speaker == .me ? "Me" : "Them"): \(Self.tail(text))"
+    case .segment(let segment):
+      liveLine = "\(segment.speaker == .me ? "Me" : "Them"): \(Self.tail(segment.text))"
+    case .transcriptionProblem(let speaker, let problem):
+      problems[speaker] = problem
       updateWarning()
+    case .captureProblem(let speaker, let problem):
+      captureProblems[speaker] = problem
+      updateWarning()
+    case .saveProblem(let message):
+      lastError = message
+    case .health, .levels:
+      break
     }
-  }
-
-  private func startChannels() async throws {
-    try await withThrowingTaskGroup(of: Void.self) { group in
-      for channel in channels.values { group.addTask { try await channel.start() } }
-      try await group.waitForAll()
-    }
-  }
-
-  private func flush(meetingID: String, final: Bool = false) async {
-    guard !flushing, let api else { return }
-    flushing = true
-    defer { flushing = false }
-    var attempts = 0
-    while !batcher.isEmpty {
-      let batch = batcher.takeBatch()
-      do {
-        try await api.appendSegments(meetingID: meetingID, batch)
-      } catch {
-        batcher.restore(batch)
-        attempts += 1
-        // Mid-meeting, try again next tick. On stop, a few quick retries.
-        guard final, attempts < 3 else {
-          if final { lastError = "Some of the transcript couldn't be saved: \(error.localizedDescription)" }
-          return
-        }
-        try? await Task.sleep(for: .seconds(2))
-      }
-    }
-  }
-
-  private func setCaptureProblem(_ speaker: Speaker, _ problem: String?) {
-    captureProblems[speaker] = problem
-    updateWarning()
-  }
-
-  private func setProblem(_ speaker: Speaker, _ problem: String?) {
-    problems[speaker] = problem
-    updateWarning()
   }
 
   private func updateWarning() {
-    let parts = [fallbackNotice, systemWarning, captureProblems[.me], captureProblems[.them]] + [Speaker.me, .them].map { s in problems[s].map { "\(s == .me ? "Your mic" : "Their side"): \($0)" } }
+    let parts = [fallbackNotice, captureProblems[.me], captureProblems[.them]] + [Speaker.me, .them].map { s in problems[s].map { "\(s == .me ? "Your mic" : "Their side"): \($0)" } }
     let text = parts.compactMap { $0 }.joined(separator: " · ")
     warning = text.isEmpty ? nil : text
-  }
-
-  private func teardown() async {
-    flushTask?.cancel()
-    flushTask = nil
-    mic?.stop()
-    system?.stop()
-    mic = nil
-    system = nil
-    for continuation in continuations.values { continuation.finish() }
-    continuations = [:]
-    for channel in channels.values { await channel.cancel() }
-    channels = [:]
-    pumps = []
   }
 
   /// The end of a long line, so the menu shows what's being said now.

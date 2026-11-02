@@ -8,7 +8,7 @@ import TalkCore
 /// mono. This needs "System Audio Recording Only", not Screen Recording. macOS asks the first
 /// time a tap starts; there's no API to ask or check beforehand, and a denied tap delivers
 /// silence rather than failing.
-final class SystemAudioCapture: @unchecked Sendable {
+public final class SystemAudioCapture: AudioSource, @unchecked Sendable {
   private var tapID = AudioObjectID(kAudioObjectUnknown)
   private var aggregateID = AudioObjectID(kAudioObjectUnknown)
   private var procID: AudioDeviceIOProcID?
@@ -21,14 +21,14 @@ final class SystemAudioCapture: @unchecked Sendable {
   private let onAudio: @Sendable (Data) -> Void
   private let onInterrupted: @Sendable (String?) -> Void
 
-  init(onAudio: @escaping @Sendable (Data) -> Void, onInterrupted: @escaping @Sendable (String?) -> Void = { _ in }) {
+  public init(onAudio: @escaping @Sendable (Data) -> Void, onInterrupted: @escaping @Sendable (String?) -> Void = { _ in }) {
     self.onAudio = onAudio
     self.onInterrupted = onInterrupted
   }
 
   deinit { stop() }
 
-  func start() throws {
+  public func start() throws {
     control.setSpecific(key: Self.controlKey, value: true)
     try startTap()
     // The aggregate device hangs off the output device of the moment; when the output changes
@@ -41,7 +41,7 @@ final class SystemAudioCapture: @unchecked Sendable {
   }
 
   /// Runs on `control`, so a device-change restart can't race it and bring the tap back.
-  func stop() {
+  public func stop() {
     if DispatchQueue.getSpecific(key: Self.controlKey) != nil {
       stopOnControl()
     } else {
@@ -170,7 +170,7 @@ final class SystemAudioCapture: @unchecked Sendable {
     }
   }
 
-  static func processObject(pid: pid_t) -> AudioObjectID? {
+  public static func processObject(pid: pid_t) -> AudioObjectID? {
     var address = AudioObjectPropertyAddress(
       mSelector: kAudioHardwarePropertyTranslatePIDToProcessObject, mScope: kAudioObjectPropertyScopeGlobal,
       mElement: kAudioObjectPropertyElementMain)

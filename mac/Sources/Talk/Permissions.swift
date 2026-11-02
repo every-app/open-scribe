@@ -1,5 +1,5 @@
-@preconcurrency import AVFoundation
 import AppKit
+import TalkRecording
 import UserNotifications
 
 /// The three permissions Talk uses, asked from the Settings window or right before a recording
@@ -19,22 +19,16 @@ enum Permissions {
   }
 
   static var microphone: Status {
-    switch AVCaptureDevice.authorizationStatus(for: .audio) {
-    case .authorized: .granted
-    case .denied, .restricted: .denied
-    case .notDetermined: .notAsked
-    @unknown default: .unknown
+    switch CapturePermission.microphone {
+    case .granted: .granted
+    case .denied: .denied
+    case .undetermined: .notAsked
+    case .unknown: .unknown
     }
   }
 
   /// Asks if never asked; true when the mic may be used.
-  static func ensureMicrophone() async -> Bool {
-    switch AVCaptureDevice.authorizationStatus(for: .audio) {
-    case .authorized: return true
-    case .notDetermined: return await AVCaptureDevice.requestAccess(for: .audio)
-    default: return false
-    }
-  }
+  static func ensureMicrophone() async -> Bool { await CapturePermission.ensureMicrophone() }
 
   static func notifications() async -> Status {
     guard Bundle.main.bundleIdentifier != nil else { return .unknown }
@@ -54,11 +48,7 @@ enum Permissions {
 
   /// There's no public API to ask for or read "System Audio Recording Only": macOS asks the first
   /// time a process tap starts. A short tap here brings the prompt up at a calm moment.
-  static func primeSystemAudio() {
-    let capture = SystemAudioCapture { _ in }
-    guard (try? capture.start()) != nil else { return }
-    DispatchQueue.main.asyncAfter(deadline: .now() + 1) { capture.stop() }
-  }
+  static func primeSystemAudio() { CapturePermission.primeSystemAudio() }
 
   static func openSettings(_ anchor: String) {
     if let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?\(anchor)") {
