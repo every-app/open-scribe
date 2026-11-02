@@ -1,8 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { FileText, Users } from "lucide-react";
 import type { ReactNode } from "react";
-import { Badge } from "@/client/components/ui/badge";
-import { dayLabel, groupByDay, timeOfDay } from "@/client/lib/dates";
+import { Badge } from "@talk/ui/components/badge";
+import { dayLabel, groupByDay, timeOfDay } from "@talk/ui/lib/dates";
 import type { listMeetings } from "@/server/meetings";
 
 export type MeetingRow = Awaited<ReturnType<typeof listMeetings>>[number];

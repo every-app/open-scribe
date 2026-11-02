@@ -8,7 +8,7 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "@/client/components/ui/empty";
+} from "@talk/ui/components/empty";
 import { listMeetings } from "@/serverFunctions/meetings";
 
 export const Route = createFileRoute("/_app/shared")({

@@ -4,7 +4,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/client/components/ui/select";
+} from "@talk/ui/components/select";
 import type { Template } from "@/api/contract";
 
 const AUTO = "__auto";

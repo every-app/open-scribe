@@ -9,10 +9,10 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/client/components/ui/dialog";
-import { Input } from "@/client/components/ui/input";
-import { Spinner } from "@/client/components/ui/spinner";
-import { dayLabel } from "@/client/lib/dates";
+} from "@talk/ui/components/dialog";
+import { Input } from "@talk/ui/components/input";
+import { Spinner } from "@talk/ui/components/spinner";
+import { dayLabel } from "@talk/ui/lib/dates";
 import type { Folder } from "@/api/contract";
 import { addToFolder } from "@/serverFunctions/folders";
 import { listMeetings } from "@/serverFunctions/meetings";

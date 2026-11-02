@@ -6,7 +6,8 @@ The Every App side of Talk: a private web app on Cloudflare behind your Gateway.
 - `src/server/`: the queries (`meetings.ts`, `folders.ts`, `templates.ts`, `settings.ts`, who sees what in `access.ts`), Google Calendar (`calendar.ts`), the Realtime token (`transcription.ts`), the notes writer (`notes.ts`, its prompt in `notesPrompt.ts`), the API helpers (`api.ts`).
 - `src/api/contract.ts`: the `/api/v1` contract, every request schema (zod) and response type, importing nothing but zod so the desktop app can import or copy it. The server modules and routes take their schemas and types from it.
 - `src/routes/api/v1/`: the API the Mac helper and the desktop window call. `src/routes/_app/`: the pages behind the sidebar (`_app.tsx`). `src/tools.ts`: the same queries as AI tools.
-- `src/client/components/ui/`: the component library copied from OpenCRM/OpenSEO (shadcn on Base UI); `src/styles/app.css` is their theme. Add a component with `pnpm dlx shadcn add <name>` or copy it from them.
+- The component library (shadcn on Base UI, from OpenCRM/OpenSEO), the theme, `theme.ts` and `dates.ts` are `../packages/ui`'s, shared with the desktop app: import `@talk/ui/components/<name>`, `@talk/ui/lib/theme`, `@talk/ui/lib/dates`. `src/styles/app.css` imports `@talk/ui/styles.css` and tells Tailwind to scan the shared components. Add a component in `packages/ui/src/components/ui` by copying it from OpenCRM/OpenSEO (web no longer has a shadcn `components.json`: `shadcn add` here would bring the copies back).
+- `@talk/ui` is a `file:../packages/ui` dependency, not a workspace link: web keeps its own lockfile and stays out of the root workspace. pnpm hard-links the package's files, so edits in `packages/ui` show up at once; if an editor breaks the links (or `packages/ui/package.json` changes), run `pnpm install` here again.
 
 ## Run it
 

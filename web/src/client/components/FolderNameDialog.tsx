@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button } from "@/client/components/ui/button";
+import { Button } from "@talk/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -7,8 +7,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/client/components/ui/dialog";
-import { Input } from "@/client/components/ui/input";
+} from "@talk/ui/components/dialog";
+import { Input } from "@talk/ui/components/input";
 
 /** Name a new folder, or rename one. */
 export function FolderNameDialog({

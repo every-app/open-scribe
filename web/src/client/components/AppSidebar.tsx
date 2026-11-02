@@ -25,7 +25,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/client/components/ui/sidebar";
+} from "@talk/ui/components/sidebar";
 import type { Folder as FolderRow } from "@/api/contract";
 import { createFolder } from "@/serverFunctions/folders";
 

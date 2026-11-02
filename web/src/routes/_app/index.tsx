@@ -9,7 +9,7 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "@/client/components/ui/empty";
+} from "@talk/ui/components/empty";
 import { getComingUp } from "@/serverFunctions/home";
 import { listMeetings } from "@/serverFunctions/meetings";
 

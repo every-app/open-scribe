@@ -21,14 +21,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/client/components/ui/alert-dialog";
-import { Button } from "@/client/components/ui/button";
+} from "@talk/ui/components/alert-dialog";
+import { Button } from "@talk/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
+} from "@talk/ui/components/dropdown-menu";
 import {
   Empty,
   EmptyContent,
@@ -36,7 +36,7 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "@/client/components/ui/empty";
+} from "@talk/ui/components/empty";
 import {
   deleteFolder,
   getFolder,

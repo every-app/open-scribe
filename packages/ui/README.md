@@ -2,10 +2,11 @@
 
 Talk's shared React 19 + Tailwind 4 components and the desktop screens.
 
-- `src/components/ui`: the component library (shadcn on Base UI), copied from
-  `web/src/client/components/ui`. web/ still uses its own copy; a later PR
-  switches it over.
-- `src/styles/app.css`: a copy of web's styles. `src/styles/desktop.css`
+- `src/components/ui`: the component library (shadcn on Base UI), used by
+  both desktop/ and web/ (web imports `@talk/ui/components/<name>`, see
+  web/README.md). A change here changes both apps.
+- `src/styles/app.css`: the shared theme; web imports it as is (its
+  `src/styles/app.css` is just that import). `src/styles/desktop.css`
   layers the desktop look on top of it (system font, 13px UI text, quiet warm
   neutrals, a translucent sidebar for vibrancy). Import `@talk/ui/styles.css`.
 - `src/screens`: the desktop screens. They're data-agnostic: they take

@@ -29,8 +29,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/client/components/ui/alert-dialog";
-import { Button } from "@/client/components/ui/button";
+} from "@talk/ui/components/alert-dialog";
+import { Button } from "@talk/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -42,20 +42,17 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
+} from "@talk/ui/components/dropdown-menu";
 import {
   Popover,
   PopoverContent,
   PopoverTitle,
   PopoverTrigger,
-} from "@/client/components/ui/popover";
-import { Spinner } from "@/client/components/ui/spinner";
-import { Switch } from "@/client/components/ui/switch";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/client/components/ui/toggle-group";
-import { shortDate, timeOfDay } from "@/client/lib/dates";
+} from "@talk/ui/components/popover";
+import { Spinner } from "@talk/ui/components/spinner";
+import { Switch } from "@talk/ui/components/switch";
+import { ToggleGroup, ToggleGroupItem } from "@talk/ui/components/toggle-group";
+import { shortDate, timeOfDay } from "@talk/ui/lib/dates";
 import { addToFolder, removeFromFolder } from "@/serverFunctions/folders";
 import {
   createShareLink,

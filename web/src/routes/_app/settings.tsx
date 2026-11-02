@@ -3,12 +3,9 @@ import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { Page, PageTitle } from "@/client/components/Page";
 import { TemplateSelect } from "@/client/components/TemplateSelect";
-import { Button } from "@/client/components/ui/button";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/client/components/ui/toggle-group";
-import { type ThemePreference, useThemePreference } from "@/client/lib/theme";
+import { Button } from "@talk/ui/components/button";
+import { ToggleGroup, ToggleGroupItem } from "@talk/ui/components/toggle-group";
+import { type ThemePreference, useThemePreference } from "@talk/ui/lib/theme";
 import { getAccount } from "@/serverFunctions/home";
 import { listTemplates, setDefaultTemplate } from "@/serverFunctions/templates";
 

@@ -1,13 +1,13 @@
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, Users, Video } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/client/components/ui/button";
+import { Button } from "@talk/ui/components/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@/client/components/ui/tooltip";
-import { groupByDay, timeOfDay } from "@/client/lib/dates";
+} from "@talk/ui/components/tooltip";
+import { groupByDay, timeOfDay } from "@talk/ui/lib/dates";
 import { takeNotesLink } from "@/client/lib/talk-link";
 import type { ComingUp as ComingUpData } from "@/serverFunctions/home";
 

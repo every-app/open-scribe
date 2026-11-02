@@ -12,9 +12,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/client/components/ui/alert-dialog";
-import { Badge } from "@/client/components/ui/badge";
-import { Button } from "@/client/components/ui/button";
+} from "@talk/ui/components/alert-dialog";
+import { Badge } from "@talk/ui/components/badge";
+import { Button } from "@talk/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -22,23 +22,23 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/client/components/ui/dialog";
+} from "@talk/ui/components/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
-import { Input } from "@/client/components/ui/input";
-import { Label } from "@/client/components/ui/label";
+} from "@talk/ui/components/dropdown-menu";
+import { Input } from "@talk/ui/components/input";
+import { Label } from "@talk/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/client/components/ui/select";
-import { Textarea } from "@/client/components/ui/textarea";
+} from "@talk/ui/components/select";
+import { Textarea } from "@talk/ui/components/textarea";
 import type { Template } from "@/api/contract";
 import {
   createTemplate,

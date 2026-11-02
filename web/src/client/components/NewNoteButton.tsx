@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/client/components/ui/button";
+import { Button } from "@talk/ui/components/button";
 import { takeNotesLink } from "@/client/lib/talk-link";
 
 /** Starts notes now in Talk for Mac. */

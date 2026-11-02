@@ -28,7 +28,8 @@ jobs:
         id: f
         with:
           filters: |
-            web: ['web/**', '.github/workflows/ci.yml']
+            # web depends on packages/ui (a file: dependency, its own lockfile).
+            web: ['web/**', 'packages/ui/**', '.github/workflows/ci.yml']
             desktop: ['desktop/**', 'packages/**', 'pnpm-workspace.yaml', 'package.json', 'pnpm-lock.yaml', '.github/workflows/ci.yml']
             mac: ['mac/**', '.github/workflows/ci.yml']
 

@@ -7,8 +7,6 @@
     "src/routes/**/*.{ts,tsx}",
     // The /api/v1 response types, for clients (the desktop app) to mirror.
     "src/api/contract.ts",
-    // shadcn components are copied in whole; pages use only some exports
-    "src/client/components/ui/**",
   ],
   "project": ["**/*.{ts,tsx}", "!src/routeTree.gen.ts"],
   "ignoreDependencies": [

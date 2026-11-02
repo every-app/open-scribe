@@ -5,7 +5,7 @@ import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
-} from "@/client/components/ui/sidebar";
+} from "@talk/ui/components/sidebar";
 import { listFolders } from "@/serverFunctions/folders";
 import { getAccount } from "@/serverFunctions/home";
 

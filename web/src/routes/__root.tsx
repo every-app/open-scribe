@@ -6,11 +6,11 @@ import {
 } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { Toaster } from "sonner";
-import { TooltipProvider } from "@/client/components/ui/tooltip";
+import { TooltipProvider } from "@talk/ui/components/tooltip";
 import {
   themePreferenceInitScript,
   useThemePreference,
-} from "@/client/lib/theme";
+} from "@talk/ui/lib/theme";
 import appCss from "@/styles/app.css?url";
 
 export const Route = createRootRoute({
