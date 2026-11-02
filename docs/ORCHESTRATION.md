@@ -123,4 +123,4 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - #35 merged (update UX, About, optional ⌃⌥⌘R; e2e 8 flows). #37 (helper outage buffer, time-based seqs, catching_up) and #36 (search palette) merging on green.
 - #36 merged (search palette). #37 merged (outage buffer, time-based seqs). #38 (catching_up in main, 20-min stop timeout) merging on green. H: helper --selftest. M3: TALK_DEV_FRESH profile + stopping state. API: web→packages/ui. UI: update pill + catching-up copy.
 - #38-#41 merged (catching_up; replay limits; catching-up/finishing copy; TALK_DEV_FRESH + Reset Onboarding + recording.stopping). #42 (helper --selftest) merging. Codex V3 launched (fresh onboarding, search, connection states, menus) → ~/overnight/2026-11-02/talk-verify-3/.
-- #42 merged (helper --selftest). #44 merged (finishing-transcript copy). #43 merged (update pill). M3: selftest IPC. API: web→packages/ui.
+- #42 merged (helper --selftest). #43, #44 blocked: desktop-e2e red on main (⌘N recording test, no segments POST); M3 fixing on fix/e2e-main; main CI concurrency to stop cancelling pushes. M3: selftest IPC. API: web→packages/ui.
