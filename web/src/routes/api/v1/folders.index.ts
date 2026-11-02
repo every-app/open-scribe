@@ -1,10 +1,7 @@
+import { createFolderInput } from "@/api/contract";
 import { createFileRoute } from "@tanstack/react-router";
 import { api, json, readJson, requireApiUser } from "@/server/api";
-import {
-  createFolder,
-  createFolderInput,
-  listFoldersWithCounts,
-} from "@/server/folders";
+import { createFolder, listFoldersWithCounts } from "@/server/folders";
 
 export const Route = createFileRoute("/api/v1/folders/")({
   server: {

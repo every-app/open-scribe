@@ -1,6 +1,7 @@
+import { saveJottingsInput } from "@/api/contract";
 import { createFileRoute } from "@tanstack/react-router";
 import { api, json, notFound, readJson, requireApiUser } from "@/server/api";
-import { saveJottings, saveJottingsInput } from "@/server/meetings";
+import { saveJottings } from "@/server/meetings";
 
 export const Route = createFileRoute("/api/v1/meetings/$id/jottings")({
   server: {

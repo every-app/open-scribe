@@ -1,10 +1,10 @@
+import { saveTemplateInput } from "@/api/contract";
 import { createFileRoute } from "@tanstack/react-router";
 import { api, json, readJson, requireApiUser } from "@/server/api";
 import {
   createTemplate,
   getDefaultTemplateId,
   listTemplates,
-  saveTemplateInput,
 } from "@/server/templates";
 
 export const Route = createFileRoute("/api/v1/templates/")({

@@ -6,7 +6,11 @@ import {
   refusalFromError,
 } from "@every-app/sdk/server";
 import { env } from "cloudflare:workers";
-import { z } from "zod";
+import type { z } from "zod";
+import type {
+  TranscriptionToken,
+  transcriptionTokenInput,
+} from "@/api/contract";
 
 /** The streaming transcription model (OpenAI's Realtime transcription session). */
 const TRANSCRIPTION_MODEL = "gpt-live-transcribe";
@@ -16,21 +20,6 @@ const CHUNK_MODEL = "gpt-4o-mini-transcribe";
 export const MAX_CHUNK_BYTES = 25 * 1024 * 1024;
 /** Realtime client secrets live at most two hours; the Mac app re-mints past that. */
 const SECRET_SECONDS = 7200;
-
-export const transcriptionTokenInput = z
-  .object({
-    // The microphone wants near-field noise reduction; system audio none.
-    source: z.enum(["mic", "system", "mixed"]).default("mixed"),
-    language: z.string().min(2).max(10).optional(),
-  })
-  .strict();
-
-interface TranscriptionToken {
-  value: string;
-  expiresAt: number;
-  model: string;
-  sampleRate: 24000;
-}
 
 /**
  * A short-lived OpenAI Realtime client secret the Mac app streams audio

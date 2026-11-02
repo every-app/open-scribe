@@ -1,5 +1,5 @@
+import { createMeetingInput, listMeetingsQuery } from "@/api/contract";
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 import {
   api,
   apiError,
@@ -10,26 +10,9 @@ import {
 } from "@/server/api";
 import {
   createMeeting,
-  createMeetingInput,
   InvalidCursor,
   listMeetingsPage,
 } from "@/server/meetings";
-
-const flag = z
-  .enum(["true", "false", "1", "0"])
-  .transform((value) => value === "true" || value === "1")
-  .optional();
-
-const listQuery = z
-  .object({
-    folderId: z.string().uuid().optional(),
-    shared: flag,
-    mine: flag,
-    q: z.string().trim().min(1).max(200).optional(),
-    cursor: z.string().max(400).optional(),
-    limit: z.coerce.number().int().min(1).max(200).default(50),
-  })
-  .strict();
 
 export const Route = createFileRoute("/api/v1/meetings/")({
   server: {
@@ -38,7 +21,7 @@ export const Route = createFileRoute("/api/v1/meetings/")({
       // newest first, `nextCursor` null on the last page.
       GET: api(async ({ request }) => {
         const user = await requireApiUser(request);
-        const filter = readQuery(request, listQuery);
+        const filter = readQuery(request, listMeetingsQuery);
         try {
           return json(await listMeetingsPage(user, filter));
         } catch (error) {

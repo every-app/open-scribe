@@ -26,7 +26,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/client/components/ui/sidebar";
-import type { Folder as FolderRow } from "@/server/folders";
+import type { Folder as FolderRow } from "@/api/contract";
 import { createFolder } from "@/serverFunctions/folders";
 
 const navButtonClass =

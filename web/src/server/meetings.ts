@@ -11,10 +11,21 @@ import {
   type SQL,
   sql,
 } from "drizzle-orm";
-import { z } from "zod";
+import type { z } from "zod";
+import {
+  type appendSegmentsInput,
+  type Attendee,
+  type createMeetingInput,
+  type Jottings,
+  type listMeetingsInput,
+  type MeetingDetail,
+  type MeetingRow,
+  type saveJottingsInput,
+  type Segment,
+  type updateMeetingInput,
+} from "@/api/contract";
 import { db } from "@/db";
 import {
-  type Attendee,
   folders,
   jottings,
   meetingFolders,
@@ -26,88 +37,6 @@ import {
 import { folderVisibleTo, meetingOwnedBy, meetingVisibleTo } from "./access";
 import { getTemplate, resolveTemplate } from "./templates";
 import type { Viewer } from "./viewer";
-
-const attendeeInput = z
-  .object({
-    email: z.string().max(320).nullable().optional(),
-    name: z.string().max(255).nullable().optional(),
-    self: z.boolean().optional(),
-  })
-  .strict();
-
-export const createMeetingInput = z
-  .object({
-    title: z.string().trim().min(1).max(255),
-    startsAt: z.string().datetime({ offset: true }).optional(),
-    calendarEventId: z.string().max(255).optional(),
-    attendees: z.array(attendeeInput).max(200).optional(),
-  })
-  .strict();
-
-export const updateMeetingInput = z
-  .object({
-    title: z.string().trim().min(1).max(255).optional(),
-    visibility: z.enum(["private", "team"]).optional(),
-  })
-  .strict();
-
-const segmentInput = z
-  .object({
-    seq: z.number().int().min(0),
-    startedMs: z.number().int().min(0),
-    endedMs: z.number().int().min(0),
-    speaker: z.enum(["me", "them"]).nullable().optional(),
-    text: z.string().max(10_000),
-  })
-  .strict();
-const segmentList = z.array(segmentInput).min(1).max(500);
-/** A bare array, or `{ segments: [...] }`. */
-export const appendSegmentsInput = z
-  .union([segmentList, z.object({ segments: segmentList }).strict()])
-  .transform((input) => (Array.isArray(input) ? { segments: input } : input));
-
-export interface MeetingRow {
-  id: string;
-  title: string;
-  startsAt: string;
-  endsAt: string | null;
-  status: "recording" | "processing" | "done" | "failed";
-  visibility: "private" | "team";
-  ownerUserId: string;
-  ownerEmail: string | null;
-  attendeeCount: number;
-  mine: boolean;
-}
-
-export interface Segment {
-  seq: number;
-  startedMs: number;
-  endedMs: number;
-  speaker: "me" | "them" | null;
-  text: string;
-}
-
-export interface MeetingDetail extends MeetingRow {
-  attendees: Attendee[];
-  folders: { id: string; name: string; space: "private" | "team" }[];
-  /** The template the notes use, and whether it was chosen on the meeting. */
-  template: { id: string; name: string; chosen: boolean };
-  segments: Segment[];
-  notes: {
-    markdown: string;
-    model: string;
-    generatedAt: string;
-    editedAt: string | null;
-  } | null;
-  /** The owner's notepad; null for anyone else, or before they type. */
-  jottings: Jottings | null;
-  shareLinks: { id: string; createdAt: string }[];
-}
-
-export interface Jottings {
-  markdown: string;
-  updatedAt: string;
-}
 
 const shown = {
   id: meetings.id,
@@ -139,23 +68,6 @@ function withMine(
     mine: row.ownerUserId === viewer.id,
   };
 }
-
-export const listMeetingsInput = z
-  .object({
-    /** Only the meetings in this folder (one the viewer can see). */
-    folderId: z.string().uuid().optional(),
-    /** Only team meetings other people own. */
-    shared: z.boolean().optional(),
-    /** Only the viewer's own meetings. */
-    mine: z.boolean().optional(),
-    /** Only meetings whose title contains this (case-insensitive). */
-    q: z.string().trim().min(1).max(200).optional(),
-    /** Where the previous page ended (its `nextCursor`). */
-    cursor: z.string().max(400).optional(),
-    /** How many at most; all of them when absent. */
-    limit: z.number().int().min(1).max(200).optional(),
-  })
-  .strict();
 
 type ListFilter = z.infer<typeof listMeetingsInput>;
 
@@ -644,18 +556,6 @@ export async function jottingsText(meetingId: string): Promise<string> {
   return (await getJottings(meetingId))?.markdown ?? "";
 }
 
-export const saveJottingsInput = z
-  .object({
-    markdown: z.string().max(100_000),
-    /**
-     * When the person typed this (ISO 8601). A save older than the one
-     * stored is ignored, so out-of-order debounced saves can't undo newer
-     * text. Defaults to now; a time in the future counts as now.
-     */
-    updatedAt: z.string().datetime({ offset: true }).optional(),
-  })
-  .strict();
-
 /**
  * Save the owner's notepad, last write wins by `updatedAt`. Returns what is
  * stored afterwards and whether this save is it; null when the viewer owns
@@ -689,10 +589,6 @@ export async function saveJottings(
       stored.updatedAt === updatedAt && stored.markdown === input.markdown,
   };
 }
-
-export const editNotesInput = z
-  .object({ markdown: z.string().max(200_000) })
-  .strict();
 
 /**
  * The owner's edit of the notes; sets `editedAt`. Null when the viewer owns

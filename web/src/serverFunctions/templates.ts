@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { ensureUserMiddleware } from "@every-app/sdk/tanstack-start";
 import { z } from "zod";
+import { saveTemplateInput, templateIdInput } from "@/api/contract";
 import * as templates from "@/server/templates";
 
 const idInput = z.object({ id: z.string().uuid() }).strict();
@@ -16,7 +17,7 @@ export const listTemplates = createServerFn()
 export const setDefaultTemplate = createServerFn({ method: "POST" })
   .middleware([ensureUserMiddleware])
   .validator((data: unknown) =>
-    z.object({ templateId: templates.templateIdInput }).strict().parse(data),
+    z.object({ templateId: templateIdInput }).strict().parse(data),
   )
   .handler(async ({ data, context: { user } }) => {
     if (!(await templates.setDefaultTemplateId(user, data.templateId))) {
@@ -26,7 +27,7 @@ export const setDefaultTemplate = createServerFn({ method: "POST" })
 
 export const createTemplate = createServerFn({ method: "POST" })
   .middleware([ensureUserMiddleware])
-  .validator((data: unknown) => templates.saveTemplateInput.parse(data))
+  .validator((data: unknown) => saveTemplateInput.parse(data))
   .handler(({ data, context: { user } }) =>
     templates.createTemplate(user, data),
   );
@@ -34,7 +35,7 @@ export const createTemplate = createServerFn({ method: "POST" })
 export const updateTemplate = createServerFn({ method: "POST" })
   .middleware([ensureUserMiddleware])
   .validator((data: unknown) =>
-    idInput.extend({ change: templates.saveTemplateInput }).parse(data),
+    idInput.extend({ change: saveTemplateInput }).parse(data),
   )
   .handler(async ({ data, context: { user } }) => {
     const template = await templates.updateTemplate(user, data.id, data.change);

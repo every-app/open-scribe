@@ -5,7 +5,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/client/components/ui/select";
-import type { Template } from "@/server/templates";
+import type { Template } from "@/api/contract";
 
 const AUTO = "__auto";
 

@@ -4,13 +4,17 @@ import { ensureUserMiddleware } from "@every-app/sdk/tanstack-start";
 import { z } from "zod";
 import * as meetings from "@/server/meetings";
 import { applyTemplate } from "@/server/notes";
-import { templateIdInput } from "@/server/templates";
+import {
+  listMeetingsInput,
+  templateIdInput,
+  updateMeetingInput,
+} from "@/api/contract";
 
 const idInput = z.object({ id: z.string().uuid() }).strict();
 
 export const listMeetings = createServerFn()
   .middleware([ensureUserMiddleware])
-  .validator((data: unknown) => meetings.listMeetingsInput.parse(data ?? {}))
+  .validator((data: unknown) => listMeetingsInput.parse(data ?? {}))
   .handler(({ data, context: { user } }) => meetings.listMeetings(user, data));
 
 export const getMeeting = createServerFn()
@@ -21,7 +25,7 @@ export const getMeeting = createServerFn()
 export const updateMeeting = createServerFn({ method: "POST" })
   .middleware([ensureUserMiddleware])
   .validator((data: unknown) =>
-    idInput.extend({ change: meetings.updateMeetingInput }).parse(data),
+    idInput.extend({ change: updateMeetingInput }).parse(data),
   )
   .handler(({ data, context: { user } }) =>
     meetings.updateMeeting(user, data.id, data.change),

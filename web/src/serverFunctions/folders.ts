@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { ensureUserMiddleware } from "@every-app/sdk/tanstack-start";
 import { z } from "zod";
+import { createFolderInput, updateFolderInput } from "@/api/contract";
 import * as folders from "@/server/folders";
 
 const idInput = z.object({ id: z.string().uuid() }).strict();
@@ -19,13 +20,13 @@ export const getFolder = createServerFn()
 
 export const createFolder = createServerFn({ method: "POST" })
   .middleware([ensureUserMiddleware])
-  .validator((data: unknown) => folders.createFolderInput.parse(data))
+  .validator((data: unknown) => createFolderInput.parse(data))
   .handler(({ data, context: { user } }) => folders.createFolder(user, data));
 
 export const updateFolder = createServerFn({ method: "POST" })
   .middleware([ensureUserMiddleware])
   .validator((data: unknown) =>
-    idInput.extend({ change: folders.updateFolderInput }).parse(data),
+    idInput.extend({ change: updateFolderInput }).parse(data),
   )
   .handler(async ({ data, context: { user } }) => {
     const folder = await folders.updateFolder(user, data.id, data.change);

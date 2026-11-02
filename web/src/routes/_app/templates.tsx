@@ -39,7 +39,7 @@ import {
   SelectValue,
 } from "@/client/components/ui/select";
 import { Textarea } from "@/client/components/ui/textarea";
-import type { Template } from "@/server/templates";
+import type { Template } from "@/api/contract";
 import {
   createTemplate,
   deleteTemplate,

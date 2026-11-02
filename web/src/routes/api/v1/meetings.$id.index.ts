@@ -1,3 +1,4 @@
+import { patchMeetingInput } from "@/api/contract";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   api,
@@ -7,23 +8,9 @@ import {
   readJson,
   requireApiUser,
 } from "@/server/api";
-import {
-  deleteMeeting,
-  getMeeting,
-  updateMeeting,
-  updateMeetingInput,
-} from "@/server/meetings";
+import { deleteMeeting, getMeeting, updateMeeting } from "@/server/meetings";
 import { applyTemplate } from "@/server/notes";
-import { getTemplate, templateIdInput } from "@/server/templates";
-
-const patchInput = updateMeetingInput.extend({
-  /**
-   * The template: a finished meeting's notes are rewritten with it in the
-   * background (`rewriting: true`); a recording one uses it when it ends.
-   * Null (while recording) goes back to the folder's or the owner's default.
-   */
-  templateId: templateIdInput.nullable().optional(),
-});
+import { getTemplate } from "@/server/templates";
 
 export const Route = createFileRoute("/api/v1/meetings/$id/")({
   server: {
@@ -36,7 +23,10 @@ export const Route = createFileRoute("/api/v1/meetings/$id/")({
       // Owner only. Answers the whole meeting as it is afterwards.
       PATCH: api(async ({ request, params }) => {
         const user = await requireApiUser(request);
-        const { templateId, ...change } = await readJson(request, patchInput);
+        const { templateId, ...change } = await readJson(
+          request,
+          patchMeetingInput,
+        );
         const current = await getMeeting(user, params.id!);
         if (!current?.mine) return notFound();
         if (templateId && !(await getTemplate(user, templateId))) {

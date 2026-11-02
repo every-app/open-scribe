@@ -7,28 +7,9 @@ import {
   type OAuthClientIntegrationStatus,
 } from "@every-app/sdk/server";
 import { env } from "cloudflare:workers";
+import type { CalendarEvent, CalendarStatus } from "@/api/contract";
 
 const PROVIDER = "google-workspace";
-
-export interface CalendarEvent {
-  id: string;
-  title: string;
-  start: string;
-  end: string;
-  attendees: { email: string | null; name: string | null; self: boolean }[];
-  conferenceUrl: string | null;
-  location: string | null;
-}
-
-type CalendarStatus =
-  | { available: false }
-  | {
-      available: true;
-      connected: false;
-      reconnect: boolean;
-      connectUrl: string;
-    }
-  | { available: true; connected: true };
 
 /** Whether this person's Google Calendar is reachable; never calls Google. */
 export async function calendarStatus(

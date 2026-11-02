@@ -1,4 +1,5 @@
 import { sql } from "drizzle-orm";
+import type { Attendee } from "../api/contract";
 import {
   index,
   integer,
@@ -9,12 +10,6 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 const now = () => sql`(current_timestamp)`;
-
-export interface Attendee {
-  email: string | null;
-  name: string | null;
-  self: boolean;
-}
 
 /** One recorded meeting. Private to its owner unless `visibility` is `team`. */
 export const meetings = sqliteTable(

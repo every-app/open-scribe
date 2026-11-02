@@ -3,8 +3,8 @@ import { getRequest } from "@tanstack/react-start/server";
 import { gatewayUrl } from "@every-app/sdk/server";
 import { ensureUserMiddleware } from "@every-app/sdk/tanstack-start";
 import { env } from "cloudflare:workers";
+import type { CalendarEvent } from "@/api/contract";
 import {
-  type CalendarEvent,
   CalendarError,
   calendarStatus,
   upcomingEvents,

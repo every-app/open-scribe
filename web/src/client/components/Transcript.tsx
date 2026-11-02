@@ -1,4 +1,4 @@
-import type { Segment } from "@/server/meetings";
+import type { Segment } from "@/api/contract";
 
 function clock(ms: number): string {
   const s = Math.floor(ms / 1000);

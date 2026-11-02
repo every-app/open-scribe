@@ -1,5 +1,10 @@
 import { and, asc, eq, or } from "drizzle-orm";
-import { z } from "zod";
+import type { z } from "zod";
+import type {
+  saveTemplateInput,
+  Template,
+  updateTemplateInput,
+} from "@/api/contract";
 import { db } from "@/db";
 import {
   folders,
@@ -14,15 +19,6 @@ import type { Viewer } from "./viewer";
  * A template says how a meeting's notes are written: which sections, how
  * much detail, what to pull out. Its instructions go into the notes prompt.
  */
-export interface Template {
-  id: string;
-  name: string;
-  instructions: string;
-  builtIn: boolean;
-  visibility: "private" | "team";
-  mine: boolean;
-}
-
 const builtIns: Omit<Template, "builtIn" | "visibility" | "mine">[] = [
   {
     id: "general",
@@ -129,16 +125,6 @@ export async function getTemplate(
   return row ? toTemplate(viewer, row) : null;
 }
 
-export const templateIdInput = z.string().min(1).max(64);
-
-export const saveTemplateInput = z
-  .object({
-    name: z.string().trim().min(1).max(80),
-    instructions: z.string().trim().min(1).max(4000),
-    visibility: z.enum(["private", "team"]),
-  })
-  .strict();
-
 export async function createTemplate(
   viewer: Viewer,
   input: z.infer<typeof saveTemplateInput>,
@@ -176,8 +162,6 @@ export async function updateTemplate(
     .returning(templateFields);
   return row ? toTemplate(viewer, row) : null;
 }
-
-export const updateTemplateInput = saveTemplateInput.partial();
 
 /** A partial edit, merged over the owner's template; null when not theirs. */
 export async function patchTemplate(

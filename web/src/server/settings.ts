@@ -1,22 +1,7 @@
-import { z } from "zod";
-import {
-  getDefaultTemplateId,
-  setDefaultTemplateId,
-  templateIdInput,
-} from "./templates";
+import type { z } from "zod";
+import type { Settings, updateSettingsInput } from "@/api/contract";
+import { getDefaultTemplateId, setDefaultTemplateId } from "./templates";
 import type { Viewer } from "./viewer";
-
-/**
- * The person's settings that live on the server. Light/dark is a choice
- * of each device (the web keeps it in localStorage), so it isn't here.
- */
-export interface Settings {
-  defaultTemplateId: string;
-}
-
-export const updateSettingsInput = z
-  .object({ defaultTemplateId: templateIdInput.optional() })
-  .strict();
 
 export async function getSettings(viewer: Viewer): Promise<Settings> {
   return { defaultTemplateId: await getDefaultTemplateId(viewer) };

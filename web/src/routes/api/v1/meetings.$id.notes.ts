@@ -1,3 +1,4 @@
+import { editNotesInput } from "@/api/contract";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   api,
@@ -7,7 +8,7 @@ import {
   readJson,
   requireApiUser,
 } from "@/server/api";
-import { editNotes, editNotesInput } from "@/server/meetings";
+import { editNotes } from "@/server/meetings";
 
 export const Route = createFileRoute("/api/v1/meetings/$id/notes")({
   server: {

@@ -1,6 +1,7 @@
+import { appendSegmentsInput } from "@/api/contract";
 import { createFileRoute } from "@tanstack/react-router";
 import { api, json, readJson, requireApiUser } from "@/server/api";
-import { appendSegments, appendSegmentsInput } from "@/server/meetings";
+import { appendSegments } from "@/server/meetings";
 
 export const Route = createFileRoute("/api/v1/meetings/$id/segments")({
   server: {

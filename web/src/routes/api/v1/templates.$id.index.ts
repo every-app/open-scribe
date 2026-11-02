@@ -1,11 +1,7 @@
+import { updateTemplateInput } from "@/api/contract";
 import { createFileRoute } from "@tanstack/react-router";
 import { api, json, notFound, readJson, requireApiUser } from "@/server/api";
-import {
-  deleteTemplate,
-  getTemplate,
-  patchTemplate,
-  updateTemplateInput,
-} from "@/server/templates";
+import { deleteTemplate, getTemplate, patchTemplate } from "@/server/templates";
 
 export const Route = createFileRoute("/api/v1/templates/$id/")({
   server: {

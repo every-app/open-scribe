@@ -13,7 +13,7 @@ import {
 import { Input } from "@/client/components/ui/input";
 import { Spinner } from "@/client/components/ui/spinner";
 import { dayLabel } from "@/client/lib/dates";
-import type { Folder } from "@/server/folders";
+import type { Folder } from "@/api/contract";
 import { addToFolder } from "@/serverFunctions/folders";
 import { listMeetings } from "@/serverFunctions/meetings";
 

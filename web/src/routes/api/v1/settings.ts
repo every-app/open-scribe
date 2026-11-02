@@ -1,10 +1,7 @@
+import { updateSettingsInput } from "@/api/contract";
 import { createFileRoute } from "@tanstack/react-router";
 import { api, apiError, json, readJson, requireApiUser } from "@/server/api";
-import {
-  getSettings,
-  updateSettings,
-  updateSettingsInput,
-} from "@/server/settings";
+import { getSettings, updateSettings } from "@/server/settings";
 
 export const Route = createFileRoute("/api/v1/settings")({
   server: {

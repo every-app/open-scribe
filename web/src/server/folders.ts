@@ -1,17 +1,15 @@
 import { and, asc, count, eq, inArray } from "drizzle-orm";
-import { z } from "zod";
+import type { z } from "zod";
+import type {
+  createFolderInput,
+  Folder,
+  updateFolderInput,
+} from "@/api/contract";
 import { db } from "@/db";
 import { folders, meetingFolders, meetings } from "@/db/schema";
 import { folderVisibleTo, meetingVisibleTo } from "./access";
 import { getTemplate } from "./templates";
 import type { Viewer } from "./viewer";
-
-export interface Folder {
-  id: string;
-  name: string;
-  space: "private" | "team";
-  defaultTemplateId: string | null;
-}
 
 const shown = {
   id: folders.id,
@@ -19,20 +17,6 @@ const shown = {
   space: folders.space,
   defaultTemplateId: folders.defaultTemplateId,
 };
-
-export const createFolderInput = z
-  .object({
-    name: z.string().trim().min(1).max(80),
-    space: z.enum(["private", "team"]),
-  })
-  .strict();
-
-export const updateFolderInput = z
-  .object({
-    name: z.string().trim().min(1).max(80).optional(),
-    defaultTemplateId: z.string().min(1).max(64).nullable().optional(),
-  })
-  .strict();
 
 /** The viewer's private folders and the team's, by name. */
 export async function listFolders(viewer: Viewer): Promise<Folder[]> {

@@ -1,10 +1,10 @@
+import { transcriptionTokenInput } from "@/api/contract";
 import { createFileRoute } from "@tanstack/react-router";
 import { api, json, readJson, requireApiUser } from "@/server/api";
 import { getMeeting } from "@/server/meetings";
 import {
   mintTranscriptionToken,
   TranscriptionRefused,
-  transcriptionTokenInput,
 } from "@/server/transcription";
 
 export const Route = createFileRoute(
