@@ -29,6 +29,13 @@
       "when": 1793589947593,
       "tag": "0003_jottings",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793593500757,
+      "tag": "0004_search",
+      "breakpoints": true
     }
   ]
 }

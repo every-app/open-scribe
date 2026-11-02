@@ -646,6 +646,30 @@ describe("jottings", () => {
     );
   });
 
+  it("name the other person of a 1:1 from the meeting's guests", async () => {
+    const created = await call(meetingsIndex, "POST", "alice", {
+      body: {
+        title: "1:1",
+        attendees: [
+          { email: "alice@acme.test", self: true },
+          { email: "priya@acme.test", name: "Priya Raman" },
+        ],
+      },
+    });
+    const id = created.body.meeting.id as string;
+    await call(segmentsRoute, "POST", "alice", {
+      params: { id },
+      body: [
+        { seq: 0, startedMs: 0, endedMs: 900, speaker: "them", text: "Hi" },
+      ],
+    });
+    await call(finishRoute, "POST", "alice", { params: { id } });
+    await settle();
+    expect(h.prompts.at(-1)![0]!.content).toContain(
+      '"them:" is "Priya Raman", the one other participant',
+    );
+  });
+
   it("are enough to write notes when nothing was transcribed", async () => {
     const id = await newMeeting("alice", "Offline");
     await call(jottingsRoute, "PUT", "alice", {

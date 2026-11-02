@@ -157,6 +157,19 @@ export async function listMeetingsPage(
   };
 }
 
+/** These meetings, those the viewer may read, by id (for search results). */
+export async function meetingRowsByIds(
+  viewer: Viewer,
+  ids: string[],
+): Promise<Map<string, MeetingRow>> {
+  if (ids.length === 0) return new Map();
+  const rows = await db
+    .select(shown)
+    .from(meetings)
+    .where(and(inArray(meetings.id, ids), visibleTo(viewer)));
+  return new Map(rows.map((row) => [row.id, withMine(viewer, row)]));
+}
+
 /** The meetings a viewer may read, newest first. */
 export async function listMeetings(
   viewer: Viewer,
@@ -392,6 +405,15 @@ export async function finishMeeting(
     .where(and(owned(viewer, id), eq(meetings.status, "recording")))
     .returning(shown);
   return row ? withMine(viewer, row) : null;
+}
+
+/** The meeting's calendar guests, for the notes prompt. */
+export async function attendeesOf(meetingId: string): Promise<Attendee[]> {
+  const [row] = await db
+    .select({ attendees: meetings.attendees })
+    .from(meetings)
+    .where(eq(meetings.id, meetingId));
+  return row?.attendees ?? [];
 }
 
 /** The transcript as one text, with speakers, for the notes prompt. */

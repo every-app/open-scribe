@@ -19,6 +19,7 @@ import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as AppFoldersIdRouteImport } from './routes/_app/folders/$id'
 import { Route as AppMeetingsIdRouteImport } from './routes/_app/meetings/$id'
 import { Route as ApiV1MeRouteImport } from './routes/api/v1/me'
+import { Route as ApiV1SearchRouteImport } from './routes/api/v1/search'
 import { Route as ApiV1SettingsRouteImport } from './routes/api/v1/settings'
 import { Route as ApiV1CalendarUpcomingRouteImport } from './routes/api/v1/calendar.upcoming'
 import { Route as ApiV1FoldersIndexRouteImport } from './routes/api/v1/folders.index'
@@ -86,6 +87,11 @@ const AppMeetingsIdRoute = AppMeetingsIdRouteImport.update({
 const ApiV1MeRoute = ApiV1MeRouteImport.update({
   id: '/api/v1/me',
   path: '/api/v1/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1SearchRoute = ApiV1SearchRouteImport.update({
+  id: '/api/v1/search',
+  path: '/api/v1/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiV1SettingsRoute = ApiV1SettingsRouteImport.update({
@@ -200,6 +206,7 @@ export interface FileRoutesByFullPath {
   '/folders/$id': typeof AppFoldersIdRoute
   '/meetings/$id': typeof AppMeetingsIdRoute
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/search': typeof ApiV1SearchRoute
   '/api/v1/settings': typeof ApiV1SettingsRoute
   '/api/v1/calendar/upcoming': typeof ApiV1CalendarUpcomingRoute
   '/api/v1/folders/': typeof ApiV1FoldersIndexRoute
@@ -230,6 +237,7 @@ export interface FileRoutesByTo {
   '/folders/$id': typeof AppFoldersIdRoute
   '/meetings/$id': typeof AppMeetingsIdRoute
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/search': typeof ApiV1SearchRoute
   '/api/v1/settings': typeof ApiV1SettingsRoute
   '/api/v1/calendar/upcoming': typeof ApiV1CalendarUpcomingRoute
   '/api/v1/folders': typeof ApiV1FoldersIndexRoute
@@ -262,6 +270,7 @@ export interface FileRoutesById {
   '/_app/folders/$id': typeof AppFoldersIdRoute
   '/_app/meetings/$id': typeof AppMeetingsIdRoute
   '/api/v1/me': typeof ApiV1MeRoute
+  '/api/v1/search': typeof ApiV1SearchRoute
   '/api/v1/settings': typeof ApiV1SettingsRoute
   '/api/v1/calendar/upcoming': typeof ApiV1CalendarUpcomingRoute
   '/api/v1/folders/': typeof ApiV1FoldersIndexRoute
@@ -294,6 +303,7 @@ export interface FileRouteTypes {
     | '/folders/$id'
     | '/meetings/$id'
     | '/api/v1/me'
+    | '/api/v1/search'
     | '/api/v1/settings'
     | '/api/v1/calendar/upcoming'
     | '/api/v1/folders/'
@@ -324,6 +334,7 @@ export interface FileRouteTypes {
     | '/folders/$id'
     | '/meetings/$id'
     | '/api/v1/me'
+    | '/api/v1/search'
     | '/api/v1/settings'
     | '/api/v1/calendar/upcoming'
     | '/api/v1/folders'
@@ -355,6 +366,7 @@ export interface FileRouteTypes {
     | '/_app/folders/$id'
     | '/_app/meetings/$id'
     | '/api/v1/me'
+    | '/api/v1/search'
     | '/api/v1/settings'
     | '/api/v1/calendar/upcoming'
     | '/api/v1/folders/'
@@ -381,6 +393,7 @@ export interface RootRouteChildren {
   HealthRoute: typeof HealthRoute
   STokenRoute: typeof STokenRoute
   ApiV1MeRoute: typeof ApiV1MeRoute
+  ApiV1SearchRoute: typeof ApiV1SearchRoute
   ApiV1SettingsRoute: typeof ApiV1SettingsRoute
   ApiV1CalendarUpcomingRoute: typeof ApiV1CalendarUpcomingRoute
   ApiV1FoldersIndexRoute: typeof ApiV1FoldersIndexRoute
@@ -472,6 +485,13 @@ declare module '@tanstack/react-router' {
       path: '/api/v1/me'
       fullPath: '/api/v1/me'
       preLoaderRoute: typeof ApiV1MeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/search': {
+      id: '/api/v1/search'
+      path: '/api/v1/search'
+      fullPath: '/api/v1/search'
+      preLoaderRoute: typeof ApiV1SearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/settings': {
@@ -635,6 +655,7 @@ const rootRouteChildren: RootRouteChildren = {
   HealthRoute: HealthRoute,
   STokenRoute: STokenRoute,
   ApiV1MeRoute: ApiV1MeRoute,
+  ApiV1SearchRoute: ApiV1SearchRoute,
   ApiV1SettingsRoute: ApiV1SettingsRoute,
   ApiV1CalendarUpcomingRoute: ApiV1CalendarUpcomingRoute,
   ApiV1FoldersIndexRoute: ApiV1FoldersIndexRoute,

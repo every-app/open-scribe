@@ -196,6 +196,45 @@ export interface ListMeetingsResponse {
   nextCursor: string | null;
 }
 
+/**
+ * GET /search?q=&limit=&cursor= → `SearchResponse`: full-text search over
+ * the meetings the caller can read (the same rules as GET /meetings), in
+ * their titles, notes, transcripts, and the caller's own jottings (never a
+ * teammate's). Words match by prefix, accents ignored; all words must match
+ * within one field. Best match first. `limit` defaults to 20.
+ */
+export const searchQuery = z
+  .object({
+    q: z.string().trim().min(1).max(200),
+    cursor: z.string().max(100).optional(),
+    limit: z.coerce.number().int().min(1).max(50).default(20),
+  })
+  .strict();
+
+export type SearchField = "title" | "notes" | "jottings" | "transcript";
+
+/**
+ * A short excerpt as plain text (never markup: render it as text), with the
+ * matched words as [start, end) offsets into `text`, in UTF-16 code units
+ * (JavaScript string indices). "…" marks where the excerpt was cut.
+ */
+export interface SearchSnippet {
+  text: string;
+  ranges: { start: number; end: number }[];
+}
+
+export interface SearchResult {
+  meeting: MeetingRow;
+  /** Where the best match is. */
+  field: SearchField;
+  snippet: SearchSnippet;
+}
+
+export interface SearchResponse {
+  results: SearchResult[];
+  nextCursor: string | null;
+}
+
 /** GET /meetings/:id */
 export interface GetMeetingResponse {
   meeting: MeetingDetail;
@@ -420,6 +459,7 @@ export interface UpcomingResponse {
 export type CreateMeetingInput = z.input<typeof createMeetingInput>;
 export type PatchMeetingInput = z.input<typeof patchMeetingInput>;
 export type ListMeetingsQuery = z.input<typeof listMeetingsQuery>;
+export type SearchQuery = z.input<typeof searchQuery>;
 export type SaveJottingsInput = z.input<typeof saveJottingsInput>;
 export type EditNotesInput = z.input<typeof editNotesInput>;
 export type AppendSegmentsInput = z.input<typeof appendSegmentsInput>;

@@ -5,6 +5,7 @@ import {
 } from "@every-app/sdk/server";
 import { env, waitUntil } from "cloudflare:workers";
 import {
+  attendeesOf,
   chooseTemplate,
   jottingsText,
   markFailed,
@@ -39,9 +40,10 @@ export async function generateNotes(
 ): Promise<void> {
   try {
     const template = await resolveTemplate(meetingId, templateId);
-    const [transcript, jottings] = await Promise.all([
+    const [transcript, jottings, attendees] = await Promise.all([
       transcriptText(meetingId),
       jottingsText(meetingId),
+      attendeesOf(meetingId),
     ]);
     if (nothingToSummarize({ transcript, jottings })) {
       await saveNotes(
@@ -63,6 +65,7 @@ export async function generateNotes(
           instructions: template.instructions,
           transcript,
           jottings,
+          attendees,
         }),
       }),
     });
