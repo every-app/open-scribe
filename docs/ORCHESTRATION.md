@@ -101,3 +101,5 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - Open: #14 (echo dedupe + voice-processing flag; 159 mac tests) merging on green; #15 (M3: settings, permissions IPC, login item, nav guards, icon, real helper default) rebasing onto #13.
 - Codex V1 computer-use pass launched on Talk Dev (fake helper flows + real helper permissions). Report → ~/overnight/2026-11-02/talk-verify-1/. Other lanes told: no GUI launches meanwhile.
 - UI lane: feature/ui-split (route code-splitting, notepad lists).
+- #14 merged (echo dedupe on; voice processing flag). #15 merged (M3: settings, permissions IPC, login item, nav guards, icons, real helper default, cancel handling).
+- M3 follow-up queued: Keychain-free dev sign-in, handleActivation + persisted reminder sets, plist cleanup, echoCancellation setting, delete meeting on cancelled/failed start.
