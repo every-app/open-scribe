@@ -6,7 +6,11 @@ export const MAX_CLIPBOARD_LENGTH = 2048;
 
 function parse(text: unknown): URL | null {
   if (typeof text !== "string" || text.length === 0 || text.length > MAX_CLIPBOARD_LENGTH) return null;
-  if (text.trim() !== text || /[\s\u0000-\u001f]/.test(text)) return null;
+  // Whitespace, C0/DEL/C1 controls, zero-width marks and bidi overrides: a bidi override can make
+  // a pasted link read as a different URL.
+  if (text.trim() !== text || /[\s\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/.test(text)) {
+    return null;
+  }
   try {
     return new URL(text);
   } catch {
@@ -18,6 +22,11 @@ function parse(text: unknown): URL | null {
 export function looksLikeLink(text: unknown): text is string {
   const url = parse(text);
   return !!url && (url.protocol === "https:" || url.protocol === "http:") && !url.username && !url.password;
+}
+
+/** The link as written to the clipboard: normalized (and percent-encoded) by the URL parser. */
+export function normalizedLink(text: string): string {
+  return new URL(text).href;
 }
 
 /** An https link, or one on the app's own origin (a local `everyapp dev` app is http). */
