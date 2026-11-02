@@ -114,3 +114,4 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - #21 merged (Codex V1 UI fixes). #23 merged (M3 robustness: connection state, expiry, unsaved replay, logs/diagnostics, crash notice, update-feed auth). #22 (UI connection states) rebasing onto #23. Codex V2 running. API: private update feed route. H: release runbook.
 - #24 merged (private update feed route). #22 merged (offline/sign-in-again/reconnecting banners).
 - #25 merged (scripts/release-mac.sh + docs/release.md; dry-run verified unsigned). API: search + speaker names. H: helper offline (unsaved/transcription).
+- Codex V2 done (~/overnight/2026-11-02/talk-verify-2/report.md): all V1 findings fixed (icon unverifiable via CUA). New: medium copy-link fails; medium menu/Dock-started recording doesn't navigate; low system-audio "verified" cache leaks from fake helper. Routed to UI (fix/codex-v2) and M3 (fix/m3-v2, plus headless icon check). Cold launch ~1.1 s.
