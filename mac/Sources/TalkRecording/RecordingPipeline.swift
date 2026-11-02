@@ -110,6 +110,19 @@ public final class RecordingPipeline {
     public var segments: Int
     /// Why `/finish` or the last post failed, if it did.
     public var problem: String?
+    /// `/finish` succeeded. False when it failed, or wasn't tried because segments are unsaved.
+    public var finished: Bool = true
+    /// Segments that never posted (offline, signed out), in seq order, already echo-checked.
+    /// The caller keeps them and posts them (then `/finish`) when it can; the Worker ignores a
+    /// seq it already has.
+    public var unsaved: [Segment] = []
+
+    public init(segments: Int, problem: String? = nil, finished: Bool = true, unsaved: [Segment] = []) {
+      self.segments = segments
+      self.problem = problem
+      self.finished = finished
+      self.unsaved = unsaved
+    }
   }
 
   public let meetingID: String
@@ -211,13 +224,20 @@ public final class RecordingPipeline {
     // Both sides are complete: judge every `me` segment still waiting for the echo check.
     if echo != nil { queue(echo!.releaseAll()) }
     var problem = await flush(final: true)
-    do {
-      try await api.finish(meetingID: meetingID)
-    } catch {
-      problem = problem ?? "The recording stopped, but Talk couldn't be told to write notes: \(error.localizedDescription)"
+    let unsaved = batcher.pending
+    var finished = false
+    if unsaved.isEmpty {
+      do {
+        try await api.finish(meetingID: meetingID)
+        finished = true
+      } catch {
+        problem = "The recording stopped, but Talk couldn't be told to write notes: \(error.localizedDescription)"
+      }
     }
+    // With segments unsaved, /finish waits: notes written now would miss them. The caller posts
+    // them and then finishes.
     await teardown()
-    return StopResult(segments: saved, problem: problem)
+    return StopResult(segments: saved, problem: problem, finished: finished, unsaved: unsaved)
   }
 
   /// Stop a `start()` that's still getting keys: it throws `RecordingAborted` instead of

@@ -54,13 +54,13 @@ Newline-delimited JSON on stdin/stdout, with logs on stderr. Requests carry an `
 | `permissions.status` | none | `{ mic, systemAudio }`, each `granted`, `denied` or `undetermined` (systemAudio may be `unknown`) |
 | `permissions.request` | `{ kind: "mic" \| "systemAudio" }` | the new status |
 | `record.start` | `{ meetingId, apiBase, accessToken, language?, echoCancellation? }` (`echoCancellation`: mic voice processing, default `false`) | `{ startedAt }` |
-| `record.stop` | none | `{ segments }`: posts the last segments and calls `/finish` |
+| `record.stop` | none | `{ segments, finished?, unsaved? }`: posts the last segments and calls `/finish`. Offline, `unsaved` hands back what never posted (`[{ seq, speaker, text, startedMs, endedMs }]`) and `finished` is `false`: the app posts them, then `/finish` |
 | `token.update` | `{ accessToken }` | `{}` |
 | `detect.set` | `{ enabled }` | `{}` |
 
 | Event `event` | Fields |
 | --- | --- |
-| `state` | `{ recording, meetingId?, mode: "realtime" \| "fallback", mic: "ok" \| "silent" \| "error", system: … }` |
+| `state` | `{ recording, meetingId?, mode: "realtime" \| "fallback", mic: "ok" \| "silent" \| "error", system: …, transcription?: "live" \| "reconnecting" }` |
 | `levels` | `{ mic, system }`, 0–1, at most 10 Hz |
 | `transcript.delta` | `{ speaker, text, itemId }` |
 | `transcript.segment` | `{ seq, speaker, text, startedMs, endedMs }` |

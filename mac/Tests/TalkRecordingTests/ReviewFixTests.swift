@@ -52,7 +52,7 @@ import TalkCore
     await s.handle(Self.start.replacingOccurrences(of: "\"id\":1", with: "\"id\":3"))
     #expect(out.response(3)?["ok"] == true)
     await s.handle(#"{"id":4,"cmd":"record.stop"}"#)
-    #expect(out.response(4)?["result"] == ["segments": 0])
+    #expect(out.response(4)?["result"] == ["segments": 0, "finished": true])
   }
 }
 

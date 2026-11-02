@@ -72,6 +72,8 @@ public final class HelperServer {
   private var closing = false
   private var mode: RecordingMode = .realtime
   private var health: (mic: SourceHealth, system: SourceHealth) = (.ok, .ok)
+  /// Speakers whose transcription is currently failing (reconnecting, or fallback uploads failing).
+  private var transcriptionDown: Set<Speaker> = []
   private var detectTask: Task<Void, Never>?
 
   public init(environment: HelperEnvironment, write: @escaping @Sendable (String) -> Void, log: @escaping @Sendable (String) -> Void = { _ in }) {
@@ -208,6 +210,7 @@ public final class HelperServer {
     ) { [weak self] event in self?.recordingEvent(event) }
     mode = .realtime
     health = (.ok, .ok)
+    transcriptionDown = []
     self.auth = auth
     startingPipeline = pipeline
     do {
@@ -257,7 +260,12 @@ public final class HelperServer {
     log("recording stopped (\(result.segments) segments; echo: \(echo.dropped) dropped, \(echo.trimmed) trimmed)")
     if let problem = result.problem { emitError("save_failed", problem) }
     emitState()
-    return ["segments": .int(result.segments)]
+    var answer: [String: JSONValue] = ["segments": .int(result.segments), "finished": .bool(result.finished)]
+    if !result.unsaved.isEmpty {
+      log("\(result.unsaved.count) segment(s) unsaved; handed back to the app")
+      answer["unsaved"] = .array(result.unsaved.map(Self.segmentJSON))
+    }
+    return .object(answer)
   }
 
   static func startError(_ error: Error) -> HelperError {
@@ -280,12 +288,12 @@ public final class HelperServer {
     case .delta(let speaker, let text, let itemID):
       emit("transcript.delta", ["speaker": .string(speaker.rawValue), "text": .string(text), "itemId": .string(itemID)])
     case .segment(let s):
-      emit("transcript.segment", [
-        "seq": .int(s.seq), "speaker": .string(s.speaker.rawValue), "text": .string(s.text),
-        "startedMs": .int(s.startedMs), "endedMs": .int(s.endedMs),
-      ])
+      emit("transcript.segment", Self.segmentFields(s))
     case .transcriptionProblem(let speaker, let problem):
       if let problem { emitError("transcription", "\(speaker == .me ? "Your mic" : "Their side"): \(problem)") }
+      let wasDown = !transcriptionDown.isEmpty
+      if problem != nil { transcriptionDown.insert(speaker) } else { transcriptionDown.remove(speaker) }
+      if wasDown != !transcriptionDown.isEmpty, pipeline != nil { emitState() }
     case .captureProblem(_, let problem):
       if let problem { emitError("capture", problem) }
     case .health(let mic, let system):
@@ -300,12 +308,22 @@ public final class HelperServer {
     }
   }
 
+  static func segmentFields(_ s: Segment) -> [String: JSONValue] {
+    [
+      "seq": .int(s.seq), "speaker": .string(s.speaker.rawValue), "text": .string(s.text),
+      "startedMs": .int(s.startedMs), "endedMs": .int(s.endedMs),
+    ]
+  }
+
+  static func segmentJSON(_ s: Segment) -> JSONValue { .object(segmentFields(s)) }
+
   private static func round(_ v: Double) -> Double { (v * 1000).rounded() / 1000 }
 
   private func emitState() {
     var fields: [String: JSONValue] = [
       "recording": .bool(pipeline != nil), "mode": .string(mode.rawValue),
       "mic": .string(health.mic.rawValue), "system": .string(health.system.rawValue),
+      "transcription": .string(transcriptionDown.isEmpty ? "live" : "reconnecting"),
     ]
     if let id = pipeline?.meetingID { fields["meetingId"] = .string(id) }
     emit("state", fields)

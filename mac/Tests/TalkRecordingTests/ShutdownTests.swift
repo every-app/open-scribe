@@ -87,7 +87,7 @@ import TalkCore
     finish.release()
     await shutdown.value
     await stop.value
-    #expect(out.response(2)?["result"] == ["segments": 1])
+    #expect(out.response(2)?["result"] == ["segments": 1, "finished": true])
     #expect(worker.completed.last == "/api/v1/meetings/m1/finish")
     #expect(worker.paths().filter { $0.hasSuffix("/finish") }.count == 1)
   }

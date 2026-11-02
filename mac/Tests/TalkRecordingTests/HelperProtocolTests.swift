@@ -107,7 +107,7 @@ import TalkCore
     #expect(out.response(10)?["result"]?["startedAt"]?.string != nil)
     #expect(s.isRecording)
     let state = try #require(out.events("state").last)
-    #expect(state == ["event": "state", "recording": true, "meetingId": "m1", "mode": "realtime", "mic": "ok", "system": "ok"])
+    #expect(state == ["event": "state", "recording": true, "meetingId": "m1", "mode": "realtime", "mic": "ok", "system": "ok", "transcription": "live"])
     // Both keys were minted with the token the app gave.
     #expect(worker.tokens(for: "/api/v1/meetings/m1/transcription-token") == ["old", "old"])
 
@@ -124,7 +124,7 @@ import TalkCore
     #expect(segments.contains { $0["speaker"] == "them" && $0["text"] == "them turn 1" && $0["startedMs"] == 0 && $0["endedMs"] == 100 })
 
     await s.handle(#"{"id":12,"cmd":"record.stop"}"#)
-    #expect(out.response(12)?["result"] == ["segments": 2])
+    #expect(out.response(12)?["result"] == ["segments": 2, "finished": true])
     #expect(rig.mic?.stopped == true && rig.system?.stopped == true)
     let paths = worker.paths()
     #expect(paths.filter { $0 == "/api/v1/meetings/m1/segments" }.count == 1)
@@ -148,7 +148,7 @@ import TalkCore
     await s.handle(#"{"id":3,"cmd":"token.update","params":{"accessToken":"new"}}"#)
     await stop.value
     #expect(out.response(3)?["ok"] == true)
-    #expect(out.response(2)?["result"] == ["segments": 1])
+    #expect(out.response(2)?["result"] == ["segments": 1, "finished": true])
     #expect(worker.tokens(for: "/api/v1/meetings/m1/segments") == ["old", "new"])
     #expect(worker.tokens(for: "/api/v1/meetings/m1/finish") == ["new"])
     #expect(out.events("error").isEmpty)

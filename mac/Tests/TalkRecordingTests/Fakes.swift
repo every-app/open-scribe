@@ -111,6 +111,9 @@ actor FakeChannel: SpeakerChannel {
 
   func finish() async {}
   func cancel() async {}
+
+  /// What a real channel says when its connection drops (a sentence) or comes back (nil).
+  func report(_ problem: String?) { callbacks.problem(speaker, problem) }
 }
 
 /// Hands out fake sources and channels and remembers them.
@@ -124,6 +127,8 @@ final class FakeRig: @unchecked Sendable {
   var script: [Speaker: [String]] = [:]
 
   private var _micVoiceProcessing: Bool?
+  private var _channels: [Speaker: FakeChannel] = [:]
+  func channel(_ speaker: Speaker) -> FakeChannel? { lock.withLock { _channels[speaker] } }
   var mic: FakeSource? { lock.withLock { _mic } }
 
   var scripted: @Sendable (Speaker, Int) -> String? {
@@ -153,7 +158,9 @@ final class FakeRig: @unchecked Sendable {
         return source
       },
       makeRealtime: { [self] speaker, _, fetchToken, callbacks in
-        FakeChannel(speaker: speaker, fetchToken: fetchToken, callbacks: callbacks, script: scripted)
+        let channel = FakeChannel(speaker: speaker, fetchToken: fetchToken, callbacks: callbacks, script: scripted)
+        lock.withLock { _channels[speaker] = channel }
+        return channel
       },
       makeFallback: { [self] speaker, _, _, _, callbacks in
         lock.withLock { fallbackUsed = true }

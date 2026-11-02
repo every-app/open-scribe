@@ -78,7 +78,9 @@ final class Recorder: ObservableObject {
     state = .stopping(title: title)
     let result = await pipeline.stop()
     self.pipeline = nil
-    if let problem = result.problem {
+    if !result.unsaved.isEmpty {
+      lastError = "\(result.unsaved.count) transcript segment(s) couldn't be saved (offline?), so notes weren't started."
+    } else if let problem = result.problem {
       lastError = problem
     } else {
       lastMeetingID = meetingID
