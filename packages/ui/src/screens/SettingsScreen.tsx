@@ -36,6 +36,8 @@ export interface SettingsScreenProps {
   detectCalls: boolean;
   theme: ThemePreference;
   version?: string;
+  /** Under "Open at login", e.g. when macOS wants it approved. */
+  launchAtLoginHint?: string;
   onSignOut?: () => void;
   onGrant?: (kind: PermissionKind) => void;
   onConnectCalendar?: () => void;
@@ -63,7 +65,15 @@ export function SettingsScreen(props: SettingsScreenProps) {
       <Section title="General">
         <Row
           title="Open at login"
-          detail="Keep Talk in the menu bar so calendar reminders reach you."
+          detail={
+            props.launchAtLoginHint ? (
+              <span className="text-warning-foreground dark:text-warning">
+                {props.launchAtLoginHint}
+              </span>
+            ) : (
+              "Keep Talk in the menu bar so calendar reminders reach you."
+            )
+          }
           control={
             <Switch
               aria-label="Open at login"

@@ -1,36 +1,11 @@
-@import "tailwindcss";
-
-:root {
-  color-scheme: light dark;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
-  font-size: 13px;
-}
+/* The @talk/ui look (system font, quiet neutrals, translucent sidebar), plus this window. */
+@import "../../../../packages/ui/src/styles/desktop.css";
+@source "../../../../packages/ui/src";
+@source "./";
 
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
-  /* The window has vibrancy: let it show through. */
-  background: transparent;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-/* The hidden-inset title bar: this strip drags the window. */
-.drag {
-  -webkit-app-region: drag;
-}
-.no-drag,
-button,
-input,
-select,
-textarea {
-  -webkit-app-region: no-drag;
-}
-
-input,
-textarea {
-  -webkit-user-select: text;
-  user-select: text;
 }

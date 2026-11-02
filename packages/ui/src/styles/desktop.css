@@ -98,6 +98,10 @@ html[data-vibrancy] body {
   background: transparent;
 }
 
+html[data-vibrancy] {
+  --window: transparent;
+}
+
 @utility drag-region {
   -webkit-app-region: drag;
 }

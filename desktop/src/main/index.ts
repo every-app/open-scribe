@@ -190,6 +190,7 @@ async function main(): Promise<void> {
     "api:meetings": () => withAuth(() => requireApi().meetings()),
     "api:meeting": (id) => withAuth(() => requireApi().meeting(id)),
     "api:updateMeeting": (id, patch) => withAuth(() => requireApi().updateMeeting(id, patch)),
+    "api:call": (method, path, opts) => withAuth(() => requireApi().call(method, path, opts)),
     "app:openInBrowser": async (meetingId) => {
       const base = auth.api?.appUrl;
       if (!base) return;

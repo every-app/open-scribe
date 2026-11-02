@@ -104,6 +104,11 @@ export class ApiClient {
     }
   }
 
+  /** One allowlisted /api/v1 call for the window ("api:call"); the caller checked the route. */
+  async call(method: string, path: string, opts: { query?: Record<string, string>; body?: unknown } = {}): Promise<unknown> {
+    return this.request(method, path, { query: opts.query, json: opts.body });
+  }
+
   // Plumbing
 
   private async request(

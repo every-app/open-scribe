@@ -16,6 +16,10 @@ export interface OnboardingScreenProps {
   signingIn?: boolean;
   signInError?: string | null;
   defaultShowToken?: boolean;
+  /** The Talk address to sign in to; shown as a field when `onAppUrlChange` is given. */
+  appUrl?: string;
+  onAppUrlChange?: (appUrl: string) => void;
+  onCancelSignIn?: () => void;
   /** permissions */
   permissions?: Permissions;
   onGrant?: (kind: PermissionKind) => void;
@@ -108,6 +112,9 @@ function SignIn({
   signingIn,
   signInError,
   defaultShowToken,
+  appUrl,
+  onAppUrlChange,
+  onCancelSignIn,
 }: OnboardingScreenProps) {
   const [showToken, setShowToken] = useState(defaultShowToken ?? false);
   const [token, setToken] = useState("");
@@ -118,13 +125,38 @@ function SignIn({
         Jot a few notes during the call. Talk listens and writes the rest when
         it ends.
       </Heading>
+      {onAppUrlChange && (
+        <input
+          data-slot="app-url-input"
+          aria-label="Talk address"
+          type="url"
+          autoComplete="url"
+          placeholder="https://talk.your-team.everyapp.dev"
+          value={appUrl ?? ""}
+          onChange={(event) => onAppUrlChange(event.target.value)}
+          className="mt-8 h-8 w-full max-w-[280px] rounded-lg border border-input bg-card px-2.5 text-center text-[13px] outline-none focus:border-ring/50 focus:ring-3 focus:ring-ring/15"
+        />
+      )}
       <Button
-        className="mt-8 h-9 w-full max-w-[280px]"
+        className={cn(
+          "h-9 w-full max-w-[280px]",
+          onAppUrlChange ? "mt-2" : "mt-8",
+        )}
         onClick={onSignIn}
         pending={signingIn}
+        disabled={onAppUrlChange ? !appUrl?.trim() : undefined}
       >
         {signingIn ? "Waiting for your browser…" : "Sign in with Every App"}
       </Button>
+      {signingIn && onCancelSignIn && (
+        <button
+          type="button"
+          onClick={onCancelSignIn}
+          className="mt-2 text-[12px] text-muted-foreground hover:text-foreground"
+        >
+          Cancel
+        </button>
+      )}
       {signInError && (
         <p
           role="alert"

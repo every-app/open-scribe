@@ -3,6 +3,7 @@
 
 import { app, ipcMain, type IpcMainInvokeEvent } from "electron";
 import type { InvokeChannel, InvokeMap } from "@shared/ipc";
+import { isAllowedApiCall, isValidApiCallOptions } from "./api/routes";
 
 type Handler<C extends InvokeChannel> = (...args: InvokeMap[C][0]) => Promise<InvokeMap[C][1]> | InvokeMap[C][1];
 export type Handlers = { [C in InvokeChannel]: Handler<C> };
@@ -42,6 +43,7 @@ const validators: { [C in InvokeChannel]: (args: unknown[]) => boolean } = {
     return keys && (o.title === undefined || isString(o.title, 500)) && (o.visibility === undefined || o.visibility === "private" || o.visibility === "team");
   },
   "app:openInBrowser": ([id]) => id === undefined || isString(id, 256),
+  "api:call": ([method, path, opts, ...rest]) => rest.length === 0 && isAllowedApiCall(method, path) && isValidApiCallOptions(opts),
 };
 
 export function registerIpc(handlers: Handlers): void {

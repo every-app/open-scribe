@@ -83,6 +83,15 @@ export interface InvokeMap {
   "api:meeting": [[id: string], MeetingDetail];
   "api:updateMeeting": [[id: string, patch: MeetingPatch], MeetingSummary];
   "app:openInBrowser": [[meetingId?: string], void];
+  /** One /api/v1 call from the window, allowlisted in main (src/main/api/routes.ts). */
+  "api:call": [[method: ApiMethod, path: string, opts?: ApiCallOptions], unknown];
+}
+
+export type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+
+export interface ApiCallOptions {
+  query?: Record<string, string>;
+  body?: unknown;
 }
 
 export type InvokeChannel = keyof InvokeMap;
@@ -117,6 +126,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   "api:meeting",
   "api:updateMeeting",
   "app:openInBrowser",
+  "api:call",
 ] as const;
 
 export const EVENT_CHANNELS: readonly EventChannel[] = ["state", "helper"] as const;
