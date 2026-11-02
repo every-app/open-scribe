@@ -128,3 +128,4 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - #47 merged (e2e race fix; main pushes don't cancel). #46 merged (web uses packages/ui, pixel-identical). #43 (update pill), #44 (finishing transcript), #45 (selftest:run IPC) merged after branch updates. UI: fix/codex-v3 then selftest button.
 - #48 merged (Codex V3 fixes). M1–M3 done; M4 waits on Ben.
 - #49 merged (Settings self-test button). No open PRs. Waiting: M3 update-menu tweak.
+- Codex V4 (~/overnight/2026-11-02/talk-verify-4/report.md): sign-off NO. Blocker: segments backlog POST after ~2 min outage → 500 D1 'too many SQL variables' (single multi-row insert, 7 vars/row). V3 fixes verified. Global shortcut unverified (synthetic keys). Fixes: API fix/segments-batch (chunk + audit), M3 fix/replay-batches (batch 50, fake unsaved, long-outage e2e), H fix/helper-post-batches (≤50/request).
