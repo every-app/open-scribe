@@ -72,6 +72,8 @@ export interface MeetingScreenProps {
   warning?: string | null;
   /** The helper's own words for the warning, shown on hover. */
   warningDetail?: string | null;
+  /** Live transcription can't be reached: what's said meanwhile won't be transcribed. */
+  transcriptionPaused?: boolean;
   folders: Folder[];
   templates: Template[];
   orgName: string;
@@ -137,6 +139,7 @@ export function MeetingScreen(props: MeetingScreenProps) {
         <TranscriptDrawer
           live={props.live}
           meeting={meeting}
+          paused={!!props.transcriptionPaused}
           onClose={() => setTranscriptOpen(false)}
         />
       )}
@@ -623,6 +626,7 @@ function ControlBar({
   drawerOpen,
   warning,
   warningDetail,
+  transcriptionPaused,
 }: MeetingScreenProps & {
   transcriptOpen: boolean;
   onToggleTranscript: () => void;
@@ -635,6 +639,15 @@ function ControlBar({
         drawerOpen && "right-[340px]",
       )}
     >
+      {phase === "during" && transcriptionPaused && !drawerOpen && (
+        <p
+          role="status"
+          className="animate-in fade-in-0 pointer-events-auto flex items-center gap-1.5 rounded-full bg-background/85 px-3 py-1 text-[12px] text-muted-foreground backdrop-blur"
+        >
+          <span className="record-pulse size-1.5 rounded-full bg-foreground/40" />
+          {PAUSED_TEXT}
+        </p>
+      )}
       {phase === "during" && warning && (
         <p
           role="status"
@@ -709,13 +722,18 @@ function Bar({ children }: { children: ReactNode }) {
   return <div className="flex items-center gap-1">{children}</div>;
 }
 
+const PAUSED_TEXT =
+  "Reconnecting to transcription. This stretch won't be in the transcript.";
+
 function TranscriptDrawer({
   live,
   meeting,
+  paused,
   onClose,
 }: {
   live: LiveState;
   meeting: MeetingDetail;
+  paused: boolean;
   onClose: () => void;
 }) {
   return (
@@ -751,6 +769,15 @@ function TranscriptDrawer({
           follow
           emptyText="Listening… what's said shows up here."
         />
+        {paused && (
+          <p
+            role="status"
+            className="mt-4 flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-[12px] text-muted-foreground"
+          >
+            <span className="record-pulse size-1.5 shrink-0 rounded-full bg-foreground/40" />
+            {PAUSED_TEXT}
+          </p>
+        )}
       </div>
     </aside>
   );

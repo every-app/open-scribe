@@ -1,5 +1,6 @@
-// Waits for typing to pause, then saves the newest text with when it was typed. Electron-free and
-// bridge-free, for the tests.
+// Waits for typing to pause, then saves the newest text with when it was typed. A save that fails
+// (offline, signed out) keeps its text for the next flush, so nothing typed is dropped; the
+// server keeps the newest by `updatedAt`. Electron-free and bridge-free, for the tests.
 
 export const SAVE_DELAY_MS = 800;
 
@@ -30,7 +31,13 @@ export class DebouncedSaver {
     try {
       await this.save(next.markdown, next.updatedAt);
     } catch (error) {
+      // Keep it for the next flush, unless something newer was typed meanwhile.
+      this.pending ??= next;
       this.onError(error);
     }
+  }
+
+  get unsaved(): boolean {
+    return this.pending !== null;
   }
 }

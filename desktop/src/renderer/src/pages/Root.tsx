@@ -4,14 +4,16 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Outlet, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { AppSnapshot } from "@shared/ipc";
 import type { NavTarget, Space } from "@talk/ui";
-import { AppFrame, OnboardingScreen, TitleBar, useElapsed } from "@talk/ui";
+import { AppFrame, OfflineBanner, OnboardingScreen, SignInAgainBanner, TitleBar, useElapsed } from "@talk/ui";
 import { Button } from "@talk/ui/components/button";
 import { useCancelledStart, useStartRecording, useStopRecording } from "../actions";
 import { api, cleanError, keys } from "../api";
 import { grantPermission, uiPermissions } from "../settings-logic";
+import { connectionOf, gateOf, signInAgainOf, type Gate, type Snapshot } from "../connection";
+import { retryUnsavedJottings } from "../jottings";
 import { useLevels } from "../live";
 import { accountFrom, loadable } from "../map";
 import { notify } from "../notice";
@@ -25,8 +27,12 @@ const NameDialog = lazy(() => import("../dialogs").then((m) => ({ default: m.Nam
 export function Root() {
   const state = useAppState();
   const [onboarded, setOnboarded] = useState(() => localStorage.getItem(ONBOARDED_KEY) === "1");
+  // An expired sign-in keeps the app on screen (see connection.ts); only a real sign-out leaves.
+  const gateRef = useRef<Gate>("loading");
+  const gate = gateOf(state, gateRef.current);
+  gateRef.current = gate;
   if (!state) return <TitleBar />;
-  if (state.auth.status !== "signedIn") return <SignIn state={state} />;
+  if (gate === "welcome") return <SignIn state={state} />;
   if (!onboarded) {
     return (
       <FirstRun
@@ -92,6 +98,48 @@ function navFrom(pathname: string): NavTarget | null {
   return null;
 }
 
+/** Offline, or the sign-in ran out: a strip over the page, which stays as it is. */
+function ConnectionStrip({ state }: { state: Snapshot }) {
+  const again = signInAgainOf(state);
+  const failed = (e: unknown) => notify(cleanError(e), "error");
+  if (again?.kind === "token") {
+    return (
+      <SignInAgainBanner
+        kind="token"
+        error={again.error}
+        onSubmitToken={(token) => void talk["auth:signInWithToken"](again.appUrl, token).catch(failed)}
+      />
+    );
+  }
+  if (again) {
+    return (
+      <SignInAgainBanner
+        kind={again.kind}
+        signingIn={again.signingIn}
+        error={again.error}
+        onSignIn={() => void talk["auth:signIn"](again.appUrl).catch(failed)}
+        onCancel={() => void talk["auth:cancelSignIn"]()}
+      />
+    );
+  }
+  if (connectionOf(state) === "offline") return <OfflineBanner />;
+  return null;
+}
+
+/** Back online, or signed in again: refetch what failed meanwhile. */
+function useRefetchOnReconnect(state: Snapshot) {
+  const client = useQueryClient();
+  const connection = connectionOf(state);
+  const previous = useRef(connection);
+  useEffect(() => {
+    if (previous.current !== "online" && connection === "online") {
+      void retryUnsavedJottings();
+      void client.invalidateQueries();
+    }
+    previous.current = connection;
+  }, [client, connection]);
+}
+
 function Layout({ state }: { state: AppSnapshot }) {
   const navigate = useNavigate();
   const router = useRouter();
@@ -106,6 +154,7 @@ function Layout({ state }: { state: AppSnapshot }) {
   const account = accountFrom(me.data, state.auth);
   const orgName = account?.orgName ?? "Team";
 
+  useRefetchOnReconnect(state);
   const rec = state.recording;
   const onRecording = useCancelledStart();
   useEffect(() => onRecording(rec), [rec, onRecording]);
@@ -137,6 +186,7 @@ function Layout({ state }: { state: AppSnapshot }) {
   return (
     <>
       <AppFrame
+        banner={<ConnectionStrip state={state} />}
         sidebar={{
           current: navFrom(pathname),
           onNavigate,

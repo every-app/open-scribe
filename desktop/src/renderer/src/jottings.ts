@@ -6,7 +6,23 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Jottings } from "@shared/contract";
 import { api } from "./api";
 import { notify } from "./notice";
+import { connectionOf } from "./connection";
 import { DebouncedSaver } from "./saver";
+import { currentSnapshot } from "./talk";
+
+// Every open notepad's saver, plus closed ones still holding text that couldn't be saved
+// (offline, signed out). All are retried when the window is back online or signed in.
+const savers = new Set<DebouncedSaver>();
+const open = new WeakSet<DebouncedSaver>();
+
+export async function retryUnsavedJottings(): Promise<void> {
+  await Promise.all(
+    [...savers].map(async (saver) => {
+      if (saver.unsaved) await saver.flush();
+      if (!saver.unsaved && !open.has(saver)) savers.delete(saver);
+    }),
+  );
+}
 
 /** The notepad text for a meeting, starting from what's saved, saved as it changes. */
 export function useJottings(
@@ -20,14 +36,24 @@ export function useJottings(
   useEffect(() => {
     const saver = new DebouncedSaver(
       (markdown, updatedAt) => api.saveJottings(meetingId, markdown, updatedAt),
-      () => notify("Couldn't save your notes. They'll save on your next change.", "error"),
+      () => {
+        // Offline or signed out: the banner says so, and the text saves when it's back.
+        if (connectionOf(currentSnapshot()) === "online") {
+          notify("Couldn't save your notes. They'll save on your next change.", "error");
+        }
+      },
     );
     saverRef.current = saver;
+    savers.add(saver);
+    open.add(saver);
     const onClose = () => void saver.flush();
     window.addEventListener("beforeunload", onClose);
     return () => {
       window.removeEventListener("beforeunload", onClose);
-      void saver.flush();
+      open.delete(saver);
+      void saver.flush().then(() => {
+        if (!saver.unsaved) savers.delete(saver);
+      });
     };
   }, [meetingId]);
 

@@ -4,6 +4,8 @@ import { Button } from "../src/components/ui/button";
 import type { ThemePreference } from "../src/lib/theme";
 import {
   AppFrame,
+  OfflineBanner,
+  SignInAgainBanner,
   FolderScreen,
   HomeScreen,
   MeetingScreen,
@@ -115,12 +117,14 @@ function Frame({
   titleBar,
   recording,
   folders = ready(mock.folders),
+  banner,
 }: {
   current: NavTarget | null;
   children: ReactNode;
   titleBar?: ReactNode;
   recording?: RecordingSummary | null;
   folders?: Loadable<typeof mock.folders>;
+  banner?: ReactNode;
 }) {
   const sidebar: SidebarProps = {
     current,
@@ -135,7 +139,7 @@ function Frame({
     onStopRecording: noop,
   };
   return (
-    <AppFrame sidebar={sidebar} titleBar={titleBar}>
+    <AppFrame sidebar={sidebar} titleBar={titleBar} banner={banner}>
       {children}
     </AppFrame>
   );
@@ -370,6 +374,31 @@ export const scenes: Scene[] = [
     ),
   },
   {
+    id: "home-offline",
+    group: "Home",
+    label: "Offline",
+    render: () => (
+      <Frame current={{ to: "home" }} banner={<OfflineBanner />}>
+        {home()}
+      </Frame>
+    ),
+  },
+  {
+    id: "home-signin-expired",
+    group: "Home",
+    label: "Sign-in expired",
+    render: () => (
+      <Frame
+        current={{ to: "home" }}
+        banner={
+          <SignInAgainBanner kind="oauth" signingIn={false} onSignIn={noop} />
+        }
+      >
+        {home()}
+      </Frame>
+    ),
+  },
+  {
     id: "home-loading",
     group: "Home",
     label: "Loading",
@@ -417,6 +446,18 @@ export const scenes: Scene[] = [
         phase="during"
         {...ctx}
         extra={{ defaultTranscriptOpen: true }}
+      />
+    ),
+  },
+  {
+    id: "meeting-during-reconnecting",
+    group: "Meeting",
+    label: "During, transcription reconnecting",
+    render: (ctx) => (
+      <MeetingScene
+        phase="during"
+        {...ctx}
+        extra={{ transcriptionPaused: true, defaultTranscriptOpen: true }}
       />
     ),
   },

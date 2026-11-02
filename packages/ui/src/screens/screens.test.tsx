@@ -112,6 +112,32 @@ describe("MeetingScreen", () => {
     expect(onStop).toHaveBeenCalledOnce();
   });
 
+  it("during: says when live transcription is reconnecting", () => {
+    render(
+      <MeetingScreen
+        {...base}
+        phase="during"
+        transcriptionPaused
+        live={{
+          recording: {
+            meetingId: "m-1",
+            title: "Pricing call",
+            startedAt: "",
+            mode: "realtime",
+            mic: "ok",
+            system: "ok",
+          },
+          levels: { mic: 0, system: 0 },
+          partial: { me: "", them: "" },
+          elapsedMs: 0,
+        }}
+      />,
+    );
+    expect(screen.getByRole("status").textContent).toMatch(
+      /Reconnecting to transcription/,
+    );
+  });
+
   it("during: shows a quiet warning above the controls", () => {
     render(
       <MeetingScreen

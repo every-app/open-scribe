@@ -332,11 +332,14 @@ export function Avatar({
 export function AppFrame({
   sidebar,
   titleBar,
+  banner,
   children,
   className,
 }: {
   sidebar: SidebarProps;
   titleBar?: ReactNode;
+  /** A strip under the title bar (offline, sign in again); the page stays below it. */
+  banner?: ReactNode;
   children: ReactNode;
   className?: string;
 }) {
@@ -350,6 +353,7 @@ export function AppFrame({
       <Sidebar {...sidebar} />
       <main className="flex min-w-0 flex-1 flex-col bg-background">
         <TitleBar>{titleBar}</TitleBar>
+        {banner}
         {children}
       </main>
     </div>

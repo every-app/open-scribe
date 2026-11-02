@@ -33,6 +33,9 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+/** The latest snapshot, outside React. */
+export const currentSnapshot = (): AppSnapshot | undefined => snapshot;
+
 export function useAppState(): AppSnapshot | undefined {
   return useSyncExternalStore(subscribe, () => snapshot);
 }

@@ -7,6 +7,7 @@ import { draftKey, useRun, useStartRecording, useStopRecording } from "../action
 import { api, cleanError, keys } from "../api";
 import { useJottings } from "../jottings";
 import { SLOW_CONNECTION } from "../recording";
+import { transcriptionPaused } from "../connection";
 import { mergeSegments, partialOf, useLevels, useLiveTranscript } from "../live";
 import { accountFrom } from "../map";
 import { notify } from "../notice";
@@ -81,6 +82,7 @@ export function MeetingPage({ id }: { id: string }) {
       live={live}
       warning={recordingHere && rec.warning ? SLOW_CONNECTION : null}
       warningDetail={recordingHere ? rec.warning : null}
+      transcriptionPaused={recordingHere && transcriptionPaused(state)}
       folders={folders.data ?? []}
       templates={templates.data?.templates ?? []}
       orgName={accountFrom(me.data, state?.auth)?.orgName ?? "Team"}

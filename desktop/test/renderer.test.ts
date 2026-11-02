@@ -54,14 +54,35 @@ describe("jottings saver", () => {
     expect(save).toHaveBeenCalledExactlyOnceWith("ab", "2026-11-02T10:00:01.000Z");
   });
 
-  it("flushes a pending save at once, and reports a failure", async () => {
+  it("keeps text that couldn't be saved, and saves it on the next flush", async () => {
     const onError = vi.fn();
-    const saver = new DebouncedSaver(async () => Promise.reject(new Error("offline")), onError);
+    let online = false;
+    const save = vi.fn(async () => (online ? undefined : Promise.reject(new Error("offline"))));
+    const saver = new DebouncedSaver(save, onError);
     saver.change("x");
     await saver.flush();
     expect(onError).toHaveBeenCalledOnce();
-    await saver.flush(); // nothing pending: no second call
-    expect(onError).toHaveBeenCalledOnce();
+    expect(saver.unsaved).toBe(true);
+    online = true;
+    await saver.flush();
+    expect(save).toHaveBeenLastCalledWith("x", expect.any(String));
+    expect(saver.unsaved).toBe(false);
+    await saver.flush(); // nothing pending: no call
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it("a newer change wins over a failed older one", async () => {
+    let fail: (e: Error) => void = () => {};
+    const save = vi.fn((markdown: string) => (markdown === "old" ? new Promise<void>((_, r) => (fail = r)) : Promise.resolve()));
+    const saver = new DebouncedSaver(save);
+    saver.change("old");
+    const first = saver.flush();
+    saver.change("new");
+    fail(new Error("offline"));
+    await first;
+    await saver.flush();
+    expect(save).toHaveBeenLastCalledWith("new", expect.any(String));
+    expect(saver.unsaved).toBe(false);
   });
 });
 
