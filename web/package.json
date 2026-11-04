@@ -17,7 +17,7 @@
     "knip": "knip"
   },
   "dependencies": {
-    "@every-app/sdk": "^0.3.0-rc.10",
+    "@every-app/sdk": "^0.3.0-rc.14",
     "@talk/ui": "file:../packages/ui",
     "@tanstack/react-router": "1.170.42",
     "@tanstack/react-start": "1.168.61",
@@ -43,7 +43,7 @@
     "@vitejs/plugin-react": "^4.6.0",
     "cf": "1.0.0-beta.14",
     "drizzle-kit": "^0.31.11",
-    "everyapp": "^0.3.0-rc.10",
+    "everyapp": "^0.3.0-rc.14",
     "knip": "^5.66.4",
     "prettier": "3.6.2",
     "typescript": "^5.9.3",

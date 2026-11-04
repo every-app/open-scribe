@@ -2,7 +2,7 @@
 
 The Every App side of Talk: a private web app on Cloudflare behind your Gateway. It holds meetings, transcripts, notes, folders, templates and share links in D1, serves the API the Mac app calls (`/api/v1`, see `../docs/SPEC.md`), and is Talk's main window: a sidebar of folders, the coming week's meetings, the notes.
 
-- `everyapp.config.ts`: the manifest. OpenAI through the Gateway (plus the Realtime client-secret route the operator allows with `AI_PROXY_EXTRA_ROUTES`), Google Calendar through the Gateway's `google-workspace` client (`calendar.read`), one public route for shared pages.
+- `everyapp.config.ts`: the manifest. OpenAI through the Gateway (plus the Realtime client-secret route the operator allows with `AI_PROXY_EXTRA_ROUTES`), Google Calendar through the Gateway's `google-workspace` client (`calendar.readonly`, an optional feature), one public route for shared pages and the desktop app's bearer route (`/api/v1/**`).
 - `src/server/`: the queries (`meetings.ts`, `folders.ts`, `templates.ts`, `settings.ts`, who sees what in `access.ts`), Google Calendar (`calendar.ts`), the Realtime token (`transcription.ts`), the notes writer (`notes.ts`, its prompt in `notesPrompt.ts`), the API helpers (`api.ts`).
 - `src/api/contract.ts`: the `/api/v1` contract, every request schema (zod) and response type, importing nothing but zod so the desktop app can import or copy it. The server modules and routes take their schemas and types from it.
 - `src/routes/api/v1/`: the API the Mac helper and the desktop window call. `src/routes/_app/`: the pages behind the sidebar (`_app.tsx`). `src/tools.ts`: the same queries as AI tools.

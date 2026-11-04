@@ -6,7 +6,7 @@
 - Talk desktop (`desktop/`, Electron): built-in UI, sign-in (Every App + token paste), recording through the Swift helper, live notepad + transcript, folders, templates, sharing, search, settings, offline/re-sign-in, logs. Local "Talk Dev" builds verified twice by Codex computer use (docs/ORCHESTRATION.md).
 - Talk helper (`mac/`, Swift): mic + system-audio capture, two-stream Realtime transcription with fallback, echo dedupe, call detection. `mac/scripts/build-helper.sh`. The SwiftUI menu-bar app is retired.
 - Talk web (`web/`, app id `talk`): D1, the full `/api/v1` (folders, templates, jottings, search, update feed), web UI, public links.
-- Sign in with Every App: #855 is merged on private-every-app and published in 0.3.0-rc.10.
+- Sign in with Every App: #855 is merged on private-every-app and published in 0.3.0-rc.10; Talk is on 0.3.0-rc.14.
 
 **Not verified**
 - Real audio capture, permission prompts, notifications and live OpenAI transcription: no hardware interaction or OpenAI key here.
@@ -30,7 +30,7 @@ Plan: docs/desktop-plan.md. Decided with Ben: Electron + Swift helper, private a
 **Ben still decides**
 - **Signing credentials:** Ben adds his Developer ID Application certificate to this Mac's keychain and creates a notarization App Store Connect API key (or an app-specific password). Agents ask through the secret prompt. This blocks the alpha build, not development.
 - **Update feed hosting:** where electron-updater reads from. Recommended: a private R2 bucket behind the Gateway, or GitHub Releases on private-talk (but each client would need a token). Nothing is uploaded until Ben OKs it.
-- **Native sign-in on the platform:** resolved. #855 is merged on private-every-app main, and published 0.3.0-rc.10 has `bearerRoutes` and the native sign-in. Local `everyapp dev` mirror mode forwards only cookies or `epat_` tokens, not native OAuth tokens, so local tests use stub mode or an epat_. The real native flow is tested on a deployed Gateway when Ben says go.
+- **Native sign-in on the platform:** resolved. #855 is merged on private-every-app main, and published 0.3.0-rc.10 has the native sign-in; since rc.13 a bearer route is a `public` entry with `bearer: true` (Talk: `/api/v1/**`). Local `everyapp dev` mirror mode forwards only cookies or `epat_` tokens, not native OAuth tokens, so local tests use stub mode or an epat_. The real native flow is tested on a deployed Gateway when Ben says go.
 - **Platform asks (later, not blocking):** an optional `ai.routes`, so Talk opens before OpenAI is set up, and letting apps read workspace groups. Built on private-every-app `birds/feature`: optional AI #914 (`providers[].optional`, `ai.routes: { paths, optional }`, `aiStatus({ env, provider, for })` → `{ ready, routes[{path, allowed}] }`, the same 503/403 codes) and groups #915 (`capabilities.groups`, `listGroups({ env, for, member? })` → `{ groups: [{ id, name, description, memberIds }] }`). Talk adopts them after Ben releases an SDK that has them: optional OpenAI with live transcription gated on aiStatus, and sharing with a group.
 - **Bundle id:** keep `com.everyapp.talk` for the Electron app. That means the SwiftUI app's TCC grants and Keychain items don't carry over, which is fine for an alpha.
 
@@ -49,7 +49,7 @@ Plan: docs/desktop-plan.md. Decided with Ben: Electron + Swift helper, private a
 - **Folders:** private or team; a meeting can be in several; filing in a team folder shares the meeting, and anyone on the team can manage team folders.
 - **Team means the whole workspace.** Apps can't read groups yet.
 - **A public link shows both the notes and the transcript.**
-- **Google Calendar isn't configured on any Gateway yet.** Ben follows setup/google.md with the `google-workspace` client and the `calendar.read` scope set.
+- **Google Calendar isn't configured on any Gateway yet.** Ben follows setup/google.md with the `google-workspace` client and the `calendar.readonly` scope (rc.14 lists Google's own scope names). Talk opens without it: Google is an optional feature (`features.calendar`).
 
 - **Sign in with Every App is built on private-every-app's `feature/native-sign-in`**, which is never merged. Draft PR #855; design in docs/design/native-sign-in.md; Ben's platform questions are in that branch's TODO.md.
 - **Mac app build:** native SwiftPM (no Xcode project), Swift 5 language mode, Swift Testing. It's signed with `TALK_SIGN_ID`, else "Talk Dev", else Scrawl's "Scrawl Dev" cert (used today so TCC grants survive rebuilds), else ad hoc.

@@ -1,4 +1,4 @@
-# The everyapp skill is the CLI's, copied in by `everyapp create`
+# The everyapp skills are links to the pinned CLI's (node_modules/everyapp/skills)
 .agents/
 .claude/
 public/

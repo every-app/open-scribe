@@ -48,11 +48,11 @@ The flow (RFC 8252 native app, PKCE, no scope):
 
 Talk's Worker changes nothing for this: its routes read the person with the SDK, so a PAT today and the native token later look the same. The API is plain route files under `/api/v1`, not server functions, because the Gateway admits only same-origin `fetch` to `/_serverFn/*`.
 
-**Bearer routes.** Behind Cloudflare Access a bearer-only call gets Access's HTML login unless the app's manifest lists the paths under `bearerRoutes: { paths: ["/api/v1/**"], why }`; `everyapp access on` then bypasses them on the apps' Access application and the perimeter still demands the token. On those paths a session cookie is refused (401), so the bypass opens nothing to a browser: Talk's web UI uses server functions only, and the public `/s/:token` page and every page are outside `/api/v1/**`. Talk adds the field as soon as the SDK from `feature/native-sign-in` is published (a TODO in `web/everyapp.config.ts` marks the spot).
+**Bearer routes.** Behind Cloudflare Access a bearer-only call gets Access's HTML login unless the app's manifest lists them as a bearer route, `public: [{ path: "/api/v1/**", bearer: true }]` (it was `bearerRoutes` before everyapp 0.3.0-rc.13); `everyapp access on` then bypasses them on the apps' Access application and the perimeter still demands the token. On those paths a session cookie is refused (401), so the bypass opens nothing to a browser: Talk's web UI uses server functions only, and the public `/s/:token` page and every page are outside `/api/v1/**`.
 
 **Development.** `everyapp dev` runs in stub mode (any bearer is the dev user); mirror mode for native tokens is deferred, so the real token is tested against a deployed Gateway.
 
-**Fallback that works today:** a **personal access token** (Manage workspace → Tokens → New token, Full access, bound to Talk) pasted into the Mac app and sent as `Authorization: Bearer epat_…`. Behind Access it still needs the same `bearerRoutes` bypass, and only owners and admins can make one.
+**Fallback that works today:** a **personal access token** (Manage workspace → Tokens → New token, Full access, bound to Talk) pasted into the Mac app and sent as `Authorization: Bearer epat_…`. Behind Access it still needs the same bearer-route bypass, and only owners and admins can make one.
 
 ## Data model (D1)
 
@@ -150,7 +150,7 @@ When the notes are written the template is pinned on the meeting, so a later cha
 4. Take Notes creates the meeting (with the event's guests) and starts capture. The menu-bar icon turns red. The menu shows the live transcript's last line and a Stop item.
 5. `talk://record` (from the web app) takes notes now; `talk://record?event=<id>&title=…&start=…[&join=1]` takes notes for that event. Any web page can open such a link, so the Mac app starts at once only for an event in its own calendar list, and asks first otherwise.
 
-Google Calendar is read-only through the Gateway's `google-workspace` client, scope set `calendar.read`. The manifest declares exactly that set.
+Google Calendar is read-only through the Gateway's `google-workspace` client, scope `calendar.readonly`. The manifest declares exactly that scope, in an optional feature (`features.calendar`), so Talk opens without Google.
 
 ## Live transcription
 

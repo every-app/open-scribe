@@ -18,18 +18,16 @@ export default defineEveryApp({
   },
   // A shared meeting page: anyone with the unguessable link reads it. The
   // route checks the token itself (src/server/meetings.ts, getSharedMeeting).
-  public: [{ path: "/s/:token" }],
+  //
+  // The desktop app's API is a bearer route: Cloudflare Access lets it
+  // through, the Gateway demands the desktop app's token on every method and
+  // refuses a session cookie there (the web UI uses server functions, which
+  // stay outside), and it is never served anonymously.
+  public: [{ path: "/s/:token" }, { path: "/api/v1/**", bearer: true }],
   // The built CSS and JavaScript (and icons) that page loads; without them an outsider
   // gets it unstyled and it never hydrates. Only static files: the Gateway
   // forwards these with no identity and the Worker answers nothing else.
   publicAssets: ["/assets/**", "/favicon.ico", "/apple-touch-icon.png"],
-  // The paths Cloudflare Access lets through for bearer-only calls from the
-  // Mac app; the perimeter still demands the token and refuses a cookie
-  // there (the web UI uses server functions, which stay outside).
-  bearerRoutes: {
-    paths: ["/api/v1/**"],
-    why: "The Mac app calls the API with a bearer token.",
-  },
   providers: [
     {
       id: "openai",
@@ -50,10 +48,23 @@ export default defineEveryApp({
   capabilities: {
     members: { access: "read", why: "Shows who can see team notes." },
     "google-workspace": {
-      access: "read",
-      scopes: ["calendar.read"],
-      optional: true,
+      scopes: ["calendar.readonly"],
       why: "Reads your calendar so the Mac app can remind you before a meeting starts.",
+    },
+  },
+  // A capability at the top level is required (the app stays closed until
+  // it's set up); in an optional feature it isn't. Talk opens without
+  // Google; only the calendar reminders need it.
+  features: {
+    calendar: {
+      name: "Google Calendar",
+      why: "Reminds you before a meeting starts and offers to record it.",
+      capabilities: ["google-workspace"],
+      // Nothing of its own to set. Listed only because the SDK's
+      // EveryAppWorkerManifest (cloudflare.config.ts) types a feature as
+      // { secrets?, settings? }, which TypeScript refuses to match with an
+      // object that has neither (rc.14).
+      secrets: [],
     },
   },
 });
