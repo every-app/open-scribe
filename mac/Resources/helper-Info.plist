@@ -20,5 +20,24 @@
   <string>Talk transcribes your side of a meeting while you record it. Audio is never saved.</string>
   <key>NSAudioCaptureUsageDescription</key>
   <string>Talk transcribes the other side of a meeting from your Mac's sound while you record it. Audio is never saved.</string>
+  <!-- With an embedded Info.plist, App Transport Security applies to the helper, and it refuses
+       plain http to *.localhost (http://talk.localhost:8787 under `everyapp dev`): every
+       record.start failed with NSURLErrorAppTransportSecurityRequiresSecureConnection (-1022).
+       Localhost and its subdomains only; any other http host stays refused. -->
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+    <key>NSExceptionDomains</key>
+    <dict>
+      <key>localhost</key>
+      <dict>
+        <key>NSIncludesSubdomains</key>
+        <true/>
+        <key>NSExceptionAllowsInsecureHTTPLoads</key>
+        <true/>
+      </dict>
+    </dict>
+  </dict>
 </dict>
 </plist>
