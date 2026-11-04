@@ -13,8 +13,12 @@ export default defineEveryApp({
     d1: ["DB"],
     // The desktop app's private update feed: electron-builder's
     // latest-mac.yml, zips, dmgs and blockmaps under mac/, served to members
-    // by /api/v1/updates/mac/:file (src/server/updates.ts).
-    r2: ["UPDATES"],
+    // by /api/v1/updates/mac/:file (src/server/updates.ts). Lowercase on
+    // purpose: in everyapp 0.3.0-rc.14 a production build names the bucket
+    // "every-hosted--sentinel--<binding>" until deploy rewrites it, and
+    // Cloudflare refuses capitals in a bucket name. The real bucket is
+    // every-talk--updates either way.
+    r2: ["updates"],
   },
   // A shared meeting page: anyone with the unguessable link reads it. The
   // route checks the token itself (src/server/meetings.ts, getSharedMeeting).

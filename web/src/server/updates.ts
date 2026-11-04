@@ -1,6 +1,6 @@
 /**
  * The desktop app's private update feed: electron-builder's generic-provider
- * files under `mac/` in the UPDATES bucket, served to signed-in members.
+ * files under `mac/` in the updates bucket, served to signed-in members.
  * electron-updater reads `latest-mac.yml`, then downloads the zip, using the
  * blockmaps and Range requests for differential downloads.
  */

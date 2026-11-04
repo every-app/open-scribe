@@ -8,7 +8,7 @@ import { serveUpdateFile } from "@/server/updates";
 // download a release. Only allowlisted names under mac/ are served.
 const handler = api(async ({ request, params }) => {
   await requireApiUser(request);
-  return serveUpdateFile(env.UPDATES, params.file ?? "", request);
+  return serveUpdateFile(env.updates, params.file ?? "", request);
 });
 
 export const Route = createFileRoute("/api/v1/updates/mac/$file")({

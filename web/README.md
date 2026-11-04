@@ -36,9 +36,9 @@ For the native sign-in e2e run, `package.json` links `@every-app/sdk` and `every
 
 ## The desktop update feed
 
-The desktop app updates from `https://talk.<base>/api/v1/updates/mac` (electron-updater's generic provider; `TALK_UPDATE_URL` in `desktop/electron-builder.config.cjs`), sending the member's bearer token. The route (`src/routes/api/v1/updates.mac.$file.ts`, rules in `src/server/updates.ts`) streams `mac/<file>` from the `UPDATES` R2 bucket, which `pnpm run deploy` creates from `resources.r2` in the manifest. It serves only `latest-mac.yml` and `Talk-<version>[-…].zip`, `.dmg` and their `.blockmap`s.
+The desktop app updates from `https://talk.<base>/api/v1/updates/mac` (electron-updater's generic provider; `TALK_UPDATE_URL` in `desktop/electron-builder.config.cjs`), sending the member's bearer token. The route (`src/routes/api/v1/updates.mac.$file.ts`, rules in `src/server/updates.ts`) streams `mac/<file>` from the `updates` R2 bucket, which `pnpm run deploy` creates from `resources.r2` in the manifest. It serves only `latest-mac.yml` and `Talk-<version>[-…].zip`, `.dmg` and their `.blockmap`s.
 
-Publish a release by uploading electron-builder's output from `desktop/dist/` under `mac/`, **`latest-mac.yml` last**, so no client reads a feed that names a file not uploaded yet. The bucket is the one the deploy made for `UPDATES` (locally `every-talk--updates`; check its deployed name under R2 in the Cloudflare dashboard after the first deploy). Wrangler takes objects up to 300 MB:
+Publish a release by uploading electron-builder's output from `desktop/dist/` under `mac/`, **`latest-mac.yml` last**, so no client reads a feed that names a file not uploaded yet. The bucket is the one the deploy made for `updates` (locally `every-talk--updates`; check its deployed name under R2 in the Cloudflare dashboard after the first deploy). Wrangler takes objects up to 300 MB:
 
 ```sh
 BUCKET=every-talk--updates   # the deployed bucket's name

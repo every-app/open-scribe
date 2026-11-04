@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-// A small stand-in for the UPDATES bucket: R2's get() reads the Range
+// A small stand-in for the updates bucket: R2's get() reads the Range
 // header itself (bytes=a-b, a-, -n) and throws on one it can't satisfy.
 const files = vi.hoisted(() => new Map<string, Uint8Array>());
 const bucket = vi.hoisted(() => {
@@ -53,7 +53,7 @@ const bucket = vi.hoisted(() => {
   };
 });
 
-vi.mock("cloudflare:workers", () => ({ env: { UPDATES: bucket } }));
+vi.mock("cloudflare:workers", () => ({ env: { updates: bucket } }));
 vi.mock("@every-app/sdk/server", () => ({
   getEveryAppUser: async (request: Request) =>
     request.headers.get("x-test-user")
