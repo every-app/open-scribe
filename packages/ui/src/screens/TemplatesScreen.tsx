@@ -272,12 +272,15 @@ function Editor({
           data-slot="template-instructions"
           readOnly={!editable}
           value={draft.instructions}
-          placeholder={`Sections, in order: "## Summary", "## Decisions", "## Action items"…`}
+          placeholder={
+            '## Summary\nTwo or three sentences.\n\n## Action items\nBullets as "- [ ] owner: task".'
+          }
           onChange={(event) =>
             setDraft({ ...draft, instructions: event.target.value })
           }
           rows={10}
-          className="w-full resize-y rounded-lg border border-border bg-card px-3.5 py-3 text-[13.5px] leading-relaxed outline-none transition-shadow placeholder:text-muted-foreground/60 read-only:bg-muted/50 read-only:text-foreground/75 focus:border-ring/50 focus:ring-3 focus:ring-ring/15"
+          // Grows to fit the template, so a built-in reads whole without scrolling.
+          className="field-sizing-content min-h-60 w-full resize-y rounded-lg border border-border bg-card px-3.5 py-3 text-[13.5px] leading-relaxed outline-none transition-shadow placeholder:text-muted-foreground/60 read-only:bg-muted/50 read-only:text-foreground/75 focus:border-ring/50 focus:ring-3 focus:ring-ring/15"
         />
       </label>
 

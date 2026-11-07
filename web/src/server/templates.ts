@@ -18,37 +18,115 @@ import type { Viewer } from "./viewer";
 /**
  * A template says how a meeting's notes are written: which sections, how
  * much detail, what to pull out. Its instructions go into the notes prompt.
+ * The built-ins read like the notes they ask for, one heading per section with
+ * what goes under it on the next line: people read them in Templates and copy
+ * them to make their own.
  */
 const builtIns: Omit<Template, "builtIn" | "visibility" | "mine">[] = [
   {
     id: "general",
     name: "General",
-    instructions: `Sections, in order: "## Summary" (two or three sentences), "## Key points" (bullets), "## Decisions" (bullets, or "None."), "## Action items" (bullets as "- [ ] owner: task", or "None.").`,
+    instructions: `Use these sections, in this order:
+
+## Summary
+Two or three sentences.
+
+## Key points
+Bullets.
+
+## Decisions
+Bullets, or "None."
+
+## Action items
+Bullets as "- [ ] owner: task", or "None."`,
   },
   {
     id: "one-on-one",
     name: "1:1",
-    instructions: `A one-on-one. Sections, in order: "## Updates" (what each person reported), "## Discussion" (topics, with the gist of each), "## Feedback" (given either way, or "None."), "## Action items" (bullets as "- [ ] owner: task", or "None.").`,
+    instructions: `A one-on-one. Use these sections, in this order:
+
+## Updates
+What each person reported.
+
+## Discussion
+Each topic, with the gist of it.
+
+## Feedback
+Given either way, or "None."
+
+## Action items
+Bullets as "- [ ] owner: task", or "None."`,
   },
   {
     id: "customer-call",
     name: "Customer call",
-    instructions: `A call with a customer or prospect ("them" is the customer). Sections, in order: "## About them" (company, role, setup, what they use today), "## Needs and pain points", "## Feedback and requests" (about the product, quoted briefly where it helps), "## Objections and concerns" (or "None."), "## Next steps" (bullets as "- [ ] owner: task").`,
+    instructions: `A call with a customer or prospect. "Them" is the customer. Use these sections, in this order:
+
+## About them
+Company, role, setup, and what they use today.
+
+## Needs and pain points
+
+## Feedback and requests
+About the product. Quote them briefly where it helps.
+
+## Objections and concerns
+Or "None."
+
+## Next steps
+Bullets as "- [ ] owner: task".`,
   },
   {
     id: "team-meeting",
     name: "Team meeting",
-    instructions: `An internal team meeting. Sections, in order: "## Summary" (two or three sentences), "## Updates" (by person or project), "## Decisions" (bullets, or "None."), "## Open questions" (or "None."), "## Action items" (bullets as "- [ ] owner: task", or "None.").`,
+    instructions: `An internal team meeting. Use these sections, in this order:
+
+## Summary
+Two or three sentences.
+
+## Updates
+By person or project.
+
+## Decisions
+Bullets, or "None."
+
+## Open questions
+Or "None."
+
+## Action items
+Bullets as "- [ ] owner: task", or "None."`,
   },
   {
     id: "interview",
     name: "Interview",
-    instructions: `A job interview ("them" is the candidate unless the transcript says otherwise). Sections, in order: "## Candidate" (background in two or three sentences), "## Strengths" (bullets, with evidence from what they said), "## Concerns" (bullets, or "None."), "## Notable answers" (question and the gist of the answer), "## Next steps".`,
+    instructions: `A job interview. "Them" is the candidate unless the transcript says otherwise. Use these sections, in this order:
+
+## Candidate
+Their background in two or three sentences.
+
+## Strengths
+Bullets, with evidence from what they said.
+
+## Concerns
+Bullets, or "None."
+
+## Notable answers
+Each question and the gist of the answer.
+
+## Next steps`,
   },
   {
     id: "follow-up-email",
     name: "Follow-up email",
-    instructions: `Write a follow-up email the recorder can send to the others after the meeting, instead of notes. Start with "**Subject:** ..." then a short greeting, a thank-you line, a recap of what was discussed and decided as bullets, the next steps with owners, and a short sign-off without a name. Plain, warm, no filler.`,
+    instructions: `Instead of notes, write a follow-up email the recorder can send to the others after the meeting:
+
+- Start with "**Subject:** ..."
+- A short greeting and a thank-you line.
+- A recap of what was discussed and decided, as bullets.
+- The next steps, with owners.
+- A short sign-off, without a name.
+
+Plain and warm, no filler.`,
   },
 ];
 
