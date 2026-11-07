@@ -93,7 +93,7 @@ describe("diagnostics", () => {
     expect(text).toContain("Pending uploads: 3");
     expect(text).toContain("app talk.example.com, expired");
     expect(text).toContain("transcription reconnecting");
-    expect(text).toContain('"echoCancellation":false');
+    expect(text).toContain('"recordShortcut":false');
     for (const privateBit of ["ben@example.com", "layoffs", "secret plans", "epat_leaked12345"]) expect(text).not.toContain(privateBit);
   });
 });

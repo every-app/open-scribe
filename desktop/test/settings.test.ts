@@ -30,8 +30,7 @@ describe("settings patches", () => {
       { reminderLeadMinutes: "1" },
       { launchAtLogin: "yes" },
       { callDetection: 1 },
-      { echoCancellation: "on" },
-      { echoCancellation: null },
+      { echoCancellation: true }, // removed: an unknown key now
       { unknown: true },
       { theme: "dark", extra: 1 },
       new Date(),
@@ -43,7 +42,7 @@ describe("settings patches", () => {
 
   it("reads a stored file leniently, defaulting bad fields", () => {
     expect(readSettings(undefined)).toEqual(DEFAULT_SETTINGS);
-    expect(readSettings({ theme: "light", reminderLeadMinutes: 999, launchAtLogin: true, junk: 1 })).toEqual({
+    expect(readSettings({ theme: "light", reminderLeadMinutes: 999, launchAtLogin: true, junk: 1, echoCancellation: true })).toEqual({
       ...DEFAULT_SETTINGS,
       theme: "light",
       launchAtLogin: true,
@@ -54,7 +53,7 @@ describe("settings patches", () => {
 describe("SettingsStore", () => {
   it("starts with the defaults: no login item, call detection on, 1 minute, system theme", () => {
     const store = new SettingsStore(tempPath());
-    expect(store.load()).toEqual({ launchAtLogin: false, callDetection: true, reminderLeadMinutes: 1, theme: "system", echoCancellation: false, recordShortcut: false, floatingRecorder: true });
+    expect(store.load()).toEqual({ launchAtLogin: false, callDetection: true, reminderLeadMinutes: 1, theme: "system", recordShortcut: false, floatingRecorder: true });
   });
 
   it("saves a patch, emits only what changed, and reloads it", () => {

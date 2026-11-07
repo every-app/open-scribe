@@ -78,7 +78,9 @@ On the Mac that will run the release, with no account and no network needed:
 "/Applications/Talk.app/Contents/MacOS/talk-helper" --selftest --seconds 15
 ```
 
-While it runs, play a YouTube video through the speakers (not headphones) and talk. Expect `mic: OK`, `system audio: OK`, no clipping, no dropouts, and `PASS`. `DENIED` on system audio means nothing was playing or System Settings → Privacy & Security → System Audio Recording is off for the app that ran it (the terminal here; Talk itself when it's run from Settings). Add `--echo-cancellation` to try voice processing; it should say `voice processing on`, and the video should still be at full volume.
+While it runs, play a YouTube video through the speakers (not headphones) and talk. Expect `mic: OK`, `system audio: OK`, no clipping, no dropouts, and `PASS`. `DENIED` on system audio means nothing was playing or System Settings → Privacy & Security → System Audio Recording is off for the app that ran it (the terminal here; Talk itself when it's run from Settings). The same check is in Talk under Settings → "Check microphone & Mac audio" (live meters until Stop).
+
+`--echo-cancellation` turns on Apple's voice processing on the mic for this check only; it should say `voice processing on`, with the video still at full volume. Recordings never use it (the Settings toggle is gone; text-level echo dedupe handles laptop speakers). It's kept only for a future hardware test.
 
 ## Update feed
 

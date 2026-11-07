@@ -1,9 +1,9 @@
 // The typed bridge between the renderer and main. The preload exposes `window.talk` with exactly
 // these calls; main registers a handler for each `invoke` channel and validates its arguments.
 
-import type { HelperEvent, PermissionStatus, ChannelHealth, SelfTestReport, SelfTestRequest, TranscriptionState } from "./protocol";
+import type { HelperEvent, PermissionStatus, ChannelHealth, SelfTestReport, TranscriptionState } from "./protocol";
 
-export type { SelfTestReport, SelfTestRequest, SelfTestSide } from "./protocol";
+export type { SelfTestReport, SelfTestSide } from "./protocol";
 import type { CalendarEvent, Me, MeetingDetail, MeetingPatch, MeetingSummary } from "./api";
 import type { Segment } from "./contract";
 import type { Speaker } from "./protocol";
@@ -22,10 +22,6 @@ export interface Settings {
   reminderLeadMinutes: number;
   /** Applied as nativeTheme.themeSource, so prefers-color-scheme follows it. */
   theme: ThemePreference;
-  /** Experimental: echo cancellation and noise suppression on the mic (the helper's
-   * `record.start { echoCancellation }`), for laptop speakers without headphones. Off by default
-   * until a hardware test; applies from the next recording. */
-  echoCancellation: boolean;
   /** A global shortcut, ⌃⌥⌘R, that starts or stops a recording from anywhere. Off by default. */
   recordShortcut: boolean;
   /** The floating recorder: a small pill in the screen's bottom-right corner while recording,
@@ -40,7 +36,6 @@ export const DEFAULT_SETTINGS: Settings = {
   callDetection: true,
   reminderLeadMinutes: 1,
   theme: "system",
-  echoCancellation: false,
   recordShortcut: false,
   floatingRecorder: true,
 };
@@ -219,10 +214,13 @@ export interface InvokeMap {
   "api:call": [[method: ApiMethod, path: string, opts?: ApiCallOptions], unknown];
   /** Copy a link (https, or the app's own origin; ≤ 2 KB): the sandboxed window can't. */
   "clipboard:writeText": [[text: string], void];
-  /** "Test microphone & system audio": a local capture for `seconds` (2–15, default 8; the
-   * helper's selftest.run). `{ event: "levels", mic, system }` (0–1, 10 Hz) arrive on the
-   * "helper" channel meanwhile. Refused while recording; a recording can't start meanwhile. */
-  "selftest:run": [[request?: SelfTestRequest], SelfTestReport];
+  /** Settings → "Check microphone & Mac audio": a local capture until `selftest:stop` (60 s at
+   * most; the helper's selftest.run). `levels` (0–1, 10 Hz) and `selftest.progress` (the report
+   * so far, each second) arrive on the "helper" channel meanwhile; it answers the last report.
+   * Refused while recording; a recording can't start meanwhile. */
+  "selftest:run": [[], SelfTestReport];
+  /** Ends the running check, if any (selftest:run then answers). */
+  "selftest:stop": [[], void];
   /** Restart into a downloaded update; during a recording it's deferred until Stop. */
   "update:install": [[], { deferred: boolean }];
   /** The floating recorder's window: its current view. */
@@ -288,6 +286,7 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   "selftest:run",
   "pill:get",
   "pill:openMeeting",
+  "selftest:stop",
 ] as const;
 
 export const EVENT_CHANNELS: readonly EventChannel[] = ["state", "helper", "navigate", "update", "pill"] as const;

@@ -7,9 +7,8 @@ export type PermissionStatus = "granted" | "denied" | "undetermined" | "unknown"
 export type Speaker = "me" | "them";
 
 export interface SelfTestRequest {
-  /** 1–60, default 8. */
+  /** 1–60, default 60: the check runs until `selftest.stop` or this many seconds. */
   seconds?: number;
-  echoCancellation?: boolean;
 }
 
 /** One side of a self-test. System audio "denied" means only digital silence came through: what
@@ -25,10 +24,10 @@ export interface SelfTestSide {
   message?: string;
 }
 
+/** `seconds`: whole seconds heard so far (0 in the first `selftest.progress`). */
 export interface SelfTestReport {
   seconds: number;
   passed: boolean;
-  voiceProcessing: boolean;
   mic: SelfTestSide;
   system: SelfTestSide;
 }
@@ -58,9 +57,7 @@ export interface HelperCommands {
     result: { mic: PermissionStatus; systemAudio: PermissionStatus };
   };
   "record.start": {
-    /** `echoCancellation`: Apple's voice processing on the mic (echo cancellation, noise
-     * suppression). Default off; sent only when on. */
-    params: { meetingId: string; apiBase: string; accessToken: string; language?: string; echoCancellation?: boolean };
+    params: { meetingId: string; apiBase: string; accessToken: string; language?: string };
     result: { startedAt: string };
   };
   /** `cancelled`: the stop came while record.start was still starting; nothing was captured and
@@ -70,9 +67,12 @@ export interface HelperCommands {
   "record.stop": { params: undefined; result: { segments: number; cancelled?: boolean; finished?: boolean; unsaved?: TranscriptSegment[] } };
   "token.update": { params: { accessToken: string }; result: Record<string, never> };
   "detect.set": { params: { enabled: boolean }; result: Record<string, never> };
-  /** Captures both sides locally (no network, nothing saved) and streams `levels` meanwhile.
-   * `busy` while recording; record.start is `busy` during it. */
+  /** Captures both sides locally (no network, nothing saved) until `selftest.stop` or
+   * `seconds`, streaming `levels` (10 Hz) and `selftest.progress` (each second) meanwhile, and
+   * answers the report. `busy` while recording; record.start is `busy` during it. */
   "selftest.run": { params: SelfTestRequest; result: SelfTestReport };
+  /** Ends a running self-test (its selftest.run then answers). `stopped: false` if none ran. */
+  "selftest.stop": { params: undefined; result: { stopped: boolean } };
 }
 
 export type HelperCommand = keyof HelperCommands;
@@ -112,6 +112,9 @@ export interface HelperEvents {
   "call.started": { bundleId: string; appName: string };
   "call.ended": { bundleId: string; appName: string };
   "device.changed": { input?: string; output?: string };
+  /** A self-test's report so far: once both captures start (`seconds` 0, with the devices),
+   * then each second. */
+  "selftest.progress": SelfTestReport;
   error: { code: string; message: string; fatal: boolean };
 }
 

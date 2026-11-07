@@ -53,7 +53,7 @@ Plan: docs/desktop-plan.md. Decided with Ben: Electron + Swift helper, private a
 
 - **Sign in with Every App is built on private-every-app's `feature/native-sign-in`**, which is never merged. Draft PR #855; design in docs/design/native-sign-in.md; Ben's platform questions are in that branch's TODO.md.
 - **Mac app build:** native SwiftPM (no Xcode project), Swift 5 language mode, Swift Testing. It's signed with `TALK_SIGN_ID`, else "Talk Dev", else Scrawl's "Scrawl Dev" cert (used today so TCC grants survive rebuilds), else ad hoc.
-- **Mac transcription:** one ephemeral key per channel, two per meeting. Scrawl's session.update shape. Its own windowed-sinc resampler (testable). Echo cancellation off until a hardware test.
+- **Mac transcription:** one ephemeral key per channel, two per meeting. Scrawl's session.update shape. Its own windowed-sinc resampler (testable). No voice processing on the mic (the Settings toggle was removed; only `--selftest --echo-cancellation` reaches it).
 - **Mac reminders:** for events with a conference link or any attendee who isn't you. An event already inside the 2-minute window gets one immediate reminder. Ad hoc meetings are titled "Meeting at 3:04 PM".
 - **Mac fallback:** each detected turn (≤30 s) goes as an in-memory WAV to the Worker, which drops it after transcription.
 - **The end-to-end sign-in test ran once on the onboarding loop's test account (loop-1); any rerun needs Ben to ask for it**, with the Gateway deployed from `feature/native-sign-in`. Local `everyapp dev` can't verify the new token (mirror mode is deferred in the design).
@@ -68,7 +68,7 @@ Plan: docs/desktop-plan.md. Decided with Ben: Electron + Swift helper, private a
 - **Which notes model?** The template picked `gpt-6-luna` in `ai.models`. Recommended: keep it; it's one line to change.
 - **Should the platform support native sign-in at all?** (See private-every-app #855 and its TODO section for the full list.) Recommended: yes. It reuses the existing OAuth server with a per-app audience, so there's no new credential or store.
 - **Should apps be able to read workspace groups?** Without it, Talk's "team" is the whole workspace. Recommended: later, as a platform item; not needed for v1.
-- **Echo on laptop speakers:** without headphones, the mic also hears the other side, so `me` transcribes `them`. Recommended: try AVAudioEngine voice processing in a hardware test and turn it on if capture stays clean.
+- **Echo on laptop speakers:** without headphones, the mic also hears the other side, so `me` transcribes `them`. Text-level echo dedupe (on) drops `me` lines that repeat `them`. AVAudioEngine voice processing was never hardware-tested, so its Settings toggle is gone; `talk-helper --selftest --echo-cancellation` keeps it reachable for that test.
 - **A Developer ID (Team ID) is required to release the Mac app.** With a self-signed cert, the Keychain partition is the binary's cdhash, so every update signs the user out (found in the e2e run; TCC grants survive, Keychain items don't). Recommended: yes, get a Developer ID before any release; dev rebuilds keep re-signing in with `talk-smoke signin`.
 - **Should Record on a reminder also open the conference link?** Recommended: no for v1; the menu has "Join Call".
 - **A mic picker in the Mac app?** Recommended: no for v1. Following the system default is what people expect from a call app.

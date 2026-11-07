@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PermissionKind } from "@shared/ipc";
 import { SettingsScreen, useThemePreference, type SelfTestState, type ThemePreference } from "@talk/ui";
 import { api, cleanError, keys } from "../api";
@@ -7,7 +7,7 @@ import { useDeviceSettings } from "../device-settings";
 import { accountFrom, calendarConnectionFrom, loadable } from "../map";
 import { notify } from "../notice";
 import { grantPermission, loginItemHint, selfTestBlockedReason, uiPermissions } from "../settings-logic";
-import { useLevels } from "../live";
+import { resetSelfTestProgress, useLevels, useSelfTestProgress } from "../live";
 import { talk, useAppState } from "../talk";
 
 const granted: Record<PermissionKind, string> = {
@@ -23,7 +23,22 @@ export function SettingsPage() {
   const { settings, set } = useDeviceSettings();
   const [hints, setHints] = useState<Partial<Record<PermissionKind, string>>>({});
   const [test, setTest] = useState<SelfTestState>({ kind: "idle" });
-  const levels = useLevels(); // the helper's levels, live while the test runs
+  const levels = useLevels(); // the helper's levels, live while the check runs
+  const progress = useSelfTestProgress();
+  // The audio check runs until Stop, or until the person leaves Settings or hides the window.
+  const checking = useRef(false);
+  checking.current = test.kind === "checking";
+  useEffect(() => {
+    const stop = () => {
+      if (checking.current) void talk["selftest:stop"]().catch(() => {});
+    };
+    const onVisibility = () => document.visibilityState === "hidden" && stop();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      stop();
+    };
+  }, []);
   const permissions = uiPermissions(state?.permissions);
 
   const change = (patch: Parameters<typeof set>[0]) =>
@@ -45,7 +60,6 @@ export function SettingsPage() {
       calendar={loadable(me, calendarConnectionFrom)}
       launchAtLogin={settings?.launchAtLogin ?? false}
       detectCalls={settings?.callDetection ?? true}
-      echoCancellation={settings?.echoCancellation}
       recordShortcut={settings?.recordShortcut}
       recordShortcutStatus={state?.recordShortcut}
       onRecordShortcutChange={(recordShortcut) => change({ recordShortcut })}
@@ -66,22 +80,23 @@ export function SettingsPage() {
       }
       onOpenSystemSettings={(kind) => void talk["permissions:openSettings"](kind).catch((e: unknown) => notify(cleanError(e), "error"))}
       selfTest={{
-        state: test.kind === "running" ? { kind: "running", levels } : test,
-        disabledReason: selfTestBlockedReason(state, test.kind === "running"),
-        onRun: () => {
-          setTest({ kind: "running", levels: { mic: 0, system: 0 } });
+        state: test.kind === "checking" ? { kind: "checking", progress, levels } : test,
+        disabledReason: selfTestBlockedReason(state, test.kind === "checking"),
+        onStart: () => {
+          resetSelfTestProgress();
+          setTest({ kind: "checking", levels: { mic: 0, system: 0 } });
           void talk["selftest:run"]().then(
             (report) => setTest({ kind: "done", report }),
             (e: unknown) => setTest({ kind: "error", message: cleanError(e) }),
           );
         },
+        onStop: () => void talk["selftest:stop"]().catch((e: unknown) => notify(cleanError(e), "error")),
         onOpenSettings: (pane) =>
           void talk["permissions:openSettings"](pane).catch((e: unknown) => notify(cleanError(e), "error")),
       }}
       onConnectCalendar={() => void talk["calendar:connect"]()}
       onLaunchAtLoginChange={(launchAtLogin) => change({ launchAtLogin })}
       onDetectCallsChange={(callDetection) => change({ callDetection })}
-      onEchoCancellationChange={(echoCancellation) => change({ echoCancellation })}
       onThemeChange={(theme: ThemePreference) => {
         setThemePreference(theme);
         change({ theme });

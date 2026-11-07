@@ -35,23 +35,43 @@ async function helper(env: Record<string, string> = {}) {
 }
 
 describe("self-test", () => {
-  it("runs the helper's selftest.run, streams levels meanwhile, and says it's running", async () => {
+  it("runs the helper's selftest.run, streams levels and progress meanwhile, and says it's running", async () => {
     const s = await helper();
     const levels: HelperEvent[] = [];
-    s.on("event", (e) => e.event === "levels" && levels.push(e));
+    const progress: number[] = [];
+    s.on("event", (e) => {
+      if (e.event === "levels") levels.push(e);
+      if (e.event === "selftest.progress") progress.push(e.seconds);
+    });
     const t = new SelfTestController(s, () => false);
     const states: boolean[] = [];
     t.on("change", (c) => states.push(c.running));
-    const report = await t.run({ seconds: 2, echoCancellation: true });
-    expect(report).toMatchObject({ seconds: 2, passed: true, voiceProcessing: true, mic: { status: "ok" }, system: { status: "ok" } });
+    const report = await t.run(2);
+    expect(report).toMatchObject({ seconds: 2, passed: true, mic: { status: "ok", device: "Fake Microphone" }, system: { status: "ok", device: "Fake Speakers" } });
     expect(levels.length).toBeGreaterThan(3);
+    expect(progress).toEqual([0, 1, 2]);
     expect(states).toEqual([true, false]);
+    expect(t.state.running).toBe(false);
+  });
+
+  it("runs until stopped, then answers what it heard", async () => {
+    const s = await helper();
+    const t = new SelfTestController(s, () => false);
+    await t.stop(); // nothing running: nothing to do
+    const progress: number[] = [];
+    s.on("event", (e) => e.event === "selftest.progress" && progress.push(e.seconds));
+    const run = t.run(); // 60 fake seconds = 6 s if nobody stops it
+    while (progress.length < 3) await new Promise((r) => setTimeout(r, 10));
+    await t.stop();
+    const report = await run;
+    expect(report.seconds).toBeGreaterThanOrEqual(2);
+    expect(report.seconds).toBeLessThan(10);
     expect(t.state.running).toBe(false);
   });
 
   it("reports system audio 'denied' (digital silence) without failing the request", async () => {
     const t = new SelfTestController(await helper({ FAKE_HELPER_SELFTEST_SYSTEM: "denied" }), () => false);
-    const report = await t.run({ seconds: 1 });
+    const report = await t.run(1);
     expect(report).toMatchObject({ passed: false, system: { status: "denied", peak: 0 } });
   });
 
@@ -59,8 +79,8 @@ describe("self-test", () => {
     const s = await helper();
     await expect(new SelfTestController(s, () => true).run()).rejects.toThrow(/Talk is recording\. Stop the recording/);
     const t = new SelfTestController(s, () => false);
-    const first = t.run({ seconds: 3 });
-    await expect(t.run({ seconds: 1 })).rejects.toThrow(/already running/);
+    const first = t.run(3);
+    await expect(t.run(1)).rejects.toThrow(/already checking/);
     await first;
   });
 
@@ -71,7 +91,7 @@ describe("self-test", () => {
     const recording = new RecordingController(auth, s);
     const t = new SelfTestController(s, () => recording.isActive);
     recording.startBlocked = () => (t.state.running ? "A microphone and system audio test is running." : undefined);
-    const test = t.run({ seconds: 4 });
+    const test = t.run(4);
     await expect(recording.start({ title: "During a test" })).rejects.toThrow(/test is running/);
     expect(recording.state.state).toBe("idle");
     expect(fake.meetings).toEqual([]); // refused before anything reached the Worker
@@ -85,20 +105,18 @@ describe("self-test", () => {
     const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
     await auth.signInWithToken(fake.origin, "epat_good");
     const recording = new RecordingController(auth, s);
-    const test = new SelfTestController(s, () => false).run({ seconds: 4 });
+    const test = new SelfTestController(s, () => false).run(4);
     await expect(recording.start({ title: "Racing a test" })).rejects.toThrow(/self-test is running/);
     await test;
     expect(fake.deleted.length).toBe(1); // the meeting made for the refused start is cleaned up
   });
 
-  it("validates the window's request", () => {
-    expect(validArgs("selftest:run", [])).toBe(true);
-    expect(validArgs("selftest:run", [undefined])).toBe(true);
-    expect(validArgs("selftest:run", [{}])).toBe(true);
-    expect(validArgs("selftest:run", [{ seconds: 15, echoCancellation: false }])).toBe(true);
-    expect(validArgs("selftest:run", [{ seconds: 2 }])).toBe(true);
-    for (const bad of [[{ seconds: 1 }], [{ seconds: 16 }], [{ seconds: 60 }], [{ seconds: 0 }], [{ seconds: 2.5 }], [{ seconds: "8" }], [{ echoCancellation: "yes" }], [{ seconds: 8, extra: 1 }], ["8"], [{}, 1]]) {
-      expect(validArgs("selftest:run", bad), JSON.stringify(bad)).toBe(false);
+  it("validates the window's calls: no arguments", () => {
+    for (const channel of ["selftest:run", "selftest:stop"] as const) {
+      expect(validArgs(channel, [])).toBe(true);
+      for (const bad of [[undefined], [{}], [{ seconds: 8 }], [{ echoCancellation: true }], ["8"]]) {
+        expect(validArgs(channel, bad), `${channel} ${JSON.stringify(bad)}`).toBe(false);
+      }
     }
   });
 });

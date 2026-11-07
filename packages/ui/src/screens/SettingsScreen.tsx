@@ -45,9 +45,6 @@ export interface SettingsScreenProps {
   onOpenSystemSettings?: (kind: PermissionKind) => void;
   /** Shown under a permission when asking didn't turn it on (it then offers System Settings). */
   permissionHints?: Partial<Record<PermissionKind, string>>;
-  /** The echo cancellation switch shows only when the app has the setting. */
-  echoCancellation?: boolean;
-  onEchoCancellationChange?: (on: boolean) => void;
   /** The global ⌃⌥⌘R record shortcut (off by default); the switch shows when given. */
   recordShortcut?: boolean;
   /** "conflict": another app holds ⌃⌥⌘R, so Talk couldn't take it. */
@@ -57,7 +54,7 @@ export interface SettingsScreenProps {
    * shows when given. */
   floatingRecorder?: boolean;
   onFloatingRecorderChange?: (on: boolean) => void;
-  /** "Test microphone & system audio", under the permissions. */
+  /** "Check microphone & Mac audio", under the permissions. */
   selfTest?: SelfTestProps;
   onConnectCalendar?: () => void;
   onLaunchAtLoginChange?: (on: boolean) => void;
@@ -152,19 +149,6 @@ export function SettingsScreen(props: SettingsScreenProps) {
                 aria-label="Record shortcut"
                 checked={props.recordShortcut}
                 onCheckedChange={(on) => props.onRecordShortcutChange?.(on)}
-              />
-            }
-          />
-        )}
-        {props.echoCancellation !== undefined && (
-          <Row
-            title="Echo cancellation (experimental, for laptop speakers)"
-            detail="Keeps the call's sound out of your side of the transcript. Applies from the next recording."
-            control={
-              <Switch
-                aria-label="Echo cancellation"
-                checked={props.echoCancellation}
-                onCheckedChange={(on) => props.onEchoCancellationChange?.(on)}
               />
             }
           />

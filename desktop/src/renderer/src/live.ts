@@ -5,7 +5,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { Segment } from "@shared/contract";
-import type { HelperEvent, Speaker } from "@shared/protocol";
+import type { HelperEvent, SelfTestReport, Speaker } from "@shared/protocol";
 import { emptyTranscript, reduceTranscript, type LiveTranscript } from "@shared/transcript";
 
 export { emptyTranscript, reduceTranscript, type LiveTranscript };
@@ -46,11 +46,26 @@ function store<T>(initial: T) {
 
 const levels = store({ mic: 0, system: 0 });
 const transcript = store<LiveTranscript>(emptyTranscript);
+const selfTestProgress = store<SelfTestReport | undefined>(undefined);
 
 /** Feed one helper event into the stores. */
 export function applyHelperEvent(event: HelperEvent): void {
   if (event.event === "levels") levels.set({ mic: event.mic, system: event.system });
-  else transcript.set(reduceTranscript(transcript.get(), event));
+  else if (event.event === "selftest.progress") {
+    const { event: _name, ...report } = event;
+    selfTestProgress.set(report);
+  } else transcript.set(reduceTranscript(transcript.get(), event));
+}
+
+/** Forget the last audio check's progress (a new check starts clean). */
+export function resetSelfTestProgress(): void {
+  selfTestProgress.set(undefined);
+  levels.set({ mic: 0, system: 0 });
+}
+
+/** The running audio check's report so far (the helper's `selftest.progress`). */
+export function useSelfTestProgress(): SelfTestReport | undefined {
+  return useSyncExternalStore(selfTestProgress.subscribe, selfTestProgress.get);
 }
 
 export function useLevels(): { mic: number; system: number } {

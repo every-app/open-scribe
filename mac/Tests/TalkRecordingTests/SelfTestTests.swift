@@ -23,13 +23,22 @@ import TalkCore
   }
 
   func run(_ script: Script, seconds: Int = 3, micAllowed: Bool = true, echo: Bool = false) async -> (SelfTest.Report, [SelfTest.Second], Int) {
+    let (report, lines, levels, _) = await runWithProgress(script, seconds: seconds, micAllowed: micAllowed, echo: echo)
+    return (report, lines, levels)
+  }
+
+  func runWithProgress(_ script: Script, seconds: Int = 3, micAllowed: Bool = true, echo: Bool = false) async
+    -> (SelfTest.Report, [SelfTest.Second], Int, [SelfTest.Report])
+  {
     let test = SelfTest(
       dependencies: script.rig.dependencies, echoCancellation: echo, requestMic: { micAllowed },
       tick: { await MainActor.run { script.step() } })
     var seconds_: [SelfTest.Second] = []
     var levels = 0
-    let report = await test.run(seconds: seconds, onLevels: { _, _ in levels += 1 }, onSecond: { seconds_.append($0) })
-    return (report, seconds_, levels)
+    var progress: [SelfTest.Report] = []
+    let report = await test.run(
+      seconds: seconds, onLevels: { _, _ in levels += 1 }, onSecond: { seconds_.append($0) }, onProgress: { progress.append($0) })
+    return (report, seconds_, levels, progress)
   }
 
   @Test func bothSidesWorking() async {
@@ -90,6 +99,19 @@ import TalkCore
     #expect(!report.passed)
   }
 
+  @Test func progressAtTheStartAndEachSecond() async {
+    let rig = FakeRig()
+    let script = Script(rig)
+    script.system = { tick in tick < 20 ? SelfTestTests.zeros(100) : SelfTestTests.tone(100, amplitude: 0.2) }
+    let (report, _, _, progress) = await runWithProgress(script, seconds: 3)
+    #expect(progress.map(\.seconds) == [0, 1, 2, 3])
+    // Nothing heard yet at the start; the system side comes in during second 3.
+    #expect(progress[0].mic.status == .silent && progress[0].system.status == .denied)
+    #expect(progress[2].system.status == .denied && progress[3].system.status == .ok)
+    #expect(progress.last == report)
+  }
+
+  /// Only the CLI's `--echo-cancellation` asks for it.
   @Test func echoCancellationReachesTheMic() async {
     let rig = FakeRig()
     _ = await run(Script(rig), seconds: 1, echo: true)
@@ -102,6 +124,7 @@ import TalkCore
     #expect(report.json["passed"] == true)
     #expect(report.json["mic"]?["status"] == "ok")
     #expect(report.json["system"]?["dropouts"] == 0)
+    #expect(report.json["voiceProcessing"] == nil)
     #expect(report.text.hasSuffix("PASS"))
   }
 }
@@ -119,7 +142,7 @@ import TalkCore
     return HelperServer(environment: env, write: { out.write($0) })
   }
 
-  @Test func runStreamsLevelsAndAnswersTheSummary() async {
+  @Test func runStreamsLevelsAndProgressAndAnswersTheSummary() async {
     let rig = FakeRig()
     let out = Output()
     let s = server(rig, out)
@@ -129,6 +152,9 @@ import TalkCore
     #expect(result?["seconds"] == 2)
     #expect(result?["mic"]?["status"] == "ok")
     #expect(out.events("levels").count == 20)
+    let progress = out.events("selftest.progress")
+    #expect(progress.map { $0["seconds"]?.int } == [0, 1, 2])
+    #expect(progress.last?["mic"]?["status"] == "ok" && progress.last?["system"]?["status"] == "ok")
     // Nothing went to the network.
     #expect(s.isRecording == false)
   }
@@ -138,8 +164,30 @@ import TalkCore
     let s = server(FakeRig(), out)
     await s.handle(#"{"id":1,"cmd":"selftest.run","params":{"seconds":0}}"#)
     await s.handle(#"{"id":2,"cmd":"selftest.run","params":{"seconds":61}}"#)
-    await s.handle(#"{"id":3,"cmd":"selftest.run","params":{"echoCancellation":"yes"}}"#)
+    await s.handle(#"{"id":3,"cmd":"selftest.run","params":{"seconds":"8"}}"#)
     for id in 1...3 { #expect(out.response(id)?["error"]?["code"] == "bad_params") }
+  }
+
+  @Test func stopEndsItWithTheReportSoFar() async {
+    let rig = FakeRig()
+    let out = Output()
+    let gate = Gate()
+    let s = server(rig, out, gate: gate)
+    // No seconds: runs until stopped (60 s at most).
+    let test = Task { await s.handle(#"{"id":1,"cmd":"selftest.run"}"#) }
+    #expect(await out.waitFor { gate.arrived == 1 })
+    #expect(out.events("selftest.progress").count == 1)  // the devices, at once
+    let stop = Task { await s.handle(#"{"id":2,"cmd":"selftest.stop"}"#) }
+    try? await Task.sleep(for: .milliseconds(50))  // the stop cancels before the next tick
+    gate.release()
+    await stop.value
+    await test.value
+    #expect(out.response(2)?["result"]?["stopped"] == true)
+    #expect((out.response(1)?["result"]?["seconds"]?.int ?? 99) < 60)
+    #expect(rig.mic?.stopped == true && rig.system?.stopped == true)
+    // Nothing running: says so.
+    await s.handle(#"{"id":3,"cmd":"selftest.stop"}"#)
+    #expect(out.response(3)?["result"]?["stopped"] == false)
   }
 
   @Test func notWhileRecordingAndNoRecordingDuringIt() async {

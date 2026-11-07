@@ -14,7 +14,6 @@ const checks: { [K in keyof Settings]: (v: unknown) => v is Settings[K] } = {
   callDetection: (v): v is boolean => typeof v === "boolean",
   reminderLeadMinutes: (v): v is number => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= MAX_REMINDER_LEAD_MINUTES,
   theme: (v): v is ThemePreference => THEMES.includes(v as ThemePreference),
-  echoCancellation: (v): v is boolean => typeof v === "boolean",
   recordShortcut: (v): v is boolean => typeof v === "boolean",
   floatingRecorder: (v): v is boolean => typeof v === "boolean",
 };

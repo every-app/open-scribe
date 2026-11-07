@@ -143,7 +143,7 @@ async function main(): Promise<void> {
     freshToken: () => auth.freshAccessToken(),
     log,
   });
-  const recording = new RecordingController(auth, helper, log, () => settings.value.echoCancellation);
+  const recording = new RecordingController(auth, helper, log);
   recording.saveFailuresExpected = () => online.state !== "online";
   /** Sends what earlier recordings couldn't save, when the app is reachable and signed in. */
   const replayPending = async () => {
@@ -175,7 +175,7 @@ async function main(): Promise<void> {
   };
   const selfTest = new SelfTestController(helper, () => recording.isActive, log);
   recording.startBlocked = () =>
-    selfTest.state.running ? "A microphone and system audio test is running. Start recording when it finishes (a few seconds)." : undefined;
+    selfTest.state.running ? "Talk is checking your microphone and Mac audio. Stop the check in Settings, then start recording." : undefined;
 
   let updates: UpdateController | undefined;
   /** Restart into a downloaded update. The window hides instead of closing, so mark the quit
@@ -525,7 +525,8 @@ async function main(): Promise<void> {
       if (meetingId) window.showAndSend("navigate", { to: "meeting", meetingId });
       else window.show();
     },
-    "selftest:run": (request) => selfTest.run(request ?? { echoCancellation: settings.value.echoCancellation }),
+    "selftest:run": () => selfTest.run(),
+    "selftest:stop": () => selfTest.stop(),
     "clipboard:writeText": (text) => {
       if (!isCopyableUrl(text, auth.api?.appUrl)) throw new Error("Refused: only https links or this Talk's own links can be copied.");
       clipboard.writeText(normalizedLink(text));

@@ -1,92 +1,75 @@
 /**
- * What a self-test report says, side by side, in words for a person, with the System Settings
- * pane to offer when a permission is the likely cause.
+ * "Check microphone & Mac audio": what each side's row says, from the helper's report so far.
+ * Short words for a person, no how-to: a side that stays quiet for a few seconds just says so,
+ * with the System Settings pane to open.
  */
 import type { SelfTestReport, SelfTestSide } from "../types";
 
-export interface SelfTestLine {
+/** A side with no sound for this long (whole seconds heard) is marked quiet. */
+export const QUIET_AFTER_SECONDS = 3;
+
+export interface SelfTestRow {
   side: "mic" | "system";
-  tone: "ok" | "warn" | "bad";
+  label: string;
+  /** The input device (mic), or the output device the Mac's sound plays through. */
+  device?: string;
+  /** "waiting": nothing heard yet, but it's too early to say. */
+  tone: "ok" | "waiting" | "warn" | "bad";
   text: string;
   /** Offer "Open Settings" for this permission. */
   openSettings?: "mic" | "systemAudio";
 }
 
-const device = (s: SelfTestSide) => (s.device ? ` (${s.device})` : "");
+/**
+ * The two rows. `report` is the latest progress (undefined before the first one); `finished`
+ * when the check has ended, so a side still quiet is quiet however short it ran.
+ */
+export function selfTestRows(
+  report: SelfTestReport | undefined,
+  finished = false,
+): SelfTestRow[] {
+  const quiet = finished || (report?.seconds ?? 0) >= QUIET_AFTER_SECONDS;
+  return [
+    row("mic", "Microphone", report?.mic, quiet),
+    row("system", "Mac audio", report?.system, quiet),
+  ];
+}
 
-export function selfTestLines(report: SelfTestReport): SelfTestLine[] {
-  const lines: SelfTestLine[] = [];
-  const { mic, system } = report;
-
-  if (mic.status === "ok")
-    lines.push({
-      side: "mic",
-      tone: "ok",
-      text: `Your microphone works${device(mic)}.`,
-    });
-  else if (mic.status === "denied")
-    lines.push({
-      side: "mic",
-      tone: "bad",
-      text: "Microphone access is off for Talk.",
-      openSettings: "mic",
-    });
-  else if (mic.status === "silent")
-    lines.push({
-      side: "mic",
-      tone: "warn",
-      text: `Your microphone is very quiet${device(mic)}. Speak up, or check the input device in System Settings → Sound.`,
-    });
-  else
-    lines.push({
-      side: "mic",
-      tone: "bad",
-      text: mic.message ?? "The microphone test didn't work.",
-    });
-  if (mic.clipping)
-    lines.push({
-      side: "mic",
-      tone: "warn",
-      text: "Your mic is too loud: turn its input level down in System Settings → Sound.",
-    });
-  if (mic.dropouts > 0)
-    lines.push({
-      side: "mic",
-      tone: "warn",
-      text: "Some of your microphone's audio dropped out.",
-    });
-
-  if (system.status === "ok")
-    lines.push({
-      side: "system",
-      tone: "ok",
-      text: "Talk hears your Mac's sound.",
-    });
-  else if (system.status === "denied")
-    lines.push({
-      side: "system",
-      tone: "bad",
-      text: "No sound from your Mac. Play a video while testing, or allow Talk under System Settings → Privacy & Security → Screen & System Audio Recording.",
-      openSettings: "systemAudio",
-    });
-  else if (system.status === "silent")
-    lines.push({
-      side: "system",
-      tone: "warn",
-      text: "Your Mac's sound came through very quietly. Turn the volume up while testing.",
-    });
-  else
-    lines.push({
-      side: "system",
-      tone: "bad",
-      text: system.message ?? "The system audio test didn't work.",
-    });
-  if (system.dropouts > 0)
-    lines.push({
-      side: "system",
-      tone: "warn",
-      text: "Some of your Mac's audio dropped out.",
-    });
-
-  return lines;
+function row(
+  side: "mic" | "system",
+  label: string,
+  s: SelfTestSide | undefined,
+  quiet: boolean,
+): SelfTestRow {
+  const base = { side, label, device: s?.device };
+  const pane = side === "mic" ? "mic" : "systemAudio";
+  if (!s) return { ...base, tone: "waiting", text: "Listening…" };
+  switch (s.status) {
+    case "ok":
+      return s.clipping
+        ? { ...base, tone: "warn", text: "Working, but too loud" }
+        : { ...base, tone: "ok", text: "Working" };
+    case "error":
+      return {
+        ...base,
+        tone: "bad",
+        text: "Couldn't start",
+        openSettings: side === "system" ? pane : undefined,
+      };
+    case "denied":
+      // The mic's permission is known at once. The Mac's "denied" is only digital silence,
+      // which is also what nothing playing sounds like, so it waits like "silent".
+      if (side === "mic")
+        return {
+          ...base,
+          tone: "bad",
+          text: "Access is off",
+          openSettings: pane,
+        };
+    // falls through
+    case "silent":
+      return quiet
+        ? { ...base, tone: "bad", text: "No sound", openSettings: pane }
+        : { ...base, tone: "waiting", text: "Listening…" };
+  }
 }

@@ -54,13 +54,10 @@ public struct RecordingAborted: Error, LocalizedError {
 
 /// Per-recording choices.
 public struct RecordingOptions: Sendable, Equatable {
-  /// AVAudioEngine voice processing on the mic (echo cancellation). Off until a hardware test.
-  public var echoCancellation = false
   /// Drop `me` segments that repeat what `them` just said (EchoDedupe). On by default.
   public var dedupeEcho = true
 
-  public init(echoCancellation: Bool = false, dedupeEcho: Bool = true) {
-    self.echoCancellation = echoCancellation
+  public init(dedupeEcho: Bool = true) {
     self.dedupeEcho = dedupeEcho
   }
 }
@@ -477,7 +474,9 @@ public final class RecordingPipeline {
 
     let micSink = continuations[.me]!
     let micMeter = meters[.me]!
-    let mic = deps.makeMic(options.echoCancellation, { micMeter.measure($0); micSink.yield($0) }, { [weak self] problem in
+    // Recordings never use voice processing (only `talk-helper --selftest --echo-cancellation`
+    // can, for a future hardware test); text-level echo dedupe handles laptop speakers.
+    let mic = deps.makeMic(false, { micMeter.measure($0); micSink.yield($0) }, { [weak self] problem in
       Task { @MainActor in self?.setCaptureProblem(.me, problem) }
     })
     try mic.start()

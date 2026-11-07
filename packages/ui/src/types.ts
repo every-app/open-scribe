@@ -152,7 +152,7 @@ export interface LiveRecording {
   system: ChannelHealth;
 }
 
-/** One side of "Test microphone & system audio" (the helper's selftest.run). */
+/** One side of "Check microphone & Mac audio" (the helper's selftest.run / selftest.progress). */
 export interface SelfTestSide {
   status: "ok" | "silent" | "denied" | "error";
   peak: number;
@@ -165,9 +165,9 @@ export interface SelfTestSide {
 }
 
 export interface SelfTestReport {
+  /** Whole seconds heard so far. */
   seconds: number;
   passed: boolean;
-  voiceProcessing: boolean;
   mic: SelfTestSide;
   system: SelfTestSide;
 }

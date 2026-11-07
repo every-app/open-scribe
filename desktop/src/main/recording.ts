@@ -38,8 +38,6 @@ export class RecordingController extends EventEmitter<RecordingEvents> {
     private readonly auth: AuthService,
     private readonly helper: HelperSupervisor,
     private readonly log: (...parts: unknown[]) => void = () => {},
-    /** Read at each start: the echoCancellation setting. */
-    private readonly echoCancellation: () => boolean = () => false,
   ) {
     super();
     helper.on("event", (event) => this.onHelperEvent(event));
@@ -93,9 +91,7 @@ export class RecordingController extends EventEmitter<RecordingEvents> {
       this.set({ meetingId });
       const accessToken = await this.auth.accessToken();
       if (!accessToken) throw new Error("You're signed out. Sign in again.");
-      // Sent only when on: leaving it out means off, for any helper version.
-      const echo = this.echoCancellation() ? { echoCancellation: true } : {};
-      const { startedAt } = await this.helper.request("record.start", { meetingId, apiBase: api.appUrl, accessToken, ...echo });
+      const { startedAt } = await this.helper.request("record.start", { meetingId, apiBase: api.appUrl, accessToken });
       this.set({ state: "recording", startedAt });
       this.log(`recording ${meetingId}`);
     } catch (error) {

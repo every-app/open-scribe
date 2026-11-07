@@ -85,7 +85,9 @@ import TalkCore
   }
 }
 
-@Suite @MainActor struct EchoCancellationOptionTests {
+/// Recordings never turn on voice processing; `record.start` ignores an old app's
+/// `echoCancellation` (only `talk-helper --selftest --echo-cancellation` reaches it).
+@Suite @MainActor struct NoVoiceProcessingInRecordingsTests {
   static func start(_ extra: String) -> String {
     #"{"id":1,"cmd":"record.start","params":{"meetingId":"m1","apiBase":"https://talk.example.com","accessToken":"t"\#(extra)}}"#
   }
@@ -99,23 +101,12 @@ import TalkCore
     return (rig, out)
   }
 
-  @Test func offByDefault() async {
-    let (rig, out) = await run(Self.start(""))
-    #expect(out.response(1)?["ok"] == true)
-    #expect(rig.micVoiceProcessing == false)
-  }
-
-  @Test func passedToTheMic() async {
-    let (rig, _) = await run(Self.start(#","echoCancellation":true"#))
-    #expect(rig.micVoiceProcessing == true)
-    let (rig2, _) = await run(Self.start(#","echoCancellation":null"#))
-    #expect(rig2.micVoiceProcessing == false)
-  }
-
-  @Test func mustBeABoolean() async {
-    let (rig, out) = await run(Self.start(#","echoCancellation":"yes""#))
-    #expect(out.response(1)?["error"]?["code"] == "bad_params")
-    #expect(rig.mic == nil)
+  @Test func offAndTheOldParamIsIgnored() async {
+    for extra in ["", #","echoCancellation":true"#, #","echoCancellation":"yes""#] {
+      let (rig, out) = await run(Self.start(extra))
+      #expect(out.response(1)?["ok"] == true)
+      #expect(rig.micVoiceProcessing == false)
+    }
   }
 }
 

@@ -25,7 +25,14 @@ import {
   type SidebarProps,
   type TemplatesScreenProps,
 } from "../src/screens";
-import type { Levels, Loadable, MeetingDetail, NavTarget } from "../src/types";
+import type {
+  Levels,
+  Loadable,
+  MeetingDetail,
+  NavTarget,
+  SelfTestReport,
+  SelfTestSide,
+} from "../src/types";
 import * as mock from "./mocks";
 
 export interface SceneContext {
@@ -375,21 +382,51 @@ function SearchScene({
   );
 }
 
+type SelfTestVariant = "checking" | "ok" | "quiet" | "done";
+
 function SelfTestScene({
-  running,
+  variant,
   animate = false,
 }: {
-  running?: boolean;
+  variant: SelfTestVariant;
   animate?: boolean;
 }) {
-  const levels = useLevels(animate);
-  const side = {
+  const live = useLevels(animate);
+  const side: SelfTestSide = {
     status: "ok",
     peak: 0.42,
     clipping: false,
     clippedSamples: 0,
     dropouts: 0,
-  } as const;
+  };
+  const mic: SelfTestSide = { ...side, device: "MacBook Pro Microphone" };
+  const system: SelfTestSide = { ...side, device: "MacBook Pro Speakers" };
+  const quietSystem: SelfTestSide = { ...system, status: "denied", peak: 0 };
+  const report = (
+    seconds: number,
+    m: SelfTestSide,
+    s: SelfTestSide,
+  ): SelfTestReport => ({ seconds, passed: false, mic: m, system: s });
+  const state =
+    variant === "checking"
+      ? {
+          kind: "checking" as const,
+          progress: report(1, { ...mic, status: "silent", peak: 0.1 }, quietSystem),
+          levels: { mic: animate ? live.mic : 0.12, system: 0 },
+        }
+      : variant === "ok"
+        ? {
+            kind: "checking" as const,
+            progress: report(4, mic, system),
+            levels: animate ? live : { mic: 0.62, system: 0.48 },
+          }
+        : variant === "quiet"
+          ? {
+              kind: "checking" as const,
+              progress: report(4, mic, quietSystem),
+              levels: { mic: animate ? live.mic : 0.58, system: 0 },
+            }
+          : { kind: "done" as const, report: report(6, mic, quietSystem) };
   return (
     <Frame current={{ to: "settings" }}>
       <SettingsScreen
@@ -400,23 +437,9 @@ function SelfTestScene({
         detectCalls
         theme="system"
         selfTest={{
-          state: running
-            ? { kind: "running", levels }
-            : {
-                kind: "done",
-                report: {
-                  seconds: 8,
-                  passed: false,
-                  voiceProcessing: false,
-                  mic: {
-                    ...side,
-                    device: "MacBook Pro Microphone",
-                    clipping: true,
-                  },
-                  system: { ...side, status: "denied", peak: 0 },
-                },
-              },
-          onRun: noop,
+          state,
+          onStart: noop,
+          onStop: noop,
           onOpenSettings: noop,
         }}
       />
@@ -999,7 +1022,7 @@ export const scenes: Scene[] = [
   {
     id: "settings-permission-hint",
     group: "Settings",
-    label: "Notifications still off, echo cancellation",
+    label: "Notifications still off",
     render: () => (
       <Frame current={{ to: "settings" }}>
         <SettingsScreen
@@ -1017,7 +1040,6 @@ export const scenes: Scene[] = [
           launchAtLogin
           launchAtLoginHint="Allow Talk in System Settings → General → Login Items."
           detectCalls
-          echoCancellation={false}
           theme="system"
           onGrant={noop}
         />
@@ -1025,16 +1047,28 @@ export const scenes: Scene[] = [
     ),
   },
   {
-    id: "settings-selftest-running",
+    id: "settings-selftest-checking",
     group: "Settings",
-    label: "Self-test running",
-    render: (ctx) => <SelfTestScene running animate={ctx.animate} />,
+    label: "Audio check: just started",
+    render: (ctx) => <SelfTestScene variant="checking" animate={ctx.animate} />,
   },
   {
-    id: "settings-selftest-result",
+    id: "settings-selftest-ok",
     group: "Settings",
-    label: "Self-test result (no sound from the Mac)",
-    render: () => <SelfTestScene />,
+    label: "Audio check: both sides working",
+    render: (ctx) => <SelfTestScene variant="ok" animate={ctx.animate} />,
+  },
+  {
+    id: "settings-selftest-quiet",
+    group: "Settings",
+    label: "Audio check: no sound from the Mac",
+    render: (ctx) => <SelfTestScene variant="quiet" animate={ctx.animate} />,
+  },
+  {
+    id: "settings-selftest-done",
+    group: "Settings",
+    label: "Audio check: stopped",
+    render: () => <SelfTestScene variant="done" />,
   },
   {
     id: "settings-loading",

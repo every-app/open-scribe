@@ -103,15 +103,15 @@ export function loginItemHint(status: string | undefined, wanted: boolean): stri
   return undefined;
 }
 
-/** Why "Test microphone & system audio" can't run right now, if it can't. */
+/** Why "Check microphone & Mac audio" can't start right now, if it can't. */
 export function selfTestBlockedReason(state: AppSnapshot | undefined, runningHere: boolean): string | undefined {
   if (!state) return undefined;
-  if (state.recording.state !== "idle") return "Stop the recording to test your microphone and system audio.";
-  if (state.selfTest?.running && !runningHere) return "A microphone and system audio test is already running.";
+  if (state.recording.state !== "idle") return "Stop the recording to check your microphone and Mac audio.";
+  if (state.selfTest?.running && !runningHere) return "Talk is already checking your microphone and Mac audio.";
   return undefined;
 }
 
 /** Why New note (and ⌘N) can't start right now: main refuses a recording during a test. */
 export function newNoteBlockedReason(state: AppSnapshot | undefined): string | undefined {
-  return state?.selfTest?.running ? "A microphone and system audio test is running. Start recording when it finishes." : undefined;
+  return state?.selfTest?.running ? "Talk is checking your microphone and Mac audio. Stop the check in Settings to start recording." : undefined;
 }

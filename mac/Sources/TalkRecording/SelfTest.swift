@@ -1,9 +1,10 @@
 import Foundation
 import TalkCore
 
-/// A hardware check with no account and no network: captures the mic and system audio for a
-/// few seconds (no Realtime, no Worker, nothing written anywhere) and says whether each one
-/// works. `talk-helper --selftest` prints it; `selftest.run` returns it to the app.
+/// A hardware check with no account and no network: captures the mic and system audio (no
+/// Realtime, no Worker, nothing written anywhere) until it's stopped or `seconds` pass, and says
+/// whether each one works. `talk-helper --selftest` prints it; `selftest.run` streams it to the
+/// app (`selftest.progress` each second) and answers the final report.
 @MainActor
 public final class SelfTest {
   public enum Status: String, Sendable, Equatable {
@@ -36,6 +37,7 @@ public final class SelfTest {
 
   public struct Report: Sendable, Equatable {
     public var seconds: Int
+    /// Only the CLI's `--echo-cancellation` asks for it (not in the protocol).
     public var voiceProcessing: Bool
     public var mic: SourceReport
     public var system: SourceReport
@@ -57,6 +59,8 @@ public final class SelfTest {
   private let tick: @Sendable () async -> Void
 
   /// `tick` waits 100 ms between measurements (tests feed audio there instead).
+  /// `echoCancellation` (AVAudioEngine voice processing on the mic) is reachable only from
+  /// `talk-helper --selftest --echo-cancellation`, kept for a future hardware test.
   public init(
     dependencies: RecordingPipeline.Dependencies, echoCancellation: Bool = false,
     requestMic: @escaping @Sendable () async -> Bool,
@@ -69,9 +73,11 @@ public final class SelfTest {
   }
 
   /// Runs for `seconds` (stops early if the task is cancelled). `onLevels` gets each 100 ms
-  /// peak, `onSecond` one line per second.
+  /// peak, `onSecond` one line per second, `onProgress` the report so far: once both captures
+  /// have started (`seconds` 0, so the devices show at once), then after each second.
   public func run(
-    seconds: Int, onLevels: (Double, Double) -> Void = { _, _ in }, onSecond: (Second) -> Void = { _ in }
+    seconds: Int, onLevels: (Double, Double) -> Void = { _, _ in }, onSecond: (Second) -> Void = { _ in },
+    onProgress: (Report) -> Void = { _ in }
   ) async -> Report {
     let micMeter = SelfTestMeter(), systemMeter = SelfTestMeter()
     var micProblem: (Status, String)?
@@ -105,6 +111,33 @@ public final class SelfTest {
     var micDropouts = 0, systemDropouts = 0
     var secondMic = 0.0, secondSystem = 0.0
     var completed = 0
+    func report(_ meter: SelfTestMeter, peak: Double, info: CaptureInfo?, problem: (Status, String)?, dropouts: Int, isSystem: Bool)
+      -> SourceReport
+    {
+      let totals = meter.totals
+      var status: Status
+      var message = problem?.1 ?? totals.note
+      if let problem {
+        status = problem.0
+      } else if peak >= Self.okLevel {
+        status = .ok
+      } else if isSystem && !totals.anyNonZero {
+        status = .denied
+        message = message ?? "Only digital silence: play something, or allow System Settings → Privacy & Security → System Audio Recording"
+      } else {
+        status = .silent
+      }
+      return SourceReport(
+        status: status, peak: peak, sampleRate: info?.sampleRate, device: info?.deviceName,
+        clippedSamples: totals.clipped, totalSamples: totals.samples, dropouts: dropouts, message: message)
+    }
+    func snapshot() -> Report {
+      Report(
+        seconds: completed, voiceProcessing: micInfo?.voiceProcessingActive ?? false,
+        mic: report(micMeter, peak: micPeak, info: micInfo, problem: micProblem, dropouts: micDropouts, isSystem: false),
+        system: report(systemMeter, peak: systemPeak, info: systemInfo, problem: systemProblem, dropouts: systemDropouts, isSystem: true))
+    }
+    onProgress(snapshot())
     for step in 0..<(max(1, seconds) * 10) {
       await tick()
       if Task.isCancelled { break }
@@ -126,33 +159,11 @@ public final class SelfTest {
         secondMic = 0
         secondSystem = 0
         completed = second
+        onProgress(snapshot())
       }
     }
 
-    func report(_ meter: SelfTestMeter, peak: Double, info: CaptureInfo?, problem: (Status, String)?, dropouts: Int, isSystem: Bool)
-      -> SourceReport
-    {
-      let totals = meter.totals
-      var status: Status
-      var message = problem?.1 ?? totals.note
-      if let problem {
-        status = problem.0
-      } else if peak >= Self.okLevel {
-        status = .ok
-      } else if isSystem && !totals.anyNonZero {
-        status = .denied
-        message = message ?? "Only digital silence: play something, or allow System Settings → Privacy & Security → System Audio Recording"
-      } else {
-        status = .silent
-      }
-      return SourceReport(
-        status: status, peak: peak, sampleRate: info?.sampleRate, device: info?.deviceName,
-        clippedSamples: totals.clipped, totalSamples: totals.samples, dropouts: dropouts, message: message)
-    }
-    return Report(
-      seconds: completed, voiceProcessing: micInfo?.voiceProcessingActive ?? false,
-      mic: report(micMeter, peak: micPeak, info: micInfo, problem: micProblem, dropouts: micDropouts, isSystem: false),
-      system: report(systemMeter, peak: systemPeak, info: systemInfo, problem: systemProblem, dropouts: systemDropouts, isSystem: true))
+    return snapshot()
   }
 }
 
@@ -231,7 +242,7 @@ extension SelfTest.Report {
       return .object(o)
     }
     return [
-      "seconds": .int(seconds), "voiceProcessing": .bool(voiceProcessing), "passed": .bool(passed),
+      "seconds": .int(seconds), "passed": .bool(passed),
       "mic": source(mic), "system": source(system),
     ]
   }

@@ -161,26 +161,6 @@ describe("recording against the fake helper and fake server", () => {
     expect(recording.state.state).toBe("idle");
   });
 
-  it("sends echoCancellation only when the setting is on", async () => {
-    const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
-    await auth.signInWithToken(fake.origin, "epat_good");
-    const { s, logs } = make();
-    let echo = false;
-    const recording = new RecordingController(auth, s, () => {}, () => echo);
-    s.start();
-    await ready(s);
-    await recording.start({ title: "Off" });
-    await recording.stop();
-    echo = true;
-    await recording.start({ title: "On" });
-    await recording.stop();
-    await until(() => logs.filter((l) => l.includes("record.start echoCancellation=")).length === 2 || undefined);
-    expect(logs.filter((l) => l.includes("record.start echoCancellation="))).toEqual([
-      "[helper] fake-helper: record.start echoCancellation=false",
-      "[helper] fake-helper: record.start echoCancellation=true",
-    ]);
-  });
-
   it("hands what a stop couldn't save to main, to replay later", async () => {
     const auth = new AuthService({ store: tempStore().store, openBrowser: () => {} });
     await auth.signInWithToken(fake.origin, "epat_good");

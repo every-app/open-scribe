@@ -199,17 +199,23 @@ test("a Settings switch persists across a reload", async () => {
   expect(JSON.parse(readFileSync(join(userData, "settings.json"), "utf8")).callDetection).toBe(after === "true");
 });
 
-test("Settings → Test microphone & system audio runs and reports both sides", async () => {
+test("Settings → Check microphone & Mac audio runs live until Stop and names both devices", async () => {
   await page.evaluate(() => (location.hash = "#/settings"));
-  const run = page.getByRole("button", { name: "Run test" });
-  await expect(run).toBeVisible();
-  await run.click();
-  // The fake helper's selftest.run takes under a second and reports device "Fake".
-  const results = page.getByRole("list", { name: "Test results" });
-  await expect(results).toBeVisible({ timeout: 15_000 });
-  await expect(results).toContainText("Your microphone works (Fake).");
-  await expect(results).toContainText("Talk hears your Mac's sound.");
-  await expect(page.getByRole("button", { name: "Test again" })).toBeEnabled();
+  const start = page.getByRole("button", { name: "Start check" });
+  await expect(start).toBeVisible();
+  await start.click();
+  // The fake helper hears both sides from its first (100 ms) second, as "Fake Microphone" and
+  // "Fake Speakers", and keeps going until Stop.
+  const rows = page.getByRole("list", { name: "Microphone and Mac audio" });
+  await expect(rows.locator('[data-side="mic"]')).toContainText("Fake Microphone");
+  await expect(rows.locator('[data-side="system"]')).toContainText("Fake Speakers");
+  await expect(rows.locator('[data-side="mic"]')).toContainText("Working", { timeout: 15_000 });
+  await expect(rows.locator('[data-side="system"]')).toContainText("Working");
+  await expect(page.getByRole("meter", { name: "Microphone level" })).toBeVisible();
+  await page.getByRole("button", { name: "Stop" }).click();
+  await expect(page.getByRole("button", { name: "Check again" })).toBeEnabled({ timeout: 15_000 });
+  await expect(page.getByRole("meter")).toHaveCount(0);
+  await expect(rows.locator('[data-side="system"]')).toContainText("Working");
 });
 
 /** Records a backlog of more than 60 segments while the app can't be reached. Returns the

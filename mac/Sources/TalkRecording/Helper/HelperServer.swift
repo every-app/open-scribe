@@ -167,6 +167,8 @@ public final class HelperServer {
       return [:]
     case "selftest.run":
       return try await runSelfTest(p)
+    case "selftest.stop":
+      return await stopSelfTest()
     case "detect.set":
       guard let enabled = p["enabled"]?.bool else { throw HelperError.badParams("enabled must be true or false") }
       setDetection(enabled)
@@ -191,11 +193,7 @@ public final class HelperServer {
     }
     guard let token = p["accessToken"]?.string, !token.isEmpty else { throw HelperError.badParams("accessToken is required") }
     let language = p["language"]?.string ?? env.defaultLanguage
-    var options = RecordingOptions()
-    if let value = p["echoCancellation"], value != .null {
-      guard let enabled = value.bool else { throw HelperError.badParams("echoCancellation must be true or false") }
-      options.echoCancellation = enabled
-    }
+    let options = RecordingOptions()
 
     starting = true
     startCancelled = false
@@ -231,7 +229,7 @@ public final class HelperServer {
       throw Self.startError(error)
     }
     self.pipeline = pipeline
-    log("recording started (\(mode.rawValue)\(options.echoCancellation ? ", voice processing" : ""))")
+    log("recording started (\(mode.rawValue))")
     emitState()
     if closing { _ = try? await stop() }
     return ["startedAt": .string(env.now().formatted(.iso8601))]
@@ -239,33 +237,45 @@ public final class HelperServer {
 
   static let cancelledError = HelperError("cancelled", "record.stop arrived before the recording started")
 
-  /// `selftest.run { seconds?, echoCancellation? }`: capture both sides locally for a few seconds,
-  /// streaming `levels`, and answer with the summary. Nothing leaves the Mac.
+  /// `selftest.run { seconds? }` (1–60, default 60): capture both sides locally until
+  /// `selftest.stop` or `seconds` pass, streaming `levels` (10 Hz) and `selftest.progress` (the
+  /// report so far, at the start and each second), and answer with the summary. Nothing leaves
+  /// the Mac.
   private func runSelfTest(_ p: JSONValue) async throws -> JSONValue {
     guard !closing else { throw HelperError("shutting_down", "The helper is exiting") }
     guard pipeline == nil, !starting else { throw HelperError("busy", "Recording; stop first") }
     guard selfTest == nil else { throw HelperError("busy", "A self-test is already running") }
-    var seconds = 8
+    var seconds = 60
     if let value = p["seconds"], value != .null {
       guard let n = value.int, (1...60).contains(n) else { throw HelperError.badParams("seconds must be 1–60") }
       seconds = n
     }
-    var echo = false
-    if let value = p["echoCancellation"], value != .null {
-      guard let b = value.bool else { throw HelperError.badParams("echoCancellation must be true or false") }
-      echo = b
-    }
-    let test = SelfTest(dependencies: env.pipeline, echoCancellation: echo, requestMic: env.requestMic, tick: env.selfTestTick)
+    let test = SelfTest(dependencies: env.pipeline, requestMic: env.requestMic, tick: env.selfTestTick)
     let task = Task { @MainActor [weak self] in
-      await test.run(seconds: seconds, onLevels: { mic, system in
-        self?.emit("levels", ["mic": .double(Self.round(mic)), "system": .double(Self.round(system))])
-      })
+      await test.run(
+        seconds: seconds,
+        onLevels: { mic, system in
+          self?.emit("levels", ["mic": .double(Self.round(mic)), "system": .double(Self.round(system))])
+        },
+        onProgress: { report in
+          guard case .object(let fields) = report.json else { return }
+          self?.emit("selftest.progress", fields)
+        })
     }
     selfTest = task
     defer { selfTest = nil }
     let report = await task.value
     log("self-test: mic \(report.mic.status.rawValue), system \(report.system.status.rawValue)")
     return report.json
+  }
+
+  /// `selftest.stop`: ends a running self-test, whose `selftest.run` then answers with what it
+  /// heard so far. `{ stopped: false }` when none was running.
+  private func stopSelfTest() async -> JSONValue {
+    guard let selfTest else { return ["stopped": false] }
+    selfTest.cancel()
+    _ = await selfTest.value
+    return ["stopped": true]
   }
 
   private func stop() async throws -> JSONValue {

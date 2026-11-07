@@ -311,7 +311,7 @@ describe("SettingsScreen", () => {
       screen.getByRole("button", { name: "Open System Settings" }),
     );
     expect(onOpen).toHaveBeenCalledWith("notifications");
-    // The other unknown one still offers Grant; echo cancellation is hidden until the app has it.
+    // The other unknown one still offers Grant; there's no echo cancellation switch any more.
     expect(screen.getAllByRole("button", { name: "Grant" })).toHaveLength(1);
     expect(screen.queryByLabelText("Echo cancellation")).toBeNull();
   });
