@@ -25,11 +25,20 @@ mkdir -p "${OUT_DIR}"
 SLICES=()
 for arch in "${ARCHS[@]}"; do
   echo "Building talk-helper (${arch})…" >&2
+  BIN="$(swift build -c release --product talk-helper --triple "${arch}-apple-macosx15.0" --scratch-path "${ROOT}/.build/helper-${arch}" --show-bin-path)/talk-helper"
+  # SwiftPM doesn't track the Info.plist the linker embeds: with the sources unchanged it keeps
+  # the cached binary and its old plist. Removing it forces a relink (the objects stay cached).
+  rm -f "${BIN}"
   swift build -c release --product talk-helper \
     --triple "${arch}-apple-macosx15.0" \
     --scratch-path "${ROOT}/.build/helper-${arch}" \
     -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "${PLIST}" >&2
-  SLICES+=("$(swift build -c release --product talk-helper --triple "${arch}-apple-macosx15.0" --scratch-path "${ROOT}/.build/helper-${arch}" --show-bin-path)/talk-helper")
+  # Without the ATS exception the helper can't reach a local server (http://talk.localhost).
+  if ! launchctl plist __TEXT,__info_plist "${BIN}" 2>/dev/null | grep -q NSAppTransportSecurity; then
+    echo "error: ${BIN} doesn't embed ${PLIST} (no NSAppTransportSecurity)" >&2
+    exit 1
+  fi
+  SLICES+=("${BIN}")
 done
 rm -f "${OUT}"
 lipo -create "${SLICES[@]}" -output "${OUT}"
