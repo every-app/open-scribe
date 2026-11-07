@@ -53,6 +53,10 @@ export interface SettingsScreenProps {
   /** "conflict": another app holds ⌃⌥⌘R, so Talk couldn't take it. */
   recordShortcutStatus?: "off" | "on" | "conflict";
   onRecordShortcutChange?: (on: boolean) => void;
+  /** The floating recorder in the screen's corner while recording (on by default); the switch
+   * shows when given. */
+  floatingRecorder?: boolean;
+  onFloatingRecorderChange?: (on: boolean) => void;
   /** "Test microphone & system audio", under the permissions. */
   selfTest?: SelfTestProps;
   onConnectCalendar?: () => void;
@@ -109,6 +113,19 @@ export function SettingsScreen(props: SettingsScreenProps) {
             />
           }
         />
+        {props.floatingRecorder !== undefined && (
+          <Row
+            title="Show the floating recorder while recording"
+            detail="A small recorder in the corner of the screen, over your meeting. Hover over it to read the live transcript; click it to open the meeting."
+            control={
+              <Switch
+                aria-label="Show the floating recorder while recording"
+                checked={props.floatingRecorder}
+                onCheckedChange={(on) => props.onFloatingRecorderChange?.(on)}
+              />
+            }
+          />
+        )}
         {props.recordShortcut !== undefined && (
           <Row
             title={

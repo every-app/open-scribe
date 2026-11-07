@@ -5,6 +5,8 @@ import type { HelperEvent, PermissionStatus, ChannelHealth, SelfTestReport, Self
 
 export type { SelfTestReport, SelfTestRequest, SelfTestSide } from "./protocol";
 import type { CalendarEvent, Me, MeetingDetail, MeetingPatch, MeetingSummary } from "./api";
+import type { Segment } from "./contract";
+import type { Speaker } from "./protocol";
 
 export type TrayState = "idle" | "recording" | "attention";
 
@@ -26,6 +28,9 @@ export interface Settings {
   echoCancellation: boolean;
   /** A global shortcut, ⌃⌥⌘R, that starts or stops a recording from anywhere. Off by default. */
   recordShortcut: boolean;
+  /** The floating recorder: a small pill in the screen's bottom-right corner while recording,
+   * which shows the live transcript on hover. On by default. */
+  floatingRecorder: boolean;
 }
 
 export type SettingsPatch = Partial<Settings>;
@@ -37,6 +42,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "system",
   echoCancellation: false,
   recordShortcut: false,
+  floatingRecorder: true,
 };
 
 export const MAX_REMINDER_LEAD_MINUTES = 30;
@@ -166,6 +172,26 @@ export interface StartRecordingRequest {
   join?: boolean;
 }
 
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** What the floating recorder's window draws (src/main/pill.ts). Pushed on the "pill" channel
+ * when it changes; the meters come as `levels` events on the "helper" channel. */
+export interface PillView {
+  /** The mouse is over the pill (or the open panel): show the live transcript. */
+  expanded: boolean;
+  /** Where the panel and the pill sit, in the window's own coordinates. The window covers both
+   * all the time; only the pill takes the mouse until the panel opens. */
+  layout: { panel: Rect; pill: Rect };
+  recording: Pick<RecordingSnapshot, "state" | "title" | "startedAt" | "stoppingSince" | "transcription">;
+  /** The newest turns (bounded) while expanded; empty while collapsed. In memory only. */
+  transcript: { segments: Segment[]; pending: { speaker: Speaker; text: string }[] };
+}
+
 /** `invoke` channels: name → [args, result]. */
 export interface InvokeMap {
   "state:get": [[], AppSnapshot];
@@ -199,6 +225,10 @@ export interface InvokeMap {
   "selftest:run": [[request?: SelfTestRequest], SelfTestReport];
   /** Restart into a downloaded update; during a recording it's deferred until Stop. */
   "update:install": [[], { deferred: boolean }];
+  /** The floating recorder's window: its current view. */
+  "pill:get": [[], PillView];
+  /** A click on the floating recorder: the main window, on the recording's meeting. */
+  "pill:openMeeting": [[], void];
 }
 
 export type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -220,6 +250,7 @@ export interface EventMap {
   helper: HelperEvent;
   navigate: NavigateRequest;
   update: UpdateReadyEvent;
+  pill: PillView;
 }
 
 export type EventChannel = keyof EventMap;
@@ -255,6 +286,8 @@ export const INVOKE_CHANNELS: readonly InvokeChannel[] = [
   "clipboard:writeText",
   "update:install",
   "selftest:run",
+  "pill:get",
+  "pill:openMeeting",
 ] as const;
 
-export const EVENT_CHANNELS: readonly EventChannel[] = ["state", "helper", "navigate", "update"] as const;
+export const EVENT_CHANNELS: readonly EventChannel[] = ["state", "helper", "navigate", "update", "pill"] as const;

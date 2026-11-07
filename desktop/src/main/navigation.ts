@@ -10,6 +10,8 @@ import type { WebContents } from "electron";
 export interface AppOrigin {
   /** Absolute path of the bundled renderer's index.html. */
   rendererFile: string;
+  /** Other bundled pages beside it (the floating recorder's pill.html). */
+  otherPages?: string[];
   /** The electron-vite dev server (ELECTRON_RENDERER_URL), only for an unpackaged run. */
   devUrl?: string;
 }
@@ -22,15 +24,16 @@ function parse(raw: string): URL | undefined {
   }
 }
 
-/** True for the app's own page: the bundled index.html (any hash or query), or the dev server's
- * origin when one is given. */
+/** True for the app's own pages: the bundled index.html (or one of `otherPages`; any hash or
+ * query), or the dev server's origin when one is given. */
 export function isAppUrl(raw: string, origin: AppOrigin): boolean {
   const url = parse(raw);
   if (!url) return false;
   if (url.protocol === "file:") {
     if (url.host && url.host !== "localhost") return false;
     try {
-      return resolve(fileURLToPath(url)) === resolve(origin.rendererFile);
+      const path = resolve(fileURLToPath(url));
+      return [origin.rendererFile, ...(origin.otherPages ?? [])].some((page) => path === resolve(page));
     } catch {
       return false;
     }

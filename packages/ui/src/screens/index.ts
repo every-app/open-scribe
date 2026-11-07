@@ -1,5 +1,6 @@
 export * from "./AppFrame";
 export * from "./Banners";
+export * from "./FloatingRecorder";
 export * from "./FolderScreen";
 export * from "./HomeScreen";
 export * from "./MeetingScreen";

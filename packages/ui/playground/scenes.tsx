@@ -4,6 +4,8 @@ import { Button } from "../src/components/ui/button";
 import type { ThemePreference } from "../src/lib/theme";
 import {
   AppFrame,
+  FloatingRecorder,
+  type LiveLine,
   OfflineBanner,
   SignInAgainBanner,
   FolderScreen,
@@ -469,6 +471,62 @@ function HomeRecording({ animate }: SceneContext) {
     >
       {home()}
     </Frame>
+  );
+}
+
+/* Floating recorder ------------------------------------------------------- */
+
+/** The window main lays out (desktop/src/main/pill.ts): panel 292×342, pill 34×60 to its
+ * right and 32 above its bottom, 5 apart, 4 of room around. */
+const PILL_LAYOUT = {
+  panel: { x: 4, y: 4, width: 292, height: 342 },
+  pill: { x: 4 + 292 + 5, y: 4 + 342 - 32 - 60, width: 34, height: 60 },
+};
+const PILL_WINDOW = { width: 4 + 292 + 5 + 34 + 4, height: 4 + 342 + 4 };
+
+function RecorderScene({
+  expanded,
+  animate,
+  segments = mock.liveSegments,
+  pending,
+  stopping,
+  notice,
+}: {
+  expanded: boolean;
+  animate: boolean;
+  segments?: typeof mock.liveSegments;
+  pending?: LiveLine[];
+  stopping?: boolean;
+  notice?: string;
+}) {
+  const levels = useLevels(animate);
+  const them = useStreamingText(mock.livePartial.them, animate);
+  return (
+    // Something dark under it, like a full-screen call.
+    <div
+      data-theme="openseo-dark"
+      className="relative h-full min-h-[600px] w-full overflow-hidden bg-[#14171c]"
+    >
+      <div className="absolute inset-x-0 top-0 p-6 font-mono text-[13px] text-neutral-500">
+        A full-screen call or any app sits under the recorder.
+      </div>
+      <div
+        className="absolute"
+        style={{ right: 8 - 4, bottom: 8 - 4, ...PILL_WINDOW }}
+      >
+        <FloatingRecorder
+          layout={PILL_LAYOUT}
+          expanded={expanded}
+          level={stopping ? 0 : Math.max(levels.mic, levels.system)}
+          stopping={stopping}
+          segments={segments}
+          pending={pending ?? [{ speaker: "them", text: them }]}
+          notice={notice}
+          animate={animate}
+          onOpen={noop}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -1060,5 +1118,58 @@ export const scenes: Scene[] = [
     group: "Onboarding",
     label: "Done",
     render: () => <Onboarding step="done" accountName={mock.account.name} />,
+  },
+  {
+    id: "recorder-pill",
+    group: "Floating recorder",
+    label: "Pill (collapsed)",
+    render: (ctx) => <RecorderScene expanded={false} animate={ctx.animate} />,
+  },
+  {
+    id: "recorder-transcript",
+    group: "Floating recorder",
+    label: "Hovered: live transcript",
+    render: (ctx) => <RecorderScene expanded animate={ctx.animate} />,
+  },
+  {
+    id: "recorder-long",
+    group: "Floating recorder",
+    label: "Hovered: a long transcript, scrolled to the newest",
+    render: (ctx) => (
+      <RecorderScene
+        expanded
+        animate={ctx.animate}
+        segments={mock.segments}
+        pending={[{ speaker: "me", text: "Sounds good, I'll send the" }]}
+      />
+    ),
+  },
+  {
+    id: "recorder-empty",
+    group: "Floating recorder",
+    label: "Hovered: nothing said yet",
+    render: (ctx) => (
+      <RecorderScene
+        expanded
+        animate={ctx.animate}
+        segments={[]}
+        pending={[]}
+        notice="Starting…"
+      />
+    ),
+  },
+  {
+    id: "recorder-stopping",
+    group: "Floating recorder",
+    label: "Hovered: finishing the transcript",
+    render: (ctx) => (
+      <RecorderScene
+        expanded
+        stopping
+        animate={ctx.animate}
+        pending={[]}
+        notice="Finishing the transcript…"
+      />
+    ),
   },
 ];

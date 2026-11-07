@@ -21,6 +21,12 @@ export default defineConfig({
     plugins: [react(), tailwindcss()],
     // The window loads from disk, but parsing still costs: minify, and let each page be its own
     // chunk (src/renderer/src/router.tsx).
-    build: { minify: true },
+    // Two pages: the window (index.html) and the floating recorder (pill.html, src/main/pill.ts).
+    build: {
+      minify: true,
+      rollupOptions: {
+        input: { index: resolve(__dirname, "src/renderer/index.html"), pill: resolve(__dirname, "src/renderer/pill.html") },
+      },
+    },
   },
 });

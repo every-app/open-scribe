@@ -26,6 +26,9 @@ import { createUpdater } from "./updater";
 import type { UpdateController } from "./updates";
 import { RecordShortcut } from "./shortcut";
 import { MainWindow } from "./window";
+import { LiveTranscriptBuffer } from "./liveTranscript";
+import { shouldShowPill } from "./pill";
+import { RecorderPillWindow } from "./pillWindow";
 import { AppMenu } from "./menu";
 import { typedAppUrl } from "./auth/url";
 import { guardNavigation, type AppOrigin } from "./navigation";
@@ -58,6 +61,7 @@ if (freshProfile) {
  * Navigation guards and IPC sender checks both use it. */
 const origin: AppOrigin = {
   rendererFile: join(__dirname, "../renderer/index.html"),
+  otherPages: [join(__dirname, "../renderer/pill.html")],
   devUrl: !app.isPackaged ? process.env.ELECTRON_RENDERER_URL : undefined,
 };
 
@@ -152,6 +156,23 @@ async function main(): Promise<void> {
     }
   };
   const window = new MainWindow(join(__dirname, "../preload/index.js"));
+  /** The floating recorder (pill.ts): its live transcript, in memory only, bounded. */
+  const liveTranscript = new LiveTranscriptBuffer();
+  const pill = new RecorderPillWindow({
+    preloadPath: join(__dirname, "../preload/index.js"),
+    devUrl: origin.devUrl,
+    recording: () => recording.state,
+    transcript: liveTranscript,
+    log,
+  });
+  const syncPill = () => {
+    const r = recording.state;
+    // Each recording starts clean; nothing is kept once it ends.
+    if (r.state === "idle") liveTranscript.reset();
+    else if (r.meetingId && r.meetingId !== liveTranscript.value.meetingId) liveTranscript.reset(r.meetingId);
+    pill.setVisible(shouldShowPill(r.state, settings.value.floatingRecorder));
+    pill.push();
+  };
   const selfTest = new SelfTestController(helper, () => recording.isActive, log);
   recording.startBlocked = () =>
     selfTest.state.running ? "A microphone and system audio test is running. Start recording when it finishes (a few seconds)." : undefined;
@@ -397,6 +418,7 @@ async function main(): Promise<void> {
     if (changed.reminderLeadMinutes !== undefined) calendar.replan();
     if (changed.launchAtLogin !== undefined) loginItem = applyLoginItem(value.launchAtLogin, log);
     if (changed.recordShortcut !== undefined) shortcut.set(value.recordShortcut);
+    if (changed.floatingRecorder !== undefined) syncPill();
     broadcast();
   });
   let wasRecording = false;
@@ -405,6 +427,7 @@ async function main(): Promise<void> {
     const active = r.state !== "idle";
     if (wasRecording && !active) updates?.recordingStopped();
     wasRecording = active;
+    syncPill();
     broadcast();
   });
   recording.on("crashed", () => {
@@ -429,6 +452,8 @@ async function main(): Promise<void> {
   helper.on("event", (event) => {
     probe.observe(event);
     window.send("helper", event);
+    liveTranscript.observe(event);
+    pill.helperEvent(event);
     if (event.event === "call.started") calendar.callStarted(event.bundleId, event.appName);
     if (event.event === "call.ended") calendar.callEnded(event.bundleId);
   });
@@ -494,6 +519,12 @@ async function main(): Promise<void> {
     "api:updateMeeting": (id, patch) => withAuth(() => requireApi().updateMeeting(id, patch)),
     "api:call": (method, path, opts) => withAuth(() => requireApi().call(method, path, opts)),
     "update:install": () => installUpdate(),
+    "pill:get": () => pill.view(),
+    "pill:openMeeting": () => {
+      const meetingId = recording.state.meetingId;
+      if (meetingId) window.showAndSend("navigate", { to: "meeting", meetingId });
+      else window.show();
+    },
     "selftest:run": (request) => selfTest.run(request ?? { echoCancellation: settings.value.echoCancellation }),
     "clipboard:writeText": (text) => {
       if (!isCopyableUrl(text, auth.api?.appUrl)) throw new Error("Refused: only https links or this Talk's own links can be copied.");

@@ -54,6 +54,8 @@ export const validators: { [C in InvokeChannel]: (args: unknown[]) => boolean } 
   "api:call": ([method, path, opts, ...rest]) => rest.length === 0 && isAllowedApiCall(method, path) && isValidApiCallOptions(opts),
   "clipboard:writeText": (a) => a.length === 1 && looksLikeLink(a[0]),
   "update:install": (a) => a.length === 0,
+  "pill:get": (a) => a.length === 0,
+  "pill:openMeeting": (a) => a.length === 0,
   "selftest:run": (a) => a.length === 0 || (a.length === 1 && (a[0] === undefined || isSelfTestRequest(a[0]))),
 };
 

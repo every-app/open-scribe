@@ -4,6 +4,7 @@ export { Markdown } from "./components/Markdown";
 export { markdownShortcut } from "./lib/markdown-shortcuts";
 export { snippetParts } from "./lib/highlight";
 export { selfTestLines } from "./lib/selftest";
+export { meterLevel } from "./lib/levels";
 export { useThemePreference, themePreferenceInitScript } from "./lib/theme";
 export type { ThemePreference } from "./lib/theme";
 export { dayLabel, groupByDay, shortDate, timeOfDay } from "./lib/dates";

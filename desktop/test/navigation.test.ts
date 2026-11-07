@@ -23,6 +23,15 @@ describe("navigation guard", () => {
     expect(isAppUrl("", packaged)).toBe(false);
   });
 
+  it("allows the floating recorder's page only when it's listed", () => {
+    const pill = pathToFileURL(rendererFile.replace("index.html", "pill.html")).toString();
+    expect(isAppUrl(pill, packaged)).toBe(false);
+    const withPill = { rendererFile, otherPages: [rendererFile.replace("index.html", "pill.html")] };
+    expect(isAppUrl(pill, withPill)).toBe(true);
+    expect(isAppUrl(page, withPill)).toBe(true);
+    expect(isAppUrl(pathToFileURL(rendererFile.replace("index.html", "other.html")).toString(), withPill)).toBe(false);
+  });
+
   it("allows the dev server's origin in a dev run, and nothing near it", () => {
     expect(isAppUrl("http://localhost:5173/", dev)).toBe(true);
     expect(isAppUrl("http://localhost:5173/some/route", dev)).toBe(true);

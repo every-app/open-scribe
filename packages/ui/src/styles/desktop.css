@@ -120,6 +120,24 @@ html[data-vibrancy] {
   animation: caret-blink 1s steps(1) infinite;
 }
 
+/* The floating recorder's "still talking" dots. */
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-1.5px);
+  }
+}
+
+@utility typing-dot {
+  animation: typing-dot 1.2s ease-in-out infinite;
+}
+
 @keyframes record-pulse {
   0%,
   100% {
