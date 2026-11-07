@@ -243,29 +243,15 @@ export function Sidebar(props: SidebarProps) {
           </button>
         </div>
       )}
-      <div className="px-2.5 pb-2">
-        {props.recording ? (
+      {props.recording && (
+        <div className="px-2.5 pb-2">
           <RecordingPill
             recording={props.recording}
             onOpen={props.onOpenRecording}
             onStop={props.onStopRecording}
           />
-        ) : (
-          <button
-            type="button"
-            onClick={props.onNewNote}
-            disabled={!!props.newNoteDisabledReason}
-            title={props.newNoteDisabledReason}
-            className="no-drag flex h-8 w-full items-center gap-2 rounded-lg border border-sidebar-border bg-background/70 px-2.5 text-[13px] font-medium shadow-xs transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
-          >
-            <PenLine className="size-[15px] text-foreground/60" />
-            New note
-            <kbd className="ml-auto font-sans text-[11px] text-muted-foreground">
-              ⌘N
-            </kbd>
-          </button>
-        )}
-      </div>
+        </div>
+      )}
       <nav
         aria-label="Main navigation"
         className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2.5 pb-3"
@@ -388,11 +374,42 @@ export function AppFrame({
     >
       <Sidebar {...sidebar} />
       <main className="flex min-w-0 flex-1 flex-col bg-background">
-        <TitleBar>{titleBar}</TitleBar>
+        <TitleBar>
+          {titleBar}
+          {/* Top right of every page; while recording, the sidebar's recording pill takes its place. */}
+          {!sidebar.recording && (
+            <NewNoteButton
+              onClick={sidebar.onNewNote}
+              disabledReason={sidebar.newNoteDisabledReason}
+            />
+          )}
+        </TitleBar>
         {banner}
         {children}
       </main>
     </div>
+  );
+}
+
+function NewNoteButton({
+  onClick,
+  disabledReason,
+}: {
+  onClick: () => void;
+  disabledReason?: string;
+}) {
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onClick}
+      disabled={!!disabledReason}
+      title={disabledReason ?? "New note (⌘N)"}
+      className="ml-auto gap-1.5"
+    >
+      <PenLine className="text-foreground/60" />
+      New note
+    </Button>
   );
 }
 
