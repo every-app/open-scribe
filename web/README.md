@@ -6,7 +6,7 @@ The Every App side of Talk: a private web app on Cloudflare behind your Gateway.
 - `src/server/`: the queries (`meetings.ts`, `folders.ts`, `templates.ts`, `settings.ts`, who sees what in `access.ts`), Google Calendar (`calendar.ts`), the Realtime token (`transcription.ts`), the notes writer (`notes.ts`, its prompt in `notesPrompt.ts`), the API helpers (`api.ts`).
 - `src/api/contract.ts`: the `/api/v1` contract, every request schema (zod) and response type, importing nothing but zod so the desktop app can import or copy it. The server modules and routes take their schemas and types from it.
 - `src/routes/api/v1/`: the API the Mac helper and the desktop window call. `src/routes/_app/`: the pages behind the sidebar (`_app.tsx`). `src/tools.ts`: the same queries as AI tools.
-- The component library (shadcn on Base UI, from OpenCRM/OpenSEO), the theme, `theme.ts` and `dates.ts` are `../packages/ui`'s, shared with the desktop app: import `@talk/ui/components/<name>`, `@talk/ui/lib/theme`, `@talk/ui/lib/dates`. `src/styles/app.css` imports `@talk/ui/styles.css` and tells Tailwind to scan the shared components. Add a component in `packages/ui/src/components/ui` by copying it from OpenCRM/OpenSEO (web no longer has a shadcn `components.json`: `shadcn add` here would bring the copies back).
+- The component library (shadcn on Base UI, from OpenCRM/OpenSEO), the theme, `theme.ts` and `dates.ts` are `../packages/ui`'s (the Mac app, now in every-app/private-every-app, has its own copy): import `@talk/ui/components/<name>`, `@talk/ui/lib/theme`, `@talk/ui/lib/dates`. `src/styles/app.css` imports `@talk/ui/styles.css` and tells Tailwind to scan the shared components. Add a component in `packages/ui/src/components/ui` by copying it from OpenCRM/OpenSEO (web no longer has a shadcn `components.json`: `shadcn add` here would bring the copies back).
 - `@talk/ui` is a `file:../packages/ui` dependency, not a workspace link: web keeps its own lockfile and stays out of the root workspace. pnpm hard-links the package's files, so edits in `packages/ui` show up at once; if an editor breaks the links (or `packages/ui/package.json` changes), run `pnpm install` here again.
 
 ## Run it
@@ -36,18 +36,9 @@ For the native sign-in e2e run, `package.json` links `@every-app/sdk` and `every
 
 ## The desktop update feed
 
-The desktop app updates from `https://talk.<base>/api/v1/updates/mac` (electron-updater's generic provider; `TALK_UPDATE_URL` in `desktop/electron-builder.config.cjs`), sending the member's bearer token. The route (`src/routes/api/v1/updates.mac.$file.ts`, rules in `src/server/updates.ts`) streams `mac/<file>` from the `updates` R2 bucket, which `pnpm run deploy` creates from `resources.r2` in the manifest. It serves only `latest-mac.yml` and `Talk-<version>[-…].zip`, `.dmg` and their `.blockmap`s.
+The desktop app updates from `https://talk.<base>/api/v1/updates/mac` (electron-updater's generic provider; `EVERYAPP_DESKTOP_UPDATE_URL` when every-app/private-every-app's `apps/desktop` is built), sending the member's bearer token. The route (`src/routes/api/v1/updates.mac.$file.ts`, rules in `src/server/updates.ts`) streams `mac/<file>` from the `updates` R2 bucket, which `pnpm run deploy` creates from `resources.r2` in the manifest. It serves only `latest-mac.yml` and `Talk-<version>[-…].zip`, `.dmg` and their `.blockmap`s.
 
-Publish a release by uploading electron-builder's output from `desktop/dist/` under `mac/`, **`latest-mac.yml` last**, so no client reads a feed that names a file not uploaded yet. The bucket is the one the deploy made for `updates` (locally `every-talk--updates`; check its deployed name under R2 in the Cloudflare dashboard after the first deploy). Wrangler takes objects up to 300 MB:
-
-```sh
-BUCKET=every-talk--updates   # the deployed bucket's name
-V=1.2.3
-for f in Talk-$V-arm64-mac.zip Talk-$V-arm64-mac.zip.blockmap Talk-$V-arm64.dmg Talk-$V-arm64.dmg.blockmap; do
-  npx wrangler@4 r2 object put "$BUCKET/mac/$f" --file "../desktop/dist/$f" --remote
-done
-npx wrangler@4 r2 object put "$BUCKET/mac/latest-mac.yml" --file ../desktop/dist/latest-mac.yml --content-type text/yaml --remote
-```
+Publish a release with `apps/desktop/scripts/release-mac.sh` in every-app/private-every-app: it prints the upload commands for this bucket, **`latest-mac.yml` last**, so no client reads a feed that names a file not uploaded yet (`apps/desktop/docs/release.md` there, "Update feed"). The bucket is the one the deploy made for `updates` (locally `every-talk--updates`; check its deployed name under R2 in the Cloudflare dashboard after the first deploy). Wrangler takes objects up to 300 MB. Releases are now named `EveryApp-<version>-…`, which the route doesn't serve yet: it needs to before a release goes out on this feed.
 
 Release files are cached as immutable, so never re-upload a different file under a name that was published: bump the version. To try the feed against `pnpm dev`, put the objects into the local bucket instead (`--local --persist-to .cloudflare/state` in place of `--remote`; not tried yet, so check the dev state directory if the route answers 404).
 

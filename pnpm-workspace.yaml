@@ -2,8 +2,6 @@
 # `everyapp deploy` from web/) and takes packages/ui as a file: dependency.
 packages:
   - packages/*
-  - desktop
 
 onlyBuiltDependencies:
-  - electron
   - esbuild

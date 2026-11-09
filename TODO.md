@@ -3,8 +3,8 @@
 ## Status for Ben (2026-10-27)
 
 **Works** (updated 2026-11-02, desktop build)
-- Talk desktop (`desktop/`, Electron): built-in UI, sign-in (Every App + token paste), recording through the Swift helper, live notepad + transcript, folders, templates, sharing, search, settings, offline/re-sign-in, logs. Local "Talk Dev" builds verified twice by Codex computer use (docs/ORCHESTRATION.md).
-- Talk helper (`mac/`, Swift): mic + system-audio capture, two-stream Realtime transcription with fallback, echo dedupe, call detection. `mac/scripts/build-helper.sh`. The SwiftUI menu-bar app is retired.
+- The desktop app moved to every-app/private-every-app (`apps/desktop`, Every App for Mac); this line and the next describe it as of 2026-11-02. Talk desktop (Electron): built-in UI, sign-in (Every App + token paste), recording through the Swift helper, live notepad + transcript, folders, templates, sharing, search, settings, offline/re-sign-in, logs. Local "Talk Dev" builds verified twice by Codex computer use (docs/ORCHESTRATION.md).
+- Talk helper (Swift): mic + system-audio capture, two-stream Realtime transcription with fallback, echo dedupe, call detection. `mac/scripts/build-helper.sh`. The SwiftUI menu-bar app is retired.
 - Talk web (`web/`, app id `talk`): D1, the full `/api/v1` (folders, templates, jottings, search, update feed), web UI, public links.
 - Sign in with Every App: #855 is merged on private-every-app and published in 0.3.0-rc.10; Talk is on 0.3.0-rc.14.
 
@@ -20,7 +20,11 @@
 
 ## Desktop app (2026-11-02)
 
-Plan: docs/desktop-plan.md. Decided with Ben: Electron + Swift helper, private alpha on macOS, Every App backend, cloud transcription, built-in UI, notepad + AI notes, calendar + call detection, Granola-calm look, Ben's personal Developer ID, direct download, web overhaul PR first, orchestrator merges.
+Plan: `apps/desktop/docs/desktop-plan.md` in every-app/private-every-app, where the desktop app lives now. Decided with Ben: Electron + Swift helper, private alpha on macOS, Every App backend, cloud transcription, built-in UI, notepad + AI notes, calendar + call detection, Granola-calm look, Ben's personal Developer ID, direct download, web overhaul PR first, orchestrator merges.
+
+**After the move to every-app/private-every-app**
+- The web app's New note / Take notes buttons open `talk://record…` (`web/src/client/lib/talk-link.ts`); the desktop app now answers only `everyapp://scribe/record…` (`everyapp-dev://` for dev builds).
+- The update route (`src/server/updates.ts`) serves only `Talk-*` files; desktop releases are now `EveryApp-<version>-universal-mac.zip` / `.dmg`. Allow those before a release goes out on this feed, or move the feed (private-every-app's `apps/desktop/docs/release.md`, "Update feed").
 
 **Known limits (alpha)**
 - After a Realtime outage, replayed `me` audio goes through /audio-chunk, which stores text directly, so it isn't echo-checked. Fix later with a non-storing transcribe mode on that route.

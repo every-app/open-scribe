@@ -20,8 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       web: ${{ steps.f.outputs.web }}
-      desktop: ${{ steps.f.outputs.desktop }}
-      mac: ${{ steps.f.outputs.mac }}
+      ui: ${{ steps.f.outputs.ui }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -30,8 +29,7 @@ jobs:
           filters: |
             # web depends on packages/ui (a file: dependency, its own lockfile).
             web: ['web/**', 'packages/ui/**', '.github/workflows/ci.yml']
-            desktop: ['desktop/**', 'packages/**', 'pnpm-workspace.yaml', 'package.json', 'pnpm-lock.yaml', '.github/workflows/ci.yml']
-            mac: ['mac/**', '.github/workflows/ci.yml']
+            ui: ['packages/**', 'pnpm-workspace.yaml', 'package.json', 'pnpm-lock.yaml', '.github/workflows/ci.yml']
 
   web:
     needs: changes
@@ -56,37 +54,12 @@ jobs:
       - run: pnpm knip
       - run: pnpm format:check
 
-  desktop:
+  # packages/ui on its own (web/ checks it through its own build too). The Mac app that also
+  # used it moved to every-app/private-every-app (apps/desktop).
+  ui:
     needs: changes
-    if: needs.changes.outputs.desktop == 'true'
+    if: needs.changes.outputs.ui == 'true'
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - id: ws
-        run: test -f pnpm-workspace.yaml && echo "present=true" >> "$GITHUB_OUTPUT" || echo "No root workspace yet; skipping."
-      - if: steps.ws.outputs.present == 'true'
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.34.5
-      - if: steps.ws.outputs.present == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - if: steps.ws.outputs.present == 'true'
-        run: pnpm install --frozen-lockfile
-      - if: steps.ws.outputs.present == 'true'
-        run: pnpm -r --if-present typecheck
-      - if: steps.ws.outputs.present == 'true'
-        run: pnpm -r --if-present test
-
-  # The Electron e2e smoke (desktop/e2e): the built app with the fake helper against a mock
-  # /api/v1, under a virtual display. Screenshots and traces are uploaded when it fails.
-  desktop-e2e:
-    needs: changes
-    if: needs.changes.outputs.desktop == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -97,27 +70,4 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Electron's runtime libraries and a virtual X server (most are on the image already).
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends xvfb libgbm1 libnss3 libasound2t64 libgtk-3-0t64 libxss1
-      - run: pnpm --filter talk-desktop build
-      - run: xvfb-run -a pnpm --filter talk-desktop e2e
-        env:
-          CI: "true"
-      - if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-e2e-results
-          path: desktop/test-results/
-          retention-days: 7
-
-  mac:
-    needs: changes
-    if: needs.changes.outputs.mac == 'true'
-    runs-on: macos-26
-    defaults:
-      run:
-        working-directory: mac
-    steps:
-      - uses: actions/checkout@v4
-      - run: swift build
-      - run: ./scripts/test.sh
+      - run: pnpm -r --if-present typecheck
