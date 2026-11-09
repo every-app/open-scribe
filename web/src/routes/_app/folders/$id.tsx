@@ -57,7 +57,7 @@ export const Route = createFileRoute("/_app/folders/$id")({
     return { folder, meetings, templates };
   },
   head: ({ loaderData }) => ({
-    meta: [{ title: `${loaderData?.folder.name ?? "Folder"} · Talk` }],
+    meta: [{ title: `${loaderData?.folder.name ?? "Folder"} · Scribe` }],
   }),
   component: FolderPage,
 });

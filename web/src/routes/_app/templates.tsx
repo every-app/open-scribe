@@ -50,7 +50,7 @@ import {
 
 export const Route = createFileRoute("/_app/templates")({
   loader: () => listTemplates(),
-  head: () => ({ meta: [{ title: "Templates · Talk" }] }),
+  head: () => ({ meta: [{ title: "Templates · Scribe" }] }),
   component: Templates,
 });
 

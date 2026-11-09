@@ -74,7 +74,7 @@ export const Route = createFileRoute("/_app/meetings/$id")({
     return { meeting, templates: templates.templates };
   },
   head: ({ loaderData }) => ({
-    meta: [{ title: `${loaderData?.meeting.title ?? "Meeting"} · Talk` }],
+    meta: [{ title: `${loaderData?.meeting.title ?? "Meeting"} · Scribe` }],
   }),
   component: MeetingPage,
 });

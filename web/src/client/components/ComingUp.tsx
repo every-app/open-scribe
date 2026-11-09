@@ -8,7 +8,7 @@ import {
   TooltipTrigger,
 } from "@talk/ui/components/tooltip";
 import { groupByDay, timeOfDay } from "@talk/ui/lib/dates";
-import { takeNotesLink } from "@/client/lib/talk-link";
+import { takeNotesLink } from "@/client/lib/mac-app-link";
 import type { ComingUp as ComingUpData } from "@/serverFunctions/home";
 
 type Event = Extract<ComingUpData, { state: "ok" }>["events"][number];

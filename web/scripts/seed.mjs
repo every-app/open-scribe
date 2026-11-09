@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Fill the LOCAL database `everyapp dev` uses with realistic Talk data, so
+// Fill the LOCAL database `everyapp dev` uses with realistic Scribe data, so
 // the desktop app and a tester have something to show: meetings with
 // transcripts, notes and jottings, folders, templates, a live recording, a
 // teammate's shared meeting, a share link.
@@ -249,7 +249,7 @@ meeting({
     "Okay, let's start with the permissions screen. Right now we ask for the mic and system audio on two separate pages.",
     "them: I'd merge them. People bail on the second prompt; we saw a 30 percent drop in the last test.",
     "Agreed. Can we explain system audio in one sentence?",
-    "them: Something like: Talk hears the other side of the call, never anything else.",
+    "them: Something like: Scribe hears the other side of the call, never anything else.",
   ],
   jottings:
     "## Permissions\n- merge mic + system audio into one screen\n- 30% drop on 2nd prompt (Priya)\n- one-line explainer for system audio\n\n## Sign-in\n- ",
@@ -447,7 +447,7 @@ meeting({
   lines: [
     "What are you using for meeting notes today?",
     "them: A mix. Some people use a bot that joins the call, which our customers hate.",
-    "Talk never joins the call; it records on your Mac.",
+    "Scribe never joins the call; it records on your Mac.",
     "them: That's the main reason I took this meeting. We'd need SSO, though.",
   ],
   notes: `## About them
@@ -522,7 +522,7 @@ const script = [...reset, ...sql].join("\n") + "\n";
 if (process.argv.includes("--print")) {
   process.stdout.write(script);
 } else {
-  const dir = mkdtempSync(join(tmpdir(), "talk-seed-"));
+  const dir = mkdtempSync(join(tmpdir(), "scribe-seed-"));
   const file = join(dir, "seed.sql");
   writeFileSync(file, script);
   const run = (args) =>

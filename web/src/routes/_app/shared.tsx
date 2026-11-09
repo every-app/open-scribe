@@ -13,7 +13,7 @@ import { listMeetings } from "@/serverFunctions/meetings";
 
 export const Route = createFileRoute("/_app/shared")({
   loader: () => listMeetings({ data: { shared: true } }),
-  head: () => ({ meta: [{ title: "Shared with me · Talk" }] }),
+  head: () => ({ meta: [{ title: "Shared with me · Scribe" }] }),
   component: Shared,
 });
 

@@ -12,7 +12,8 @@ const PART = String.raw`-[0-9A-Za-z]{1,32}(?:\.[0-9A-Za-z]{1,32})*`;
 
 /**
  * The only names served: `latest-mac.yml`, and `Talk-<version>[-…].zip`,
- * `.dmg`, and their `.blockmap`s. No `/`, no `..`, nothing else.
+ * `.dmg`, and their `.blockmap`s. `Talk-` is the old desktop app's release name;
+ * Every App for Mac releases are `EveryApp-…` (TODO.md, "After the move"). No `/`, no `..`, nothing else.
  */
 const RELEASE_FILE = new RegExp(
   String.raw`^Talk-${VERSION}(?:${PART}){0,4}\.(?:zip|dmg)(?:\.blockmap)?$`,

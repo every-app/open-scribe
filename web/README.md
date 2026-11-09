@@ -1,6 +1,6 @@
-# Talk web
+# OpenScribe web
 
-The Every App side of Talk: a private web app on Cloudflare behind your Gateway. It holds meetings, transcripts, notes, folders, templates and share links in D1, serves the API the Mac app calls (`/api/v1`, see `../docs/SPEC.md`), and is Talk's main window: a sidebar of folders, the coming week's meetings, the notes.
+The Every App side of OpenScribe (called Scribe in the product): a private web app on Cloudflare behind your Gateway. It holds meetings, transcripts, notes, folders, templates and share links in D1, serves the API the Mac app calls (`/api/v1`, see `../docs/SPEC.md`), and is Scribe's main window: a sidebar of folders, the coming week's meetings, the notes.
 
 - `everyapp.config.ts`: the manifest. OpenAI through the Gateway (plus the Realtime client-secret route the operator allows with `AI_PROXY_EXTRA_ROUTES`), Google Calendar through the Gateway's `google-workspace` client (`calendar.readonly`, an optional feature), one public route for shared pages and the desktop app's bearer route (`/api/v1/**`).
 - `src/server/`: the queries (`meetings.ts`, `folders.ts`, `templates.ts`, `settings.ts`, who sees what in `access.ts`), Google Calendar (`calendar.ts`), the Realtime token (`transcription.ts`), the notes writer (`notes.ts`, its prompt in `notesPrompt.ts`), the API helpers (`api.ts`).
@@ -44,4 +44,4 @@ Release files are cached as immutable, so never re-upload a different file under
 
 ## Put it online
 
-`pnpm run deploy`, then `pnpm everyapp configure talk` for what the Gateway lacks (`OPENAI_API_KEY`, `AI_PROXY_EXTRA_ROUTES=/v1/realtime/client_secrets`, the Google client).
+`pnpm run deploy`, then `pnpm everyapp configure talk` (the app id is still `talk`, see `everyapp.config.ts`) for what the Gateway lacks (`OPENAI_API_KEY`, `AI_PROXY_EXTRA_ROUTES=/v1/realtime/client_secrets`, the Google client).

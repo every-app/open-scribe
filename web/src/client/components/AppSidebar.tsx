@@ -151,7 +151,7 @@ export function AppSidebar({
           onClick={() => setOpenMobile(false)}
           className="truncate px-1 pb-2 text-base font-semibold text-sidebar-foreground"
         >
-          Talk
+          Scribe
         </Link>
       </SidebarHeader>
 

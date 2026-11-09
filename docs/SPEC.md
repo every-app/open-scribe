@@ -1,6 +1,8 @@
-# Talk spec (v1)
+# OpenScribe spec (v1)
 
-A meeting recorder for Every App: a macOS desktop app records a meeting, transcribes it live, and a web app turns the transcript into notes that stay private unless you share them.
+A meeting recorder for Every App: a macOS desktop app records a meeting, transcribes it live, and a web app turns the transcript into notes that stay private unless you share them. The project is OpenScribe; the product is called Scribe.
+
+Kept from the old name, Talk: the hosted app id `talk` (so `talk.<base>` URLs, the D1 database and the `every-talk--updates` bucket) until the Every App gateway can rename an app, and the `@talk/ui` package name. The desktop and helper sections below describe the Mac app as it was before it moved to every-app/private-every-app.
 
 ## Architecture
 
@@ -36,7 +38,7 @@ OpenAI (Realtime, chat) ──(key)─┤
 
 ## How the Mac app signs in: Sign in with Every App
 
-The person types the **app URL**, the one they use in the browser (`https://talk.<base>`). The Mac app signs in through the Gateway as an OAuth public client and gets a token bound to this one app. The platform side is `docs/design/native-sign-in.md` on private-every-app's `feature/native-sign-in` branch; this is Talk's side of it.
+The person types the **app URL**, the one they use in the browser (`https://talk.<base>`). The Mac app signs in through the Gateway as an OAuth public client and gets a token bound to this one app. The platform side is `docs/design/native-sign-in.md` on private-every-app's `feature/native-sign-in` branch; this is Scribe's side of it.
 
 The flow (RFC 8252 native app, PKCE, no scope):
 
@@ -47,13 +49,13 @@ The flow (RFC 8252 native app, PKCE, no scope):
 5. **Call** `https://talk.<base>/api/v1/...` with `Authorization: Bearer <access token>`. The perimeter checks the audience is this host, re-reads the connection, and mints the usual identity: `chan: "api"`, `act.sub: "oauth:<id>"`, `scopes: ["*"]`. The app sees the member who consented. Refresh before expiry or on a 401; `invalid_grant` means sign in again.
 6. **Sign out** revokes the refresh token. The person can also revoke it under Settings → Connections; removal, deactivation and 30 idle days end it too.
 
-Talk's Worker changes nothing for this: its routes read the person with the SDK, so a PAT today and the native token later look the same. The API is plain route files under `/api/v1`, not server functions, because the Gateway admits only same-origin `fetch` to `/_serverFn/*`.
+Scribe's Worker changes nothing for this: its routes read the person with the SDK, so a PAT today and the native token later look the same. The API is plain route files under `/api/v1`, not server functions, because the Gateway admits only same-origin `fetch` to `/_serverFn/*`.
 
 **Bearer routes.** Behind Cloudflare Access a bearer-only call gets Access's HTML login unless the app's manifest lists them as a bearer route, `public: [{ path: "/api/v1/**", bearer: true }]` (it was `bearerRoutes` before everyapp 0.3.0-rc.13); `everyapp access on` then bypasses them on the apps' Access application and the perimeter still demands the token. On those paths a session cookie is refused (401), so the bypass opens nothing to a browser: Talk's web UI uses server functions only, and the public `/s/:token` page and every page are outside `/api/v1/**`.
 
 **Development.** `everyapp dev` runs in stub mode (any bearer is the dev user); mirror mode for native tokens is deferred, so the real token is tested against a deployed Gateway.
 
-**Fallback that works today:** a **personal access token** (Manage workspace → Tokens → New token, Full access, bound to Talk) pasted into the Mac app and sent as `Authorization: Bearer epat_…`. Behind Access it still needs the same bearer-route bypass, and only owners and admins can make one.
+**Fallback that works today:** a **personal access token** (Manage workspace → Tokens → New token, Full access, bound to Scribe) pasted into the Mac app and sent as `Authorization: Bearer epat_…`. Behind Access it still needs the same bearer-route bypass, and only owners and admins can make one.
 
 ## Data model (D1)
 
@@ -122,7 +124,7 @@ The main window, built with the component library OpenCRM and OpenSEO use (shadc
 - **Meeting:** an editable title; chips for Notes/Transcript, date and guests, folders (tick to file or unfile) and the template (pick another to rewrite the notes); **Share** (team on/off, public links); delete.
 - **Templates:** the built-ins and the team's and your own; new, edit, duplicate, delete, make default.
 - **Settings:** account, Google Calendar, the Mac app's sign-in, the default template, light/dark.
-- **New note** (top right) and the Start now / Take notes buttons open `talk://record…`, so the Mac app takes the notes; the browser never records.
+- **New note** (top right) and the Start now / Take notes buttons open `everyapp://scribe/record…`, so the Mac app takes the notes; the browser never records.
 
 ## Folders
 
@@ -147,11 +149,11 @@ When the notes are written the template is pinned on the meeting, so a later cha
 
 1. Every 5 minutes, and on wake, the Mac app asks `/api/v1/calendar/upcoming`. The Worker calls `https://www.googleapis.com/calendar/v3/calendars/primary/events` with `integrationFetch({ provider: "google-workspace" })`; the Gateway puts the person's token on it. Not connected → the Mac app shows "Connect Google Calendar", which opens `connectUrl()` in the browser.
 2. For each event that has other attendees or a conference link, it schedules a local notification (`UNUserNotificationCenter`) for one minute before the start: "Starts at 2:00 PM. Join and take notes?", with **Join & Take Notes** (when there's a call link: opens it and records) and **Take Notes**. Clicking the notification does the first.
-3. If a meeting has started and Talk isn't taking notes, a second notification asks again ("… started. Take notes?") within its first minutes, once per meeting. A meeting Talk is already taking notes for gets neither.
+3. If a meeting has started and Scribe isn't taking notes, a second notification asks again ("… started. Take notes?") within its first minutes, once per meeting. A meeting Scribe is already taking notes for gets neither.
 4. Take Notes creates the meeting (with the event's guests) and starts capture. The menu-bar icon turns red. The menu shows the live transcript's last line and a Stop item.
-5. `talk://record` (from the web app) takes notes now; `talk://record?event=<id>&title=…&start=…[&join=1]` takes notes for that event. Any web page can open such a link, so the Mac app starts at once only for an event in its own calendar list, and asks first otherwise.
+5. `everyapp://scribe/record` (from the web app) takes notes now; `everyapp://scribe/record?event=<id>&title=…&start=…[&join=1]` takes notes for that event. Any web page can open such a link, so the Mac app starts at once only for an event in its own calendar list, and asks first otherwise.
 
-Google Calendar is read-only through the Gateway's `google-workspace` client, scope `calendar.readonly`. The manifest declares exactly that scope, in an optional feature (`features.calendar`), so Talk opens without Google.
+Google Calendar is read-only through the Gateway's `google-workspace` client, scope `calendar.readonly`. The manifest declares exactly that scope, in an optional feature (`features.calendar`), so Scribe opens without Google.
 
 ## Live transcription
 
@@ -168,7 +170,7 @@ Google Calendar is read-only through the Gateway's `google-workspace` client, sc
 ## Sharing and visibility
 
 - **Private** (default): the owner alone.
-- **Team**: every member of the workspace who can open Talk (`org_id`). Filing a meeting in a team folder makes it team too. The Gateway's groups decide who can open the app, but an app can't read groups (the SDK has `listMembers()` only), so a finer unit than the workspace is a platform gap.
+- **Team**: every member of the workspace who can open Scribe (`org_id`). Filing a meeting in a team folder makes it team too. The Gateway's groups decide who can open the app, but an app can't read groups (the SDK has `listMembers()` only), so a finer unit than the workspace is a platform gap.
 - **Public link**: an unguessable token, `https://talk.<base>/s/<token>`, read-only notes and transcript, `noindex`. Revoke deletes access at once; a meeting can have several links. Who can open an app host's public route is Access's business too: `public` routes are let through.
 - **Later**: private sharing by email with a one-time code to people outside the workspace.
 

@@ -3,10 +3,13 @@ import { defineEveryApp } from "@every-app/sdk";
 // defineEveryApp types the manifest; the Worker reads it back as
 // env.EVERYAPP_MANIFEST.
 export default defineEveryApp({
+  // Still "talk", the app's old name: changing the id would make new D1/R2
+  // resources and a new URL. It becomes "scribe" once the Every App gateway
+  // can rename an app in place.
   id: "talk",
-  name: "Talk",
+  name: "Scribe",
   description:
-    "Records meetings from the menu bar, transcribes them live and writes the notes.",
+    "AI meeting notes: records meetings from your Mac, transcribes them live and writes the notes.",
   // Every member of the workspace can open it; notes are private by default.
   access: "everyone",
   resources: {
@@ -57,7 +60,7 @@ export default defineEveryApp({
     },
   },
   // A capability at the top level is required (the app stays closed until
-  // it's set up); in an optional feature it isn't. Talk opens without
+  // it's set up); in an optional feature it isn't. Scribe opens without
   // Google; only the calendar reminders need it.
   features: {
     calendar: {

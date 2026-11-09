@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_app/settings")({
     ]);
     return { account, templates };
   },
-  head: () => ({ meta: [{ title: "Settings · Talk" }] }),
+  head: () => ({ meta: [{ title: "Settings · Scribe" }] }),
   component: Settings,
 });
 
@@ -69,7 +69,7 @@ function Settings() {
 
         <Section
           title="Google Calendar"
-          description="Shows your upcoming meetings, and lets Talk for Mac remind you to take notes."
+          description="Shows your upcoming meetings, and lets the Mac app remind you to take notes."
         >
           {!calendar.available ? (
             <p className="text-sm text-muted-foreground">
@@ -90,11 +90,11 @@ function Settings() {
         </Section>
 
         <Section
-          title="Talk for Mac"
+          title="Mac app"
           description="The Mac app takes the notes: it sits in the menu bar, reminds you when a meeting starts, and transcribes it."
         >
           <p className="text-sm">
-            In Talk for Mac, enter this address and choose Sign in with Every
+            In the Mac app, enter this address and choose Sign in with Every
             App:
           </p>
           <code className="self-start rounded bg-muted px-2 py-1 text-sm">

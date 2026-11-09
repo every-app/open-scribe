@@ -1,4 +1,4 @@
-# Talk orchestration log (OpenZen until 2026-11-01)
+# OpenScribe orchestration log (OpenZen until 2026-11-01, Talk until 2026-11-07)
 
 The orchestrator is thread mcp:404aa580-ddb5-41b7-ba61-a5540bfdbe7b. Times are UTC (2026-10-27).
 
@@ -135,3 +135,7 @@ Orchestrator: mcp:launch:87564971a0403ed6f99025d2adab876c09b7fbec4c0557d5186d327
 - #53 merged (Coming up refresh on reconnect). #54 (helper saves final in-progress turn on stop, 3 s wait) in CI.
 - #54 merged (helper keeps the final turn on Stop). No open PRs. Agent-side alpha work complete; M4 waits on Ben (Developer ID, R2 bucket + deploy, live test go-ahead, ⌃⌥⌘R by hand, selftest).
 - #55 merged (fake helper finalizes open turn on stop). 55 PRs merged; none open.
+
+## Renamed to Scribe / OpenScribe (2026-11-07)
+
+- Ben renamed the product: **OpenScribe** is the open-source project (README, repo, package names, docs), **Scribe** is the name in the product UI. Repo renamed every-app/private-talk → every-app/private-open-scribe. Kept as `talk` until later: the hosted app id (and its D1 database, the `every-talk--updates` bucket and the talk.<domain> URL) until the Every App gateway can rename an app; the `@talk/ui` package name. The desktop app moved to private-every-app (#65), and the web app's take-notes links now open `everyapp://scribe/record`. Older entries keep the old names.

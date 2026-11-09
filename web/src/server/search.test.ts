@@ -284,7 +284,7 @@ describe("GET /api/v1/search", () => {
 describe("the search migration", () => {
   it("backfills meetings that existed before it", async () => {
     // Apply the migrations before 0004, write rows, then apply the rest.
-    const dir = mkdtempSync(join(tmpdir(), "talk-migrations-"));
+    const dir = mkdtempSync(join(tmpdir(), "scribe-migrations-"));
     cpSync(migrationsFolder, dir, { recursive: true });
     const journalPath = join(dir, "meta", "_journal.json");
     const journal = JSON.parse(readFileSync(journalPath, "utf8"));

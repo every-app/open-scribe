@@ -1,5 +1,8 @@
 # @talk/ui
 
+OpenScribe's shared UI. The package keeps its old name for now; renaming it
+means touching every import in `web/`.
+
 The component library (shadcn on Base UI), `lib/theme.ts`, `lib/dates.ts` and
 the theme (`src/styles/app.css`) that `web/` uses: web imports
 `@talk/ui/components/<name>`, `@talk/ui/lib/theme`, `@talk/ui/lib/dates` and

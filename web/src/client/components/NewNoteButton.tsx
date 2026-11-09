@@ -1,9 +1,9 @@
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@talk/ui/components/button";
-import { takeNotesLink } from "@/client/lib/talk-link";
+import { takeNotesLink } from "@/client/lib/mac-app-link";
 
-/** Starts notes now in Talk for Mac. */
+/** Starts notes now in the Mac app. */
 export function NewNoteButton() {
   return (
     <Button
@@ -12,7 +12,7 @@ export function NewNoteButton() {
       nativeButton={false}
       render={<a href={takeNotesLink()} />}
       onClick={() =>
-        toast("Opening Talk for Mac…", {
+        toast("Opening the Mac app…", {
           description: "Nothing happened? Set up the Mac app in Settings.",
         })
       }

@@ -21,7 +21,7 @@ export const Route = createFileRoute("/_app/")({
     ]);
     return { comingUp, meetings };
   },
-  head: () => ({ meta: [{ title: "Talk" }] }),
+  head: () => ({ meta: [{ title: "Scribe" }] }),
   component: Home,
 });
 
@@ -38,7 +38,7 @@ function Home() {
             </EmptyMedia>
             <EmptyTitle>No notes yet</EmptyTitle>
             <EmptyDescription>
-              Take notes from Talk for Mac, or press Start now on a meeting
+              Take notes from the Mac app, or press Start now on a meeting
               above. They show up here when the meeting ends.
             </EmptyDescription>
           </EmptyHeader>

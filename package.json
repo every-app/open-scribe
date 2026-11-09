@@ -1,5 +1,5 @@
 {
-  "name": "talk",
+  "name": "open-scribe",
   "private": true,
   "packageManager": "pnpm@10.34.5",
   "scripts": {
