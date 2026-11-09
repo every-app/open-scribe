@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@every-app/sdk':
-        specifier: ^0.3.0-rc.14
-        version: 0.3.0-rc.14(@tanstack/react-start@1.168.61(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rollup@4.65.1)(vite@7.3.7(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))
+        specifier: 0.3.0
+        version: 0.3.0(@tanstack/react-start@1.168.61(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rollup@4.65.1)(vite@7.3.7(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))
       '@talk/ui':
         specifier: file:../packages/ui
         version: file:../packages/ui(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -82,8 +82,8 @@ importers:
         specifier: ^0.31.11
         version: 0.31.11
       everyapp:
-        specifier: ^0.3.0-rc.14
-        version: 0.3.0-rc.14(@types/node@22.20.5)
+        specifier: 0.3.0
+        version: 0.3.0(@types/node@22.20.5)
       knip:
         specifier: ^5.66.4
         version: 5.88.1(@types/node@22.20.5)(typescript@5.9.3)
@@ -828,8 +828,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@every-app/sdk@0.3.0-rc.14':
-    resolution: {integrity: sha512-k0YKXi3XopWX5QTm/Ejopra4XpBGsz99HVUz8EGsIMGxzEXeJqlTubjXqDwSlYyEDZgIS+99/yT+2nG6HNZ0NQ==}
+  '@every-app/sdk@0.3.0':
+    resolution: {integrity: sha512-TvVkVsBk7+fZXesnjENoxFx+ZlmyINwrrM6xRUxSXt46ZCi5QWylPu5pjWlx2Ufn89RGdVDy+tWbOKJ/w3VjJw==}
     peerDependencies:
       '@tanstack/react-start': ^1.168.61
     peerDependenciesMeta:
@@ -2259,8 +2259,8 @@ packages:
   estree-walker@3.0.3:
     resolution: {integrity: sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g==}
 
-  everyapp@0.3.0-rc.14:
-    resolution: {integrity: sha512-OZPDhXc4K6DsEsF6m0SXNMKC14Qr1YV9karPmOBwk5woOpZrbSAbx2LB2TvmvRRxklGAqOtJAK7LtfhPPDMV5w==}
+  everyapp@0.3.0:
+    resolution: {integrity: sha512-dyfs9+NP1USZZoPkSyQiT17KeG+Y0kk7A2AHHMepPt1mh3lMpAn/VzeTHt8bE7GcBRXNcVR9oBBtJ+iR821Z+w==}
     engines: {node: '>=22.18.0'}
     hasBin: true
 
@@ -4051,7 +4051,7 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@every-app/sdk@0.3.0-rc.14(@tanstack/react-start@1.168.61(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rollup@4.65.1)(vite@7.3.7(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))':
+  '@every-app/sdk@0.3.0(@tanstack/react-start@1.168.61(esbuild@0.28.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(rollup@4.65.1)(vite@7.3.7(@types/node@22.20.5)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.15)(yaml@2.9.1)))':
     dependencies:
       jose: 6.2.13
     optionalDependencies:
@@ -5354,7 +5354,7 @@ snapshots:
     dependencies:
       '@types/estree': 1.0.9
 
-  everyapp@0.3.0-rc.14(@types/node@22.20.5):
+  everyapp@0.3.0(@types/node@22.20.5):
     dependencies:
       '@cloudflare/config': 0.24.1
       '@inquirer/prompts': 8.7.5(@types/node@22.20.5)
