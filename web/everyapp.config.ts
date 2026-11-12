@@ -10,6 +10,10 @@ export default defineEveryApp({
   name: "Scribe",
   description:
     "AI meeting notes: records meetings from your Mac, transcribes them live and writes the notes.",
+  // Launcher tile (public/everyapp-icon.svg), same icon set as the other
+  // Every App apps. The launcher loads it as a signed-in member, so it needs
+  // no publicAssets entry.
+  icon: "/everyapp-icon.svg",
   // Every member of the workspace can open it; notes are private by default.
   access: "everyone",
   resources: {
