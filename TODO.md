@@ -5,7 +5,7 @@
 **Works** (updated 2026-11-02, desktop build)
 - The desktop app moved to every-app/every-app (`apps/desktop`, Every App for Mac); this line and the next describe it as of 2026-11-02. Talk desktop (Electron): built-in UI, sign-in (Every App + token paste), recording through the Swift helper, live notepad + transcript, folders, templates, sharing, search, settings, offline/re-sign-in, logs. Local "Talk Dev" builds verified twice by Codex computer use.
 - Talk helper (Swift): mic + system-audio capture, two-stream Realtime transcription with fallback, echo dedupe, call detection. `mac/scripts/build-helper.sh`. The SwiftUI menu-bar app is retired.
-- Scribe web (`web/`, app id still `talk`): D1, the full `/api/v1` (folders, templates, jottings, search, update feed), web UI, public links.
+- Scribe web (`web/`, app id `scribe`, `previousIds: ["talk"]`): D1, the full `/api/v1` (folders, templates, jottings, search, update feed), web UI, public links.
 - Sign in with Every App: #855 is merged on private-every-app and published in 0.3.0-rc.10; Scribe is on 0.3.0-rc.14.
 
 **Not verified**

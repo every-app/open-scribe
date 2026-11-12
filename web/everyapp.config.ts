@@ -3,10 +3,13 @@ import { defineEveryApp } from "@every-app/sdk";
 // defineEveryApp types the manifest; the Worker reads it back as
 // env.EVERYAPP_MANIFEST.
 export default defineEveryApp({
-  // Still "talk", the app's old name: changing the id would make new D1/R2
-  // resources and a new URL. It becomes "scribe" once the Every App gateway
-  // can rename an app in place.
-  id: "talk",
+  // The app was "talk" until 2026-11. previousIds makes the deploy rename the
+  // registered app in place: same Worker (every-<org>-talk), same D1 and R2,
+  // and talk.<base> keeps working (page loads redirect here; the desktop
+  // app's bearer calls are served there). Removing "talk" stops serving that
+  // hostname and signs out desktop apps that signed in on it.
+  id: "scribe",
+  previousIds: ["talk"],
   name: "Scribe",
   description:
     "AI meeting notes: records meetings from your Mac, transcribes them live and writes the notes.",
@@ -24,7 +27,8 @@ export default defineEveryApp({
     // purpose: in everyapp 0.3.0-rc.14 a production build names the bucket
     // "every-hosted--sentinel--<binding>" until deploy rewrites it, and
     // Cloudflare refuses capitals in a bucket name. The real bucket is
-    // every-talk--updates either way.
+    // every-talk--updates either way (resources are named after the Worker,
+    // which keeps its first name through the rename to "scribe").
     r2: ["updates"],
   },
   // A shared meeting page: anyone with the unguessable link reads it. The

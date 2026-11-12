@@ -84,10 +84,13 @@ function fetchFile(
   if (init.signedIn !== false) headers.set("x-test-user", "alice");
   if (init.range) headers.set("range", init.range);
   const method = init.method ?? "GET";
-  const request = new Request(`https://talk.test/api/v1/updates/mac/${file}`, {
-    method,
-    headers,
-  });
+  const request = new Request(
+    `https://scribe.test/api/v1/updates/mac/${file}`,
+    {
+      method,
+      headers,
+    },
+  );
   return route.options.server.handlers[method]!({ request, params: { file } });
 }
 

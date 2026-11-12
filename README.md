@@ -14,7 +14,7 @@ You need an Every App Gateway on your Cloudflare account ([everyapp.com/docs/gat
 npm install -g everyapp
 everyapp setup            # once, if you have no Gateway yet
 everyapp install https://github.com/every-app/open-scribe
-everyapp configure talk   # asks for what Scribe needs (the app id is still `talk`)
+everyapp configure scribe # asks for what Scribe needs
 ```
 
 - `OPENAI_API_KEY`: transcribes the meeting and writes the notes.
@@ -25,7 +25,7 @@ Meetings are recorded by Every App for Mac, whose source is in [every-app/every-
 
 ## What's here
 
-- `web/`: the Scribe web app (its app id is still `talk`, see `web/everyapp.config.ts`): upcoming meetings, folders, notes, templates, the shared pages, and the `/api/v1` the Mac app calls. [web/README.md](web/README.md) has the details.
+- `web/`: the Scribe web app (app id `scribe`; it was `talk`, see `previousIds` in `web/everyapp.config.ts`): upcoming meetings, folders, notes, templates, the shared pages, and the `/api/v1` the Mac app calls. [web/README.md](web/README.md) has the details.
 - `packages/ui`: the component library and theme `web/` uses.
 - [docs/SPEC.md](docs/SPEC.md): the architecture, data model, API, folders, templates, reminders, sign-in, sharing and permissions.
 - [TODO.md](TODO.md): the working notes: decisions made and questions still open.
@@ -36,7 +36,7 @@ From `web/`:
 
 ```sh
 pnpm install
-pnpm dev          # http://talk.localhost:8787 (the URL follows the app id), signed in as a test user
+pnpm dev          # http://scribe.localhost:8787 (the URL follows the app id), signed in as a test user
 pnpm test
 ```
 

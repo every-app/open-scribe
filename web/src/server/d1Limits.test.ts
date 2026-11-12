@@ -101,7 +101,7 @@ const segments = (count: number, from = 0) =>
 
 function post(id: string, body: unknown) {
   return segmentsRoute.options.server.handlers.POST({
-    request: new Request(`https://talk.test/api/v1/meetings/${id}/segments`, {
+    request: new Request(`https://scribe.test/api/v1/meetings/${id}/segments`, {
       method: "POST",
       headers: { "content-type": "application/json", "x-test-user": "alice" },
       body: JSON.stringify(body),

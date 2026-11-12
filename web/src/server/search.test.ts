@@ -248,7 +248,7 @@ describe("search", () => {
 describe("GET /api/v1/search", () => {
   const get = (query: string, signedIn = true) =>
     searchRoute.options.server.handlers.GET({
-      request: new Request(`https://talk.test/api/v1/search${query}`, {
+      request: new Request(`https://scribe.test/api/v1/search${query}`, {
         headers: signedIn ? { "x-test-user": "alice" } : {},
       }),
       params: {},

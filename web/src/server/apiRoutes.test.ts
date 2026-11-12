@@ -75,11 +75,14 @@ async function call(
   if (!handler) throw new Error(`no ${method} handler`);
   const headers = new Headers({ "content-type": "application/json" });
   if (who) headers.set("x-test-user", who);
-  const request = new Request(`https://talk.test/api/v1/x${opts.query ?? ""}`, {
-    method,
-    headers,
-    body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
-  });
+  const request = new Request(
+    `https://scribe.test/api/v1/x${opts.query ?? ""}`,
+    {
+      method,
+      headers,
+      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+    },
+  );
   const response = await handler({ request, params: opts.params ?? {} });
   return {
     status: response.status,

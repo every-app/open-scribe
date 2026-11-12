@@ -13,7 +13,7 @@ The Every App side of OpenScribe (called Scribe in the product): a private web a
 
 ```sh
 pnpm install
-pnpm dev          # http://talk.localhost:8787, signed in as a test user
+pnpm dev          # http://scribe.localhost:8787, signed in as a test user
 pnpm test
 pnpm types:check
 ```
@@ -25,19 +25,23 @@ pnpm types:check
 ```sh
 pnpm seed
 pnpm dev
-curl -H "authorization: Bearer dev" "http://talk.localhost:8787/api/v1/meetings?limit=5"
+curl -H "authorization: Bearer dev" "http://scribe.localhost:8787/api/v1/meetings?limit=5"
 ```
 
 Add `OPENAI_API_KEY=…` to `.dev.vars` to mint transcription tokens and write notes locally; `GOOGLE_WORKSPACE_ACCESS_TOKEN=…` stands in for a Google connection.
 
 ## The desktop update feed
 
-The desktop app updates from `https://talk.<base>/api/v1/updates/mac` (electron-updater's generic provider; `EVERYAPP_DESKTOP_UPDATE_URL` when every-app/every-app's `apps/desktop` is built), sending the member's bearer token. The route (`src/routes/api/v1/updates.mac.$file.ts`, rules in `src/server/updates.ts`) streams `mac/<file>` from the `updates` R2 bucket, which `pnpm run deploy` creates from `resources.r2` in the manifest. It serves only `latest-mac.yml` and `Talk-<version>[-…].zip`, `.dmg` and their `.blockmap`s.
+The desktop app updates from `https://talk.<base>/api/v1/updates/mac` (the app's previous hostname, which the Gateway keeps serving to bearer calls; `https://scribe.<base>/api/v1/updates/mac` is the same feed) (electron-updater's generic provider; `EVERYAPP_DESKTOP_UPDATE_URL` when every-app/every-app's `apps/desktop` is built), sending the member's bearer token. The route (`src/routes/api/v1/updates.mac.$file.ts`, rules in `src/server/updates.ts`) streams `mac/<file>` from the `updates` R2 bucket, which `pnpm run deploy` creates from `resources.r2` in the manifest. It serves only `latest-mac.yml` and `Talk-<version>[-…].zip`, `.dmg` and their `.blockmap`s.
 
-Publish a release with `apps/desktop/scripts/release-mac.sh` in every-app/every-app: it prints the upload commands for this bucket, **`latest-mac.yml` last**, so no client reads a feed that names a file not uploaded yet (`apps/desktop/docs/release.md` there, "Update feed"). The bucket is the one the deploy made for `updates` (locally `every-talk--updates`; check its deployed name under R2 in the Cloudflare dashboard after the first deploy). Wrangler takes objects up to 300 MB. Releases are now named `EveryApp-<version>-…`, which the route doesn't serve yet: it needs to before a release goes out on this feed.
+Publish a release with `apps/desktop/scripts/release-mac.sh` in every-app/every-app: it prints the upload commands for this bucket, **`latest-mac.yml` last**, so no client reads a feed that names a file not uploaded yet (`apps/desktop/docs/release.md` there, "Update feed"). The bucket is the one the deploy made for `updates` (locally `every-talk--updates`; deployed, it is named after the Worker, which is still `every-<org>-talk`: check under R2 in the Cloudflare dashboard). Wrangler takes objects up to 300 MB. Releases are now named `EveryApp-<version>-…`, which the route doesn't serve yet: it needs to before a release goes out on this feed.
 
 Release files are cached as immutable, so never re-upload a different file under a name that was published: bump the version. To try the feed against `pnpm dev`, put the objects into the local bucket instead (`--local --persist-to .cloudflare/state` in place of `--remote`; not tried yet, so check the dev state directory if the route answers 404).
 
 ## Put it online
 
-From a clone: `pnpm run deploy`, then `pnpm everyapp configure talk` (the app id is still `talk`, see `everyapp.config.ts`) for what the Gateway lacks (`OPENAI_API_KEY`, `AI_PROXY_EXTRA_ROUTES=/v1/realtime/client_secrets`, the Google client). Without a clone, `everyapp install https://github.com/every-app/open-scribe` installs the latest release (the root README).
+From a clone: `pnpm run deploy`, then `pnpm everyapp configure scribe` for what the Gateway lacks (`OPENAI_API_KEY`, `AI_PROXY_EXTRA_ROUTES=/v1/realtime/client_secrets`, the Google client). Without a clone, `everyapp install https://github.com/every-app/open-scribe` installs the latest release (the root README).
+
+### The app id was `talk`
+
+`everyapp.config.ts` has `id: "scribe", previousIds: ["talk"]`. On a Gateway where the app is registered as `talk`, the next deploy shows a rename plan and asks; it moves the same app (Worker, D1, R2, grants, tokens) to `scribe.<base>`, and `talk.<base>` keeps working: page loads and `/s/<token>` links redirect (308), bearer calls from the desktop app are served there. Its AI tools become `scribe_*`. Locally, `pnpm dev` starts an empty database under the new id: run `pnpm seed` again. A Gateway that never had `talk` refuses the manifest as it is (`PREVIOUS_ID_UNKNOWN`: with `previousIds`, everyapp 0.3.0 renames an existing app and never creates one), from a clone and from a release alike. There, remove `previousIds` to deploy `scribe` as a new app.
