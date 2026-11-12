@@ -38,7 +38,12 @@ export default defineEveryApp({
   // The built CSS and JavaScript (and icons) that page loads; without them an outsider
   // gets it unstyled and it never hydrates. Only static files: the Gateway
   // forwards these with no identity and the Worker answers nothing else.
-  publicAssets: ["/assets/**", "/favicon.ico", "/apple-touch-icon.png"],
+  publicAssets: [
+    "/assets/**",
+    "/favicon.svg",
+    "/favicon.ico",
+    "/apple-touch-icon.png",
+  ],
   providers: [
     {
       id: "openai",
