@@ -3,7 +3,7 @@
 ## Status for Ben (2026-10-27)
 
 **Works** (updated 2026-11-02, desktop build)
-- The desktop app moved to every-app/private-every-app (`apps/desktop`, Every App for Mac); this line and the next describe it as of 2026-11-02. Talk desktop (Electron): built-in UI, sign-in (Every App + token paste), recording through the Swift helper, live notepad + transcript, folders, templates, sharing, search, settings, offline/re-sign-in, logs. Local "Talk Dev" builds verified twice by Codex computer use (docs/ORCHESTRATION.md).
+- The desktop app moved to every-app/every-app (`apps/desktop`, Every App for Mac); this line and the next describe it as of 2026-11-02. Talk desktop (Electron): built-in UI, sign-in (Every App + token paste), recording through the Swift helper, live notepad + transcript, folders, templates, sharing, search, settings, offline/re-sign-in, logs. Local "Talk Dev" builds verified twice by Codex computer use.
 - Talk helper (Swift): mic + system-audio capture, two-stream Realtime transcription with fallback, echo dedupe, call detection. `mac/scripts/build-helper.sh`. The SwiftUI menu-bar app is retired.
 - Scribe web (`web/`, app id still `talk`): D1, the full `/api/v1` (folders, templates, jottings, search, update feed), web UI, public links.
 - Sign in with Every App: #855 is merged on private-every-app and published in 0.3.0-rc.10; Scribe is on 0.3.0-rc.14.
@@ -20,9 +20,9 @@
 
 ## Desktop app (2026-11-02)
 
-Plan: `apps/desktop/docs/desktop-plan.md` in every-app/private-every-app, where the desktop app lives now. Decided with Ben: Electron + Swift helper, private alpha on macOS, Every App backend, cloud transcription, built-in UI, notepad + AI notes, calendar + call detection, Granola-calm look, Ben's personal Developer ID, direct download, web overhaul PR first, orchestrator merges.
+Plan: `apps/desktop/docs/desktop-plan.md` in every-app/every-app, where the desktop app lives now. Decided with Ben: Electron + Swift helper, private alpha on macOS, Every App backend, cloud transcription, built-in UI, notepad + AI notes, calendar + call detection, Granola-calm look, Ben's personal Developer ID, direct download, web overhaul PR first, orchestrator merges.
 
-**After the move to every-app/private-every-app**
+**After the move to every-app/every-app**
 - The web app's New note / Take notes buttons open `everyapp://scribe/record…` (`web/src/client/lib/mac-app-link.ts`), what the desktop app answers. Dev builds answer only `everyapp-dev://`, so the web buttons open the installed app, not a dev build.
 - The update route (`src/server/updates.ts`) serves only `Talk-*` files; desktop releases are now `EveryApp-<version>-universal-mac.zip` / `.dmg`. Allow those before a release goes out on this feed, or move the feed (private-every-app's `apps/desktop/docs/release.md`, "Update feed").
 
@@ -40,7 +40,7 @@ Plan: `apps/desktop/docs/desktop-plan.md` in every-app/private-every-app, where 
 
 ## Decided for Ben
 
-- **Lanes run in parallel in one local checkout.** web/ and mac/ have separate owners. main is pushed to github.com/every-app/private-open-scribe (private; it was private-talk until 2026-11-07).
+- **Lanes run in parallel in one local checkout.** web/ and mac/ have separate owners. main is pushed to github.com/every-app/private-open-scribe (private; it was private-talk until 2026-11-07), and from there to the public github.com/every-app/open-scribe.
 - **Mac sign-in has two providers.** It ships the interim PAT paste (works with today's platform) and "Sign in with Every App" (OAuth, PKCE, loopback), which needs the private-every-app feature branch.
 - **The product is renamed to Scribe / OpenScribe** (2026-11-07; it was Talk from 2026-11-01, OpenZen before), on macOS 15+. **OpenScribe** is the open-source project: README, repo, package names, docs, anything for SEO or GitHub. **Scribe** is the name inside the product UI (app title, headings, copy, emails, the manifest `name`); never "OpenScribe" in the UI. Repo: github.com/every-app/private-open-scribe. Still `talk` on purpose: the hosted app id (and its D1 database, `every-talk--updates` bucket and talk.<domain> URL) until the Every App gateway can rename an app, then `scribe`; and the `@talk/ui` package name.
 

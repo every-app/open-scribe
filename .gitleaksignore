@@ -1,0 +1,4 @@
+# Made-up values gitleaks flags, one fingerprint each (commit:file:rule:line).
+# The sample HS256 JWT from jwt.io ({"sub":"1234567890"}), a redaction test fixture
+# of the Mac app, which lived here until it moved to every-app/every-app (apps/desktop).
+c5838087e2705ba3909d58d4cf99b7b77dd5e32f:desktop/test/logs.test.ts:jwt:11

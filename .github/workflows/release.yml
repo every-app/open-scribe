@@ -1,0 +1,53 @@
+name: Release
+# `everyapp release --publish` packs the app in web/ and publishes
+# everyapp-release.tar.gz on a GitHub release, which
+# `everyapp install https://github.com/every-app/open-scribe` installs:
+# v<version> on a push to main (v<version>-<date>-<sha> when that tag exists),
+# the tag on a v* tag, a draft on a manual run, nothing on a pull request (the
+# build is the check).
+#
+# The build needs no Cloudflare account and no secret: the CLI and the SDK are
+# the published packages web/package.json pins.
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    name: everyapp release
+    # Releases come from the public repository only. In a private-* copy a
+    # pull request still builds, as the check; nothing there publishes.
+    if: github.event_name == 'pull_request' || !startsWith(github.event.repository.name, 'private-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "^22.18.0"
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec everyapp release --publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: everyapp-release
+          path: web/everyapp-release.tar.gz
+          if-no-files-found: error

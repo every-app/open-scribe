@@ -55,7 +55,7 @@ jobs:
       - run: pnpm format:check
 
   # packages/ui on its own (web/ checks it through its own build too). The Mac app that also
-  # used it moved to every-app/private-every-app (apps/desktop).
+  # used it moved to every-app/every-app (apps/desktop).
   ui:
     needs: changes
     if: needs.changes.outputs.ui == 'true'

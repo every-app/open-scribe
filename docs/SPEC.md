@@ -2,7 +2,7 @@
 
 A meeting recorder for Every App: a macOS desktop app records a meeting, transcribes it live, and a web app turns the transcript into notes that stay private unless you share them. The project is OpenScribe; the product is called Scribe.
 
-Kept from the old name, Talk: the hosted app id `talk` (so `talk.<base>` URLs, the D1 database and the `every-talk--updates` bucket) until the Every App gateway can rename an app, and the `@talk/ui` package name. The desktop and helper sections below describe the Mac app as it was before it moved to every-app/private-every-app.
+Kept from the old name, Talk: the hosted app id `talk` (so `talk.<base>` URLs, the D1 database and the `every-talk--updates` bucket) until the Every App gateway can rename an app, and the `@talk/ui` package name. The desktop and helper sections below describe the Mac app as it was before it moved to every-app/every-app.
 
 ## Architecture
 
@@ -30,9 +30,9 @@ OpenAI (Realtime, chat) ──(key)─┤
 ```
 
 - **web/** is an Every App app (TanStack Start on a Worker, D1 through drizzle). It holds all data and every key-bearing call. It serves the browser (shared links, browser access) and `/api/v1`, which the desktop app calls, plus the private update feed.
-- **The Mac app** (`desktop/` and `mac/` below) moved to every-app/private-every-app as `apps/desktop` (Every App for Mac; this app's part of it is the Scribe feature). The helper is now `everyapp-helper`, and its links are `everyapp://scribe/record`. Its side of this spec is `apps/desktop/docs/scribe.md` there.
+- **The Mac app** (`desktop/` and `mac/` below) moved to every-app/every-app as `apps/desktop` (Every App for Mac; this app's part of it is the Scribe feature). The helper is now `everyapp-helper`, and its links are `everyapp://scribe/record`. Its side of this spec is `apps/desktop/docs/scribe.md` there.
 - **desktop/** is the Mac app: Electron, a React renderer built from `packages/ui`, and a main process that owns sign-in (tokens encrypted with safeStorage), the tray, calendar reminders, call prompts and updates. It never holds an API key. It calls `web/` over HTTPS with a bearer token.
-- **mac/** holds `talk-helper`, a headless Swift process inside Talk.app (`Contents/MacOS/talk-helper`). The app drives it over stdin/stdout (`apps/desktop/docs/desktop-plan.md` "Helper protocol (v1)" in every-app/private-every-app). It captures the mic and system audio, streams them to OpenAI with a short-lived key the Worker mints, posts transcript segments to `web/`, and watches which apps use the mic to detect calls. TCC charges its capture to Talk.app.
+- **mac/** holds `talk-helper`, a headless Swift process inside Talk.app (`Contents/MacOS/talk-helper`). The app drives it over stdin/stdout (`apps/desktop/docs/desktop-plan.md` "Helper protocol (v1)" in every-app/every-app). It captures the mic and system audio, streams them to OpenAI with a short-lived key the Worker mints, posts transcript segments to `web/`, and watches which apps use the mic to detect calls. TCC charges its capture to Talk.app.
 - Audio is never uploaded to the Worker and never stored. Only text leaves the Mac.
 - The SwiftUI menu-bar app that came first is retired. An installed copy is left on disk to delete by hand.
 
