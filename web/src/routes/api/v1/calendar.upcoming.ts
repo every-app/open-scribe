@@ -3,6 +3,7 @@ import { api, json, requireApiUser } from "@/server/api";
 import {
   CalendarError,
   calendarStatus,
+  macCalendarReturn,
   upcomingEvents,
 } from "@/server/calendar";
 
@@ -16,7 +17,10 @@ export const Route = createFileRoute("/api/v1/calendar/upcoming")({
           Math.max(Number(url.searchParams.get("hours") ?? 24) || 24, 1),
           24 * 7,
         );
-        const status = await calendarStatus(request, url.origin);
+        const status = await calendarStatus(
+          request,
+          macCalendarReturn(request),
+        );
         if (!status.available || !status.connected) {
           // 409: not connected. `connectUrl` is where to send the person.
           return json(

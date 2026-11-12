@@ -15,6 +15,7 @@ import { Route as AppIndexRouteImport } from './routes/_app/index'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppSharedRouteImport } from './routes/_app/shared'
 import { Route as AppTemplatesRouteImport } from './routes/_app/templates'
+import { Route as MacCalendarConnectedRouteImport } from './routes/mac.calendar-connected'
 import { Route as STokenRouteImport } from './routes/s.$token'
 import { Route as AppFoldersIdRouteImport } from './routes/_app/folders/$id'
 import { Route as AppMeetingsIdRouteImport } from './routes/_app/meetings/$id'
@@ -68,6 +69,11 @@ const AppTemplatesRoute = AppTemplatesRouteImport.update({
   id: '/templates',
   path: '/templates',
   getParentRoute: () => AppRoute,
+} as any)
+const MacCalendarConnectedRoute = MacCalendarConnectedRouteImport.update({
+  id: '/mac/calendar-connected',
+  path: '/mac/calendar-connected',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const STokenRoute = STokenRouteImport.update({
   id: '/s/$token',
@@ -202,6 +208,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRoute
   '/shared': typeof AppSharedRoute
   '/templates': typeof AppTemplatesRoute
+  '/mac/calendar-connected': typeof MacCalendarConnectedRoute
   '/s/$token': typeof STokenRoute
   '/folders/$id': typeof AppFoldersIdRoute
   '/meetings/$id': typeof AppMeetingsIdRoute
@@ -232,6 +239,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsRoute
   '/shared': typeof AppSharedRoute
   '/templates': typeof AppTemplatesRoute
+  '/mac/calendar-connected': typeof MacCalendarConnectedRoute
   '/s/$token': typeof STokenRoute
   '/': typeof AppIndexRoute
   '/folders/$id': typeof AppFoldersIdRoute
@@ -265,6 +273,7 @@ export interface FileRoutesById {
   '/_app/settings': typeof AppSettingsRoute
   '/_app/shared': typeof AppSharedRoute
   '/_app/templates': typeof AppTemplatesRoute
+  '/mac/calendar-connected': typeof MacCalendarConnectedRoute
   '/s/$token': typeof STokenRoute
   '/_app/': typeof AppIndexRoute
   '/_app/folders/$id': typeof AppFoldersIdRoute
@@ -299,6 +308,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shared'
     | '/templates'
+    | '/mac/calendar-connected'
     | '/s/$token'
     | '/folders/$id'
     | '/meetings/$id'
@@ -329,6 +339,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/shared'
     | '/templates'
+    | '/mac/calendar-connected'
     | '/s/$token'
     | '/'
     | '/folders/$id'
@@ -361,6 +372,7 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_app/shared'
     | '/_app/templates'
+    | '/mac/calendar-connected'
     | '/s/$token'
     | '/_app/'
     | '/_app/folders/$id'
@@ -391,6 +403,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   HealthRoute: typeof HealthRoute
+  MacCalendarConnectedRoute: typeof MacCalendarConnectedRoute
   STokenRoute: typeof STokenRoute
   ApiV1MeRoute: typeof ApiV1MeRoute
   ApiV1SearchRoute: typeof ApiV1SearchRoute
@@ -458,6 +471,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/templates'
       preLoaderRoute: typeof AppTemplatesRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/mac/calendar-connected': {
+      id: '/mac/calendar-connected'
+      path: '/mac/calendar-connected'
+      fullPath: '/mac/calendar-connected'
+      preLoaderRoute: typeof MacCalendarConnectedRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/s/$token': {
       id: '/s/$token'
@@ -653,6 +673,7 @@ const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   HealthRoute: HealthRoute,
+  MacCalendarConnectedRoute: MacCalendarConnectedRoute,
   STokenRoute: STokenRoute,
   ApiV1MeRoute: ApiV1MeRoute,
   ApiV1SearchRoute: ApiV1SearchRoute,

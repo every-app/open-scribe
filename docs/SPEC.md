@@ -147,7 +147,7 @@ When the notes are written the template is pinned on the meeting, so a later cha
 
 ## Meeting reminders
 
-1. Every 5 minutes, and on wake, the Mac app asks `/api/v1/calendar/upcoming`. The Worker calls `https://www.googleapis.com/calendar/v3/calendars/primary/events` with `integrationFetch({ provider: "google-workspace" })`; the Gateway puts the person's token on it. Not connected → the Mac app shows "Connect Google Calendar", which opens `connectUrl()` in the browser.
+1. Every 5 minutes, and on wake, the Mac app asks `/api/v1/calendar/upcoming`. The Worker calls `https://www.googleapis.com/calendar/v3/calendars/primary/events` with `integrationFetch({ provider: "google-workspace" })`; the Gateway puts the person's token on it. Not connected → the Mac app shows "Connect Google Calendar", which opens `connectUrl()` in the browser. `/api/v1` hands out links that return to `/mac/calendar-connected`, which hands the person back to the Mac app (`everyapp://scribe`).
 2. For each event that has other attendees or a conference link, it schedules a local notification (`UNUserNotificationCenter`) for one minute before the start: "Starts at 2:00 PM. Join and take notes?", with **Join & Take Notes** (when there's a call link: opens it and records) and **Take Notes**. Clicking the notification does the first.
 3. If a meeting has started and Scribe isn't taking notes, a second notification asks again ("… started. Take notes?") within its first minutes, once per meeting. A meeting Scribe is already taking notes for gets neither.
 4. Take Notes creates the meeting (with the event's guests) and starts capture. The menu-bar icon turns red. The menu shows the live transcript's last line and a Stop item.

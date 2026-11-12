@@ -1,3 +1,6 @@
+/** Brings the Mac app's window up, nothing else. */
+export const openMacAppLink = "everyapp://scribe";
+
 /**
  * Links that open the Mac app (Every App for Mac, which answers
  * `everyapp://scribe/record`) to take notes: the Mac app records, the browser can't. An event the Mac app also sees in its

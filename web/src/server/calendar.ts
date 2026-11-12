@@ -11,6 +11,14 @@ import type { CalendarEvent, CalendarStatus } from "@/api/contract";
 
 const PROVIDER = "google-workspace";
 
+/**
+ * Where connecting Google from the Mac app ends: a page that hands the
+ * person back to the app (src/routes/mac.calendar-connected.tsx).
+ */
+export function macCalendarReturn(request: Request): string {
+  return new URL("/mac/calendar-connected", request.url).toString();
+}
+
 /** Whether this person's Google Calendar is reachable; never calls Google. */
 export async function calendarStatus(
   request: Request,

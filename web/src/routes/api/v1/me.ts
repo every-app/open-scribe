@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { api, json, requireApiUser } from "@/server/api";
-import { calendarStatus } from "@/server/calendar";
+import { calendarStatus, macCalendarReturn } from "@/server/calendar";
 
 export const Route = createFileRoute("/api/v1/me")({
   server: {
@@ -9,7 +9,7 @@ export const Route = createFileRoute("/api/v1/me")({
         const user = await requireApiUser(request);
         const calendar = await calendarStatus(
           request,
-          new URL(request.url).origin,
+          macCalendarReturn(request),
         );
         return json({
           user: {
