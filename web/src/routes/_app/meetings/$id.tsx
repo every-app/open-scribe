@@ -1,5 +1,6 @@
 import {
   createFileRoute,
+  Link,
   notFound,
   useLoaderData,
   useNavigate,
@@ -11,6 +12,7 @@ import {
   Folder,
   LayoutTemplate,
   Link2,
+  Lock,
   MoreHorizontal,
   Users,
 } from "lucide-react";
@@ -31,6 +33,14 @@ import {
   AlertDialogTitle,
 } from "@talk/ui/components/alert-dialog";
 import { Button } from "@talk/ui/components/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@talk/ui/components/empty";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -64,8 +74,16 @@ import {
 } from "@/serverFunctions/meetings";
 import { listTemplates } from "@/serverFunctions/templates";
 
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// The address a teammate is sent (the share menu's team link). Whether the
+// signed-in reader may open it is getMeeting's answer (src/server/access.ts,
+// meetingVisibleTo): the owner, or anyone in the organization once it is
+// shared with the team. Everyone else gets CantOpen.
 export const Route = createFileRoute("/_app/meetings/$id")({
   loader: async ({ params }) => {
+    // A mangled link is the same "can't open" page, not a validation error.
+    if (!uuid.test(params.id)) throw notFound();
     const [meeting, templates] = await Promise.all([
       getMeeting({ data: { id: params.id } }),
       listTemplates(),
@@ -77,7 +95,37 @@ export const Route = createFileRoute("/_app/meetings/$id")({
     meta: [{ title: `${loaderData?.meeting.title ?? "Meeting"} · Scribe` }],
   }),
   component: MeetingPage,
+  notFoundComponent: CantOpen,
 });
+
+/**
+ * What a link shows someone who may not read the meeting. It is the same
+ * whether the meeting is private, deleted or never existed, so the page
+ * doesn't tell a stranger which.
+ */
+function CantOpen() {
+  return (
+    <Page>
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Lock />
+          </EmptyMedia>
+          <EmptyTitle>You can't open this meeting</EmptyTitle>
+          <EmptyDescription>
+            It's private, or it was deleted. If a teammate sent you this link,
+            ask them to share the meeting with the team.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button variant="outline" size="sm" render={<Link to="/" />}>
+            Go to your notes
+          </Button>
+        </EmptyContent>
+      </Empty>
+    </Page>
+  );
+}
 
 type Meeting = NonNullable<Awaited<ReturnType<typeof getMeeting>>>;
 
@@ -398,8 +446,12 @@ function TemplateChip({
 }
 
 function SharePopover({ meeting, run }: { meeting: Meeting; run: Run }) {
+  const { account } = useLoaderData({ from: "/_app" });
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const team = meeting.visibility === "team";
+  // This page's own address: it opens for a signed-in member, and only
+  // while the meeting is shared with the team.
+  const teamUrl = `${origin}/meetings/${meeting.id}`;
   return (
     <Popover>
       <PopoverTrigger
@@ -438,10 +490,42 @@ function SharePopover({ meeting, run }: { meeting: Meeting; run: Run }) {
               }
             />
           </label>
+          {team && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-1">
+                <code
+                  aria-label="Team link"
+                  className="min-w-0 flex-1 truncate rounded bg-muted px-1.5 py-1 text-xs"
+                >
+                  {teamUrl}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(teamUrl);
+                      toast("Link copied.");
+                    } catch {
+                      toast.error("Couldn't copy the link.");
+                    }
+                  }}
+                >
+                  <Copy />
+                  Copy link
+                </Button>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                Only signed-in members of {account.user.orgName} can open this
+                link. They see the notes and the transcript.
+              </span>
+            </div>
+          )}
           <div className="flex flex-col gap-2 border-t border-border pt-3">
             <span className="text-sm font-medium">Public link</span>
             <span className="text-xs text-muted-foreground">
-              Anyone with the link can read the notes and transcript.
+              Anyone with this link can read the notes and the transcript,
+              without signing in.
             </span>
             {meeting.shareLinks.map((link) => {
               const url = `${origin}/s/${link.id}`;

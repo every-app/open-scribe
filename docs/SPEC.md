@@ -171,6 +171,7 @@ Google Calendar is read-only through the Gateway's `google-workspace` client, sc
 
 - **Private** (default): the owner alone.
 - **Team**: every member of the workspace who can open Scribe (`org_id`). Filing a meeting in a team folder makes it team too. The Gateway's groups decide who can open the app, but an app can't read groups (the SDK has `listMembers()` only), so a finer unit than the workspace is a platform gap.
+- **Team link**: a team meeting's own page, `https://talk.<base>/meetings/<id>`, which the share menu offers to copy while the meeting is team. It is no credential: the Gateway signs the reader in and `getMeeting` (`meetingVisibleTo`) decides, so it opens for the workspace's members only and stops opening when the meeting goes back to private. Anyone else gets "You can't open this meeting", the same page for a private, deleted or unknown id.
 - **Public link**: an unguessable token, `https://talk.<base>/s/<token>`, read-only notes and transcript, `noindex`. Revoke deletes access at once; a meeting can have several links. Who can open an app host's public route is Access's business too: `public` routes are let through.
 - **Later**: private sharing by email with a one-time code to people outside the workspace.
 
