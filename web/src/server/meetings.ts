@@ -22,6 +22,7 @@ import {
   type MeetingRow,
   type saveJottingsInput,
   type Segment,
+  type SpeakerLabels,
   type updateMeetingInput,
 } from "@/api/contract";
 import { db } from "@/db";
@@ -36,6 +37,7 @@ import {
 } from "@/db/schema";
 import { folderVisibleTo, meetingOwnedBy, meetingVisibleTo } from "./access";
 import { chunk, rowsPerStatement } from "./d1";
+import { speakerLabels } from "./speakers";
 import { getTemplate, resolveTemplate } from "./templates";
 import type { Viewer } from "./viewer";
 
@@ -239,6 +241,12 @@ export async function getMeeting(
             chosen: chosenId === template.id,
           },
     ...detail,
+    // Names for "me" and "them", for this reader, from the guests as they
+    // are now: nothing about them is stored on the segments.
+    speakers: speakerLabels(
+      row.attendees,
+      row.ownerUserId === viewer.id ? "owner" : "member",
+    ),
     jottings: row.ownerUserId === viewer.id ? await getJottings(row.id) : null,
     shareLinks:
       row.ownerUserId === viewer.id
@@ -551,6 +559,7 @@ export async function getSharedMeeting(token: string): Promise<{
   title: string;
   startsAt: string;
   segments: Segment[];
+  speakers: SpeakerLabels;
   notes: { markdown: string } | null;
 } | null> {
   if (!/^[A-Za-z0-9_-]{40,50}$/.test(token)) return null;
@@ -559,6 +568,7 @@ export async function getSharedMeeting(token: string): Promise<{
       id: meetings.id,
       title: meetings.title,
       startsAt: meetings.startsAt,
+      attendees: meetings.attendees,
     })
     .from(shareLinks)
     .innerJoin(meetings, eq(meetings.id, shareLinks.meetingId))
@@ -569,6 +579,8 @@ export async function getSharedMeeting(token: string): Promise<{
     title: row.title,
     startsAt: row.startsAt,
     segments: detail.segments,
+    // Names only, never an email: anyone with the link reads this.
+    speakers: speakerLabels(row.attendees, "public"),
     notes: detail.notes ? { markdown: detail.notes.markdown } : null,
   };
 }

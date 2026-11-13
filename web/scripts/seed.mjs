@@ -23,6 +23,9 @@ import { join } from "node:path";
 const ORG = process.env.SEED_ORG ?? "dev-org";
 const ME = process.env.SEED_USER ?? "dev-user";
 const ME_EMAIL = process.env.SEED_USER_EMAIL ?? "dev@everyapp.localhost";
+// The names their calendars have for them (the transcript's "me" side).
+const ME_NAME = process.env.SEED_USER_NAME ?? "Jordan Avery";
+const MEMBER_NAME = process.env.SEED_MEMBER_NAME ?? "Casey Brooks";
 const MEMBER = process.env.SEED_MEMBER ?? "dev-member";
 const MEMBER_EMAIL =
   process.env.SEED_MEMBER_EMAIL ?? "member@everyapp.localhost";
@@ -133,6 +136,10 @@ sql.push(
 function meeting({
   owner = ME,
   ownerEmail = ME_EMAIL,
+  // The owner's name on the calendar event; null when the event has none.
+  ownerName = ME_NAME,
+  // False for a meeting started by hand, with no calendar event.
+  event = true,
   title,
   startsAt,
   minutes = 30,
@@ -161,10 +168,12 @@ function meeting({
         status === "recording"
           ? null
           : new Date(start + minutes * 60_000).toISOString(),
-      attendees: JSON.stringify([
-        { email: ownerEmail, name: null, self: true },
-        ...attendees.map(([name, email]) => ({ email, name, self: false })),
-      ]),
+      attendees: event
+        ? JSON.stringify([
+            { email: ownerEmail, name: ownerName, self: true },
+            ...attendees.map(([name, email]) => ({ email, name, self: false })),
+          ])
+        : null,
       template_id: templateId,
       status,
       visibility,
@@ -265,6 +274,9 @@ meeting({
   attendees: [
     ["Dana Whitfield", "dana@acme.example"],
     ["Luis Ortega", "luis@acme.example"],
+    // No name on the invite: signed-in readers see the email.
+    [null, "procurement@acme.example"],
+    ["Mei Tanaka", "mei@acme.example"],
   ],
   lines: [
     "Thanks for making time, Dana. Before we talk renewal, how has the rollout gone?",
@@ -335,13 +347,14 @@ meeting({
 meeting({
   owner: MEMBER,
   ownerEmail: MEMBER_EMAIL,
+  ownerName: MEMBER_NAME,
   title: "Weekly product review",
   startsAt: at(3, 17),
   minutes: 50,
   visibility: "team",
   templateId: productTpl,
   attendees: [
-    ["Ben", ME_EMAIL],
+    [ME_NAME, ME_EMAIL],
     ["Priya Raman", "priya@example.com"],
   ],
   lines: [
@@ -440,6 +453,9 @@ meeting({
 
 meeting({
   title: "Globex discovery call",
+  // An event whose calendar has no name for the owner: a teammate reads
+  // "Note-taker".
+  ownerName: null,
   templateId: "customer-call",
   startsAt: at(8, 16),
   visibility: "team",
@@ -470,6 +486,8 @@ Globex; a mix of tools today, including a bot that joins calls.
 // A meeting whose notes failed, to show the retry state.
 meeting({
   title: "Planning offsite (part 2)",
+  // Started by hand: no calendar event, so the transcript says Me and Them.
+  event: false,
   startsAt: at(9, 13),
   status: "failed",
   lines: [

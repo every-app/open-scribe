@@ -5,7 +5,9 @@ import { Transcript } from "@/client/components/Transcript";
 import { getSharedMeeting } from "@/serverFunctions/meetings";
 
 // A public route (everyapp.config.ts): anyone with the link reads it. The
-// token is the whole check, so the page never shows who recorded it.
+// token is the whole check. The page never shows an email address; the
+// transcript's speakers carry the names the calendar has (the recorder's and
+// the guests'), as the notes already do.
 export const Route = createFileRoute("/s/$token")({
   loader: async ({ params }) => {
     const shared = await getSharedMeeting({ data: { token: params.token } });
@@ -60,7 +62,7 @@ function Shared() {
         </section>
         <section className="border-t border-border pt-6">
           <h2 className="mb-3 font-semibold">Transcript</h2>
-          <Transcript segments={shared.segments} />
+          <Transcript segments={shared.segments} speakers={shared.speakers} />
         </section>
       </main>
     </div>

@@ -23,7 +23,8 @@ export const tools = defineTools(
       handler: (_input, { user }) => folders.listFolders(user),
     },
     get_meeting: {
-      description: "One meeting with its notes and transcript.",
+      description:
+        "One meeting with its notes and transcript. A segment's speaker is me (the person who recorded) or them (everyone else on the call); speakers says what to call each side, from the calendar's guests.",
       risk: "read",
       input: z.object({ id: z.string().uuid() }).strict(),
       handler: async (input, { user }) =>

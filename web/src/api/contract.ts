@@ -75,6 +75,30 @@ export interface Segment {
   text: string;
 }
 
+/**
+ * What to print for each side of the transcript, for the person asking.
+ * Worked out from the meeting's calendar guests on every read (a segment's
+ * `speaker` stays `me` or `them`), already cleaned: one line, at most 80
+ * characters. Print them as text.
+ */
+export interface SpeakerLabels {
+  /**
+   * `me` lines: "Me" for the recorder reading their own meeting. For anyone
+   * else, the recorder's name when the calendar has it, else "Note-taker".
+   */
+  me: string;
+  /**
+   * `them` lines: the one other guest's name; "Others" with several guests
+   * (one audio stream, so nobody is guessed); "Them" with none.
+   */
+  them: string;
+  /**
+   * With several other guests, a line naming them once, to show above the
+   * transcript: "With Dana Lee, Sam Okafor and 2 more". Else null.
+   */
+  guests: string | null;
+}
+
 export interface Notes {
   markdown: string;
   /** The model that wrote them ("manual" if the owner wrote them first). */
@@ -102,6 +126,7 @@ export interface MeetingDetail extends MeetingRow {
    */
   template: { id: string; name: string; chosen: boolean };
   segments: Segment[];
+  speakers: SpeakerLabels;
   notes: Notes | null;
   /** The owner's alone: null for anyone else, or before they type. */
   jottings: Jottings | null;

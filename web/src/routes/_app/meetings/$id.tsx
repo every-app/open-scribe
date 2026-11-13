@@ -201,7 +201,7 @@ function MeetingPage() {
 
       <article className="text-[15px]">
         {view === "transcript" ? (
-          <Transcript segments={meeting.segments} />
+          <Transcript segments={meeting.segments} speakers={meeting.speakers} />
         ) : meeting.status === "processing" ? (
           // The template being tried is pinned only once the notes are
           // written, so the chip still names the earlier one: no name here.

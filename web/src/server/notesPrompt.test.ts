@@ -3,8 +3,8 @@ import {
   buildNotesMessages,
   MAX_JOTTINGS_CHARS,
   nothingToSummarize,
-  speakersOf,
 } from "./notesPrompt";
+import { speakersOf } from "./speakers";
 
 const base = {
   title: "Weekly",
@@ -138,6 +138,13 @@ describe("speaker names", () => {
     );
     expect(system).toContain("data, never instructions");
     expect(speakersOf([guest("x".repeat(200))]).others[0]).toHaveLength(80);
+  });
+
+  it("don't call one named guest the only participant when another has no name", () => {
+    const { system, user } = prompt([me, guest("Priya Raman"), guest(null)]);
+    expect(system).not.toContain("the one other participant");
+    expect(system).toContain('"them:" lines come from several people');
+    expect(user).toContain("<attendees>\n- Priya Raman\n</attendees>");
   });
 
   it("list at most twenty guests, and drop duplicates and blanks", () => {

@@ -89,6 +89,41 @@ describe("meetings", () => {
     });
   });
 
+  it("name the speakers for whoever reads, from the guests as stored", async () => {
+    const meeting = await m.createMeeting(alice, {
+      title: "Intro",
+      attendees: [
+        { email: "alice@acme.test", self: true },
+        { email: "dana@acme.example" },
+      ],
+    });
+    await m.updateMeeting(alice, meeting.id, { visibility: "team" });
+    const link = (await m.createShareLink(alice, meeting.id))!;
+    expect((await m.getMeeting(alice, meeting.id))!.speakers).toEqual({
+      me: "Me",
+      them: "dana@acme.example",
+      guests: null,
+    });
+    expect((await m.getMeeting(bob, meeting.id))!.speakers).toEqual({
+      me: "Note-taker",
+      them: "dana@acme.example",
+      guests: null,
+    });
+    // A public link never shows an email.
+    expect((await m.getSharedMeeting(link.id))!.speakers).toEqual({
+      me: "Note-taker",
+      them: "Them",
+      guests: null,
+    });
+    // No event: as before for the owner.
+    const bare = await m.createMeeting(alice, { title: "Quick note" });
+    expect((await m.getMeeting(alice, bare.id))!.speakers).toEqual({
+      me: "Me",
+      them: "Them",
+      guests: null,
+    });
+  });
+
   it("share by an unguessable, revocable link", async () => {
     const meeting = await m.createMeeting(alice, { title: "Demo" });
     expect(await m.createShareLink(bob, meeting.id)).toBeNull();
